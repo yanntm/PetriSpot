@@ -29,6 +29,7 @@ int main(void) {
 
 		if (walk.runDeadlockDetection(1000000, true, 30)) {
 			std::cout << "Deadlock found !" << std::endl;
+			delete pn;
 			return 0;
 		} else {
 			std::cout << "No deadlock found !" << std::endl;
