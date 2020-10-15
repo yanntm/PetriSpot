@@ -183,6 +183,7 @@ public :
 			}
 			if (list[0] == 0) {
 				// includes empty effects
+				delete [] list;
 				list = computeEnabled(state);
 				if (list[0] == 0) {
 					std::cout << "Finished Parikh directed walk after " << i << "  steps, including " << nbresets << " resets, run found a deadlock after "<< dur <<" ms. (steps per millisecond=" << (i/dur) <<" )";
@@ -245,6 +246,8 @@ public :
 						mini = ti;
 						delete [] minList;
 						minList = listC;
+					} else {
+						delete [] listC;
 					}
 				}
 				state = succ[mini];
