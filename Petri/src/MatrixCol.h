@@ -151,7 +151,7 @@ public :
 	 * @return a copy of the column with the given index of this matrix.
 	 */
 	 SparseIntArray & getColumn(int i) {
-		return lCols.at(i);
+		return lCols[i];
 	}
 	const SparseIntArray & getColumn(int i) const {
 		return lCols[i];
