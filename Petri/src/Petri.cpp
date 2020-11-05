@@ -14,11 +14,14 @@
 #include "Walker.h"
 #include "PTNetLoader.h"
 
+#include "Petricube.h"
+
 using namespace std;
 
 int main(void)
 {
   bool display = true;
+  bool ltl = true;
   try {
     SparsePetriNet * pn = loadXML("model.pnml");
 
@@ -27,6 +30,13 @@ int main(void)
 	std::cout << "PN : " ;
 	pn->getFlowPT().print(std::cout);
 	pn->getFlowTP().print(std::cout);
+      }
+
+    if (ltl)
+      {
+	auto* pc = new Petricube();
+	// FIXME do something with petricube
+	delete pc;
       }
 
     Walker walk (*pn);
