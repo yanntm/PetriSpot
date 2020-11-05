@@ -27,14 +27,26 @@
 
 using namespace std;
 
-int main(void)
+int main(int argc, char** argv)
 {
+  if (argc == 1 || argc > 4)
+    {
+      std::cerr << "usage: petri model.pnml [formula]\n";
+      std::cerr << "     model.pnml: the model in the pnml format\n";
+      std::cerr << "     [formula]: the LTL formula to verify on model"
+		<< "(optionnal) \n";
+      exit(1);
+    }
+
+
+  std::string model(argv[1]);
+  std::string formula(argv[2]);
+  bool ltl = argc == 3;
+
   bool display = true;
-  bool ltl = true;
-  std::string formula = "GF a && GF b"; // FIXME
 
   try {
-    SparsePetriNet * pn = loadXML("model.pnml");
+    SparsePetriNet * pn = loadXML(model);
 
     if (display)
       {
