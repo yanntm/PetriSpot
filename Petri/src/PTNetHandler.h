@@ -30,7 +30,7 @@ class PTNetHandler {
 	typedef std::pair< std::pair<std::string, std::string>, int> arc_t;
 	typedef std::vector<arc_t *> arcs_t;
 	arcs_t topatch;
-	
+
 	std::string lastseen;
 	bool readtext;
 
@@ -54,10 +54,10 @@ public :
 				std::string laststr = std::string(chars,length);
 				tthis->lastint = std::stol(laststr);
 			}
-		} 
+		}
 	}
-	
-	
+
+
 	/** {@inheritDoc} */
 	 static void startElement(void * userData, const XML_Char *name, const XML_Char **atts) {
 //		if (doNupn) {
@@ -83,7 +83,7 @@ public :
 			tthis->stack.push(& tthis->net);
 		} else if ("name"==baliseName) {
 			tthis->readtext = true;
-			
+
 		} else if ("page"==baliseName) {
 			//SparsePetriNet * pn = (SparsePetriNet *) stack.top();
 			// pages are ignored currently
@@ -113,7 +113,7 @@ public :
 			tthis->readint = true;
 		} else if ("inscription"==baliseName) {
 			tthis->readint = true;
-			
+
 		} else if ("transition"==baliseName) {
 			SparsePetriNet * pn = tthis->net;
 
@@ -133,8 +133,6 @@ public :
 			acc->second = {false,tid};
 			tthis->stack.push((void*)tid);
 		} else if ("arc"==baliseName) {
-			SparsePetriNet * pn = (SparsePetriNet *) tthis->stack.top();
-
 			std::string source;
 			std::string target;
 			for (int i=0 ; atts[i] != nullptr ; i+=2) {
