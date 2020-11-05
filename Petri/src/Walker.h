@@ -24,42 +24,55 @@ class Walker {
 	int behaviorCount;
 	static const int DEBUG = 1;
 public :
-	Walker(const SparsePetriNet & ssr) : combFlow(ssr.getPnames().size(),0) {
-		this->sr = & ssr;
-		typedef ext_hash_map<SparseIntArray *, std::vector<int>> map_t;
-		map_t effects;
+  Walker(const SparsePetriNet & ssr)
+    : combFlow(ssr.getPnames().size(),0)
+  {
+    this->sr = &ssr;
+    typedef ext_hash_map<SparseIntArray *, std::vector<int>> map_t;
+    map_t effects;
 
-		for (int i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
-			combFlow.appendColumn(SparseIntArray::sumProd(-1, sr->getFlowPT().getColumn(i), 1, sr->getFlowTP().getColumn(i)));
-		}
+    for (int i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++)
+      {
+	combFlow.appendColumn(SparseIntArray::sumProd(-1, sr->getFlowPT().getColumn(i),
+						      1, sr->getFlowTP().getColumn(i)));
+      }
 
-		for (int i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
-			SparseIntArray & col = combFlow.getColumn(i);
-			map_t::accessor acc;
-			bool found = effects.find(acc,&col);
-			if (found) {
-				acc->second.push_back(i);
-			} else {
-				std::vector<int> r;
-				r.push_back(i);
-				effects.insert(acc,&col);
-				acc->second = r;
-			}
-		}
-		behaviorMap = new int [sr->getTnames().size()];
-		int i=0;
-		for (const auto & ent : effects) {
-			for (int t : ent.second) {
-				behaviorMap[t]=i;
-			}
-			i++;
-		}
-		behaviorCount = effects.size();
-		tFlowPT = sr->getFlowPT().transpose();
-	}
-	~Walker() {
-		delete [] behaviorMap;
-	}
+    for (int i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++)
+      {
+	SparseIntArray & col = combFlow.getColumn(i);
+	map_t::accessor acc;
+	bool found = effects.find(acc,&col);
+	if (found)
+	  {
+	    acc->second.push_back(i);
+	  }
+	else
+	  {
+	    std::vector<int> r;
+	    r.push_back(i);
+	    effects.insert(acc,&col);
+	    acc->second = r;
+	  }
+      }
+    behaviorMap = new int [sr->getTnames().size()];
+
+    int i=0;
+    for (const auto & ent : effects)
+      {
+	for (int t : ent.second)
+	  {
+	    behaviorMap[t] = i;
+	  }
+	i++;
+      }
+    behaviorCount = effects.size();
+    tFlowPT = sr->getFlowPT().transpose();
+  }
+
+  ~Walker()
+  {
+    delete [] behaviorMap;
+  }
 
 private :
 	int * computeEnabled(const SparseIntArray & state) {
