@@ -41,6 +41,7 @@ int main(void)
 	std::cout << "PN : " ;
 	pn->getFlowPT().print(std::cout);
 	pn->getFlowTP().print(std::cout);
+	std::cout << '\n' ;
       }
 
     if (ltl)
