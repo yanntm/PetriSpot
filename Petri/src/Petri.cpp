@@ -17,6 +17,7 @@
 #include "Petricube.h"
 
 // Spot's includes, keep it sorted alphabetically
+#include <spot/mc/mc_instanciator.hh>
 #include <spot/tl/apcollect.hh>
 #include <spot/tl/defaultenv.hh>
 #include <spot/tl/parse.hh>
@@ -85,10 +86,22 @@ int main(int argc, char** argv)
 	// Build the equivalent twacube
 	auto propcube = spot::twa_to_twacube(prop);
 
+
 	// FIXME do something with propcube
 
-	auto* pc = new Petricube();
+	auto* pc = new Petricube(*pn, propcube->ap());
 	// FIXME do something with petricube
+	std::cout << pc->to_string(pc->initial()) << std::endl;
+
+	// Instanciate the modelchecking algorithm to use
+        auto result = spot::ec_instanciator<Petricube_ptr,
+			      SparseIntArray,
+                              PT_iterator,
+			      SparseIntArray_hash,
+                              SparseIntArray_equal>
+	  (spot::mc_algorithm::DEADLOCK, pc, propcube, true);
+
+	std::cout << result << std::endl;
 	delete pc;
       }
 
