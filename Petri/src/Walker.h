@@ -10,6 +10,7 @@
 
 #include <random>
 #include <thread>
+#include <atomic>
 
 #include "MatrixCol.h"
 #include "SparsePetriNet.h"
