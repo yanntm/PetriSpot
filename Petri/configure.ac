@@ -93,7 +93,7 @@ if test "x$stdhash" = "xtrue"; then
 fi
 
 CPPFLAGS="-Wno-unused-local-typedefs $CPPFLAGS"
-LDFLAGS="-all-static -static-libgcc -static-libstdc++ $LDFLAGS"
+LDFLAGS="-pthread -all-static -static-libgcc -static-libstdc++ $LDFLAGS"
 
 AC_ARG_ENABLE([mingw-native],
 				[AC_HELP_STRING([--enable-mingw-native],[build native win32 binaries for redistribution])],
@@ -128,8 +128,8 @@ AC_LIBTOOL_DLOPEN
 test -z "$CFLAGS" && CFLAGS=
 test -z "$CXXFLAGS" && CXXFLAGS=
 
-# we compile C++14
-CXXFLAGS="-std=c++14 $CXXFLAGS"
+# we compile C++17
+CXXFLAGS="-std=c++17 $CXXFLAGS"
 
 #compile in C++
 AC_PROG_CXX
