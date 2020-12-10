@@ -28,7 +28,7 @@
 
 using namespace std;
 
-int main(int argc, char** argv)
+int main(int argc, const char** argv)
 {
   if (argc == 1 || argc > 4)
     {
@@ -41,7 +41,10 @@ int main(int argc, char** argv)
 
 
   std::string model(argv[1]);
-  std::string formula(argv[2]);
+  std::string formula;
+  if (argc >= 3) {
+	  formula = argv[2];
+  }
   bool ltl = argc == 3;
 
   bool display = true;
@@ -54,8 +57,12 @@ int main(int argc, char** argv)
 	std::cout << "PN : " ;
 	pn->getFlowPT().print(std::cout);
 	pn->getFlowTP().print(std::cout);
-	std::cout << '\n' ;
+	std::cout << std::endl ;
+	for (auto & m : pn->getMarks()) {
+		std::cout << m << ","  ;
+	}
       }
+	std::cout << '\n' ;
 
     if (ltl)
       {
