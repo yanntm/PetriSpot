@@ -11,7 +11,7 @@
 
 struct SparseIntArray_equal
 {
-  bool operator()(const SparseIntArray lhs, const SparseIntArray rhs) const
+  bool operator()(const SparseIntArray & lhs, const SparseIntArray & rhs) const
   {
     return lhs == rhs;
   }
@@ -19,7 +19,7 @@ struct SparseIntArray_equal
 
 struct SparseIntArray_hash
 {
-  size_t operator()(const SparseIntArray that) const
+  size_t operator()(const SparseIntArray & that) const
   {
     return that.hash();
   }
@@ -73,7 +73,7 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
 {
  public:
 
-  kripkecube(const SparsePetriNet& sr, std::vector<std::string> observed_aps)
+  kripkecube(const SparsePetriNet& sr, const std::vector<std::string> & observed_aps)
     : sr_(sr), observed_aps_(observed_aps), combFlow(sr.getPnames().size(), 0)
   {
     // FIXME : do we really need this?
@@ -114,7 +114,7 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
   }
 
   /// \brief Provides a string representation of the parameter state
-  std::string to_string(const SparseIntArray s, unsigned tid = 0) const
+  std::string to_string(const SparseIntArray & s, unsigned tid = 0) const
     {
       (void) tid;
 
@@ -124,7 +124,7 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
     }
 
   /// \brief Returns an iterator over the successors of the parameter state.
-  PT_iterator* succ(const SparseIntArray s, unsigned tid = 0)
+  PT_iterator* succ(const SparseIntArray & s, unsigned tid = 0)
   {
     (void) tid;
     int* list = computeEnabled(s);
