@@ -14,8 +14,7 @@ enum Op {
 	// binary comparisons
 	EQ, NEQ, GEQ, GT, LEQ, LT,
 	// n-ary property atoms
-	//ENABLED,
-	CARD, BOUND,
+	ENABLED, CARD, BOUND,
 	// 0 arity constants
 	CONST, // an integer
 	BOOLCONST, // true or false

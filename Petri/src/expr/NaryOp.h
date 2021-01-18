@@ -11,6 +11,8 @@ class NaryOp : public Expression {
 	std::vector<Expression *> children;
 
 public :
+	NaryOp(Op op) : op(op) {
+	}
 	NaryOp(Op op, const std::vector<Expression *> & children) : op(op),children(children) {
 	}
 	
@@ -18,6 +20,10 @@ public :
 		return op;
 	}
 	
+	void addChild(Expression * child) {
+			children.push_back(child);
+	}
+
 	int eval(const SparseIntArray & state) {
 		switch (op) {
 		case AND :
