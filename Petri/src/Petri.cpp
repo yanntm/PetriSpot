@@ -12,7 +12,7 @@
 #include "MatrixCol.h"
 #include "SparsePetriNet.h"
 #include "Walker.h"
-#include "PTNetLoader.h"
+#include "parse/PTNetLoader.h"
 
 #include "Petricube.h"
 

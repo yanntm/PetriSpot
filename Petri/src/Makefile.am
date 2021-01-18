@@ -27,6 +27,6 @@ AM_CXXFLAGS = -g -O2 -Wall
 
 LDADDFLAGS = $(LIBSPOT_PATH) $(LIBSPOT_LINK) $(LIBDDD_PATH)  $(LIBEXPAT_PATH) $(LIBEXPAT_LINK) 
 
-petri_SOURCES=Petri.cpp SparseIntArray.cpp SparseIntArray.h MatrixCol.h SparsePetriNet.h Walker.h PTNetHandler.h Walker.h PTNetLoader.h PTNetLoader.cpp
+petri_SOURCES=Petri.cpp SparseIntArray.cpp SparseIntArray.h MatrixCol.h SparsePetriNet.h Walker.h parse/PTNetHandler.h parse/PTNetLoader.h parse/PTNetLoader.cpp
 petri_LDADD = $(LDADDFLAGS)
 
