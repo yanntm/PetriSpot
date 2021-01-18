@@ -83,7 +83,7 @@ int main(int argc, const char** argv)
 	atomic_prop_collect(f, &aps);
 
 
-	std::cout << "\nWorking with the following atomic propositions:\n";
+	std::cout << "\nWorking with the following " <<  aps.size() << " atomic propositions:\n";
 	for (spot::atomic_prop_set::const_iterator ap = aps.begin();
 	     ap != aps.end(); ++ap)
 	  {
