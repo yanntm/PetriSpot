@@ -180,6 +180,10 @@ namespace petri::expr {
 				//enab->addChild(Expression.trans(findTransition(name)));
 				throw "Enabling criterion not supported currently.";
 				tthis->dotext = false;
+			} else if ("before" == baliseName) { //$NON-NLS-1$
+				// NOTHING
+			} else if ("reach" == baliseName) { //$NON-NLS-1$
+				// NOTHING
 			} else if (! tthis->isLTL) {
 				// temporal operator handling for CTL properties
 				if ( ("globally"== baliseName || "finally"== baliseName || "next"== baliseName || "until"== baliseName ) ) {
