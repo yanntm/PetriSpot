@@ -155,8 +155,9 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
     	++i;
     }
 
+    int sz = list[0];
     delete [] list;
-    return new PT_iterator(succ, list[0],cond);
+    return new PT_iterator(succ, sz,cond);
   }
 
   /// \brief Allocation and deallocation of iterator is costly. This
