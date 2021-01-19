@@ -78,6 +78,14 @@ public :
 		os << ")";
 	}
 
+	size_t nbChildren() const {
+		return children.size();
+	}
+	Expression * childAt(size_t index) {
+		return children.at(index);
+	}
+
+
 /*
 	@Override
 	public int evalDistance(SparseIntArray state, boolean isNeg) {

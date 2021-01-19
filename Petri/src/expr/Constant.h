@@ -18,6 +18,12 @@ public :
 	void print(std::ostream & os) const {
 		os << value;
 	}
+	size_t nbChildren() const {
+		return 0;
+	}
+	Expression * childAt(size_t index) {
+		throw "No Children.";
+	}
 
 	/*
 	@Override

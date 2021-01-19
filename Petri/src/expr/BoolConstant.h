@@ -23,6 +23,13 @@ public :
 			os << "false";
 	}
 
+	size_t nbChildren() const {
+		return 0;
+	}
+	Expression * childAt(size_t index) {
+		throw "No Children.";
+	}
+
 	/*
 	@Override
 	public <T> T accept(ExprVisitor<T> v) {

@@ -15,6 +15,9 @@ public :
 
 	virtual ~Expression(){}
 
+	virtual size_t nbChildren() const = 0;
+	virtual Expression * childAt(size_t index) = 0;
+
 	/**
 	 * A heuristic to choose successor states "Best-First Search".
 	 * Compute "distance" metric to a target state, based on 

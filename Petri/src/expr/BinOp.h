@@ -71,6 +71,21 @@ public :
 		os << ")";
 	}
 
+	size_t nbChildren() const {
+		size_t toret=0;
+		if (left != nullptr) toret++;
+		if (right != nullptr) toret++;
+		return toret;
+	}
+	Expression * childAt(size_t index) {
+		if (index == 0) {
+			return left;
+		} else if (index == 1) {
+			return right;
+		} else {
+			throw "Bad index for child At";
+		}
+	}
 
 	/*
 	@Override
