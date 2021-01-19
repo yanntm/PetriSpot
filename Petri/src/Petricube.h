@@ -30,8 +30,8 @@ class PT_iterator
 {
  public:
 
- PT_iterator(SparseIntArray* succs, unsigned size)
-   : succs_(succs), i_(0), size_(size)
+ PT_iterator(SparseIntArray* succs, unsigned size, spot::cube cond)
+   : succs_(succs), i_(0), size_(size), cond_(cond)
     { }
 
   ~PT_iterator()
@@ -59,13 +59,13 @@ class PT_iterator
 
   spot::cube condition()
     {
-      assert(false);
-      return nullptr;
+      return cond_;
     }
  private:
   SparseIntArray* succs_;
   unsigned i_;
   unsigned size_;
+  spot::cube cond_;
 };
 
 template<>
@@ -73,7 +73,7 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
 {
  public:
 
-  kripkecube(const SparsePetriNet& sr, const std::vector<std::string> & observed_aps)
+  kripkecube(const SparsePetriNet& sr, const std::vector<std::string> & observed_aps, petri::expr::AtomicPropManager & apm)
     : sr_(sr), observed_aps_(observed_aps), combFlow(sr.getPnames().size(), 0)
   {
     // FIXME : do we really need this?
@@ -83,6 +83,10 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
 						      1, sr.getFlowTP().getColumn(i)));
       }
 
+    for (auto & ap : observed_aps) {
+    	int index = atoi( ap.c_str() + 1);
+    	aps_.push_back(apm.getAtoms().at(index).second);
+    }
 
     // Check that the walker fits the requirements
     static_assert(spot::is_a_kripkecube_ptr<decltype(this),
@@ -137,7 +141,19 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
       }
     // FIXME can we delete here list?
 
-    return new PT_iterator(succ, list[0]);
+    auto cs = spot::cubeset(observed_aps_.size());
+    cube cond = cs.alloc();
+    int i =0;
+    for (auto & ap : aps_) {
+    	if (ap->eval(s)) {
+    		cs.set_true_var(cond, i);
+    	} else {
+    		cs.set_false_var(cond, i);
+    	}
+    	++i;
+    }
+
+    return new PT_iterator(succ, list[0],cond);
   }
 
   /// \brief Allocation and deallocation of iterator is costly. This
@@ -209,7 +225,7 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
  private:
   const SparsePetriNet& sr_;
   std::vector<std::string> observed_aps_;
-
+  std::vector<petri::expr::Expression *> aps_;
   MatrixCol combFlow; // FIXME one per thread?
 };
 

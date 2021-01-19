@@ -74,14 +74,18 @@ int main(int argc, const char** argv)
     		atom.second->print(std::cout);
     		std::cout << std::endl;
     	}
-    	// Setup the environment and default dictionnary
-   		spot::default_environment& env = spot::default_environment::instance();
-   		auto dict = spot::make_bdd_dict();
 
    		// Parse formula...
    		for (auto & property : pn->getProperties()) {
-   	   		std::ostringstream ostr ;
+   			// Setup the environment and default dictionnary
+   			spot::default_environment& env = spot::default_environment::instance();
+   			auto dict = spot::make_bdd_dict();
+
+   			std::ostringstream ostr ;
+   			// don't forget to negate formula !
+   			ostr << "!(";
    	   		apm.print(property.getBody(), ostr);
+   	   		ostr << ")";
    	   		std::cout << "Working on formula " << property.getName() << " :" << ostr.str() << std::endl;
    	   		auto pf = spot::parse_infix_psl(ostr.str(), env, false);
    			auto f = pf.f;
@@ -107,7 +111,7 @@ int main(int argc, const char** argv)
 
    			// FIXME do something with propcube
 
-   			auto* pc = new Petricube(*pn, propcube->ap());
+   			auto* pc = new Petricube(*pn, propcube->ap(),apm);
    			// FIXME do something with petricube
    			std::cout << pc->to_string(pc->initial()) << std::endl;
 
@@ -117,9 +121,15 @@ int main(int argc, const char** argv)
    		                              PT_iterator,
    					      SparseIntArray_hash,
    		                              SparseIntArray_equal>
-   			  (spot::mc_algorithm::CNDFS, pc, propcube, true);
+   			  (spot::mc_algorithm::BLOEMEN_EC, pc, propcube, true);
 
-   			std::cout << result << std::endl;
+
+   			std::cout << result.value.at(0) << std::endl;
+   			if (result.value.at(0) == spot::mc_rvalue::NOT_EMPTY) {
+   				std::cout << "FORMULA " << property.getName() << " FALSE " << " TECHNIQUES TODO" << std::endl ;
+   			} else if (result.value.at(0) == spot::mc_rvalue::EMPTY) {
+   				std::cout << "FORMULA " << property.getName() << " TRUE " << " TECHNIQUES TODO" << std::endl ;
+   			}
    			delete pc;
    		}
    		return 0;
@@ -168,8 +178,8 @@ int main(int argc, const char** argv)
 
 
 	// FIXME do something with propcube
-
-	auto* pc = new Petricube(*pn, propcube->ap());
+	petri::expr::AtomicPropManager apm;
+	auto* pc = new Petricube(*pn, propcube->ap(),apm);
 	// FIXME do something with petricube
 	std::cout << pc->to_string(pc->initial()) << std::endl;
 
