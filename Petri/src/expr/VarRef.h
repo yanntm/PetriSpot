@@ -20,7 +20,12 @@ public :
 	void print(std::ostream & os)  const  {
 		os << "p" << index;
 	}
-
+	size_t nbChildren() const {
+		return 0;
+	}
+	Expression * childAt(size_t index) {
+		throw "No Children.";
+	}
 	/*
 	@Override
 	public int getValue() {
