@@ -30,3 +30,5 @@ Makefile
 /config.sub
 /libtool
 /ltmain.sh
+/m4/
+.dirstamp
