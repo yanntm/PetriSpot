@@ -132,7 +132,7 @@ namespace petri::expr {
 
 			if ("property"== baliseName) { //$NON-NLS-1$
 				tthis->spec->getProperties().push_back(*(Property *) tthis->stack.top());
-				delete tthis->stack.top();
+				delete (Property *) tthis->stack.top();
 				tthis->stack.pop();
 			} else if ("formula"== baliseName) { //$NON-NLS-1$
 				Expression * child = (Expression *) tthis->stack.top();
@@ -185,6 +185,11 @@ namespace petri::expr {
 				// NOTHING
 			} else if ("reach" == baliseName) { //$NON-NLS-1$
 				// NOTHING
+			} else if ("property-set"== baliseName) { //$NON-NLS-1$
+				// NOTHING
+				if (!tthis->stack.empty()) {
+					std::cerr << "Parse stack was not empty at end of parse." << std::endl;
+				}
 			} else if (! tthis->isLTL) {
 				// temporal operator handling for CTL properties
 				if ( ("globally"== baliseName || "finally"== baliseName || "next"== baliseName || "until"== baliseName ) ) {
