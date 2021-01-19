@@ -10,11 +10,12 @@
 
 #include <vector>
 #include "expr/Expression.h"
+#include "SparsePetriNet.h"
 
 namespace petri {
 namespace expr {
 
-std::vector<Expression *> loadXML(std::string filename);
+int loadXMLProperties(std::string filename, SparsePetriNet * spec);
 
 
 }}

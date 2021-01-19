@@ -9,6 +9,8 @@
 #define SPARSEPETRINET_H_
 
 #include "MatrixCol.h"
+#include "expr/Property.h"
+
 
 class SparsePetriNet {
 	std::string name;
@@ -18,6 +20,8 @@ class SparsePetriNet {
 	std::vector<std::string> tnames;
 	std::vector<std::string> pnames;
 	int maxArcValue;
+	std::vector<petri::expr::Property *> properties;
+
 	static const int DEBUG = 0;
 
 public :
@@ -96,6 +100,10 @@ public :
 
 	const std::vector<int> & getMarks() const {
 		return marks;
+	}
+
+	std::vector<petri::expr::Property *> & getProperties() {
+		return properties;
 	}
 };
 

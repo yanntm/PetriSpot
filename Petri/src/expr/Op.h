@@ -1,3 +1,5 @@
+#pragma once
+
 
 namespace petri {
 namespace expr {
@@ -23,9 +25,9 @@ enum Op {
 	PLACEREF, // a reference to a place
 	TRANSREF, // a reference to a transition of the net 
 	// CTL unary
-	// EF, EG, AF, AG, EX, AX,
+	EF, EG, AF, AG, EX, AX,
 	// CTL Binary
-	// EU, AU,
+	EU, AU,
 	// LTL unary
 	F, G, X,
 	// LTL binary

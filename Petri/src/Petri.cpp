@@ -13,6 +13,7 @@
 #include "SparsePetriNet.h"
 #include "Walker.h"
 #include "parse/PTNetLoader.h"
+#include "expr/parse/ExprLoader.h"
 
 #include "Petricube.h"
 
@@ -28,6 +29,13 @@
 
 using namespace std;
 
+
+static bool endsWith(const std::string& str, const std::string& suffix)
+{
+    return str.size() >= suffix.size() && 0 == str.compare(str.size()-suffix.size(), suffix.size(), suffix);
+}
+
+
 int main(int argc, const char** argv)
 {
   if (argc == 1 || argc > 4)
@@ -35,7 +43,7 @@ int main(int argc, const char** argv)
       std::cerr << "usage: petri model.pnml [formula]\n";
       std::cerr << "     model.pnml: the model in the pnml format\n";
       std::cerr << "     [formula]: the LTL formula to verify on model"
-		<< "(optionnal) \n";
+		<< "(optional) \n";
       exit(1);
     }
 
@@ -52,17 +60,21 @@ int main(int argc, const char** argv)
   try {
     SparsePetriNet * pn = loadXML(model);
 
+    if ( endsWith(formula,".xml")) {
+    	petri::expr::loadXMLProperties(formula,pn);
+    }
+
     if (display)
-      {
-	std::cout << "PN : " ;
-	pn->getFlowPT().print(std::cout);
-	pn->getFlowTP().print(std::cout);
-	std::cout << std::endl ;
-	for (auto & m : pn->getMarks()) {
-		std::cout << m << ","  ;
-	}
-      }
-	std::cout << '\n' ;
+    {
+    	std::cout << "PN : " ;
+    	pn->getFlowPT().print(std::cout);
+    	pn->getFlowTP().print(std::cout);
+    	std::cout << std::endl ;
+    	for (auto & m : pn->getMarks()) {
+    		std::cout << m << ","  ;
+    	}
+    }
+    std::cout << '\n' ;
 
     if (ltl)
       {
