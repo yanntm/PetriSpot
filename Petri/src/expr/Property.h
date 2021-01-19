@@ -37,10 +37,13 @@ public :
 //	public PropertyType getType() {
 //		return type;
 //	}
-//	@Override
-//	public String toString() {
-//		return "Property [prop=" + prop + ", type=" + type + ", name=" + name + "]";
-//	}
+
+	void print(std::ostream & os) {
+		os << "Property [prop=" ;
+		prop->print(os);
+		// os << ", type=" + type ;
+		os << ", name=" <<  name << "]";
+	}
 };
 
 

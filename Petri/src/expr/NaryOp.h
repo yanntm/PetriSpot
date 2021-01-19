@@ -21,7 +21,7 @@ public :
 	}
 	
 	void addChild(Expression * child) {
-			children.push_back(child);
+		children.push_back(child);
 	}
 
 	int eval(const SparseIntArray & state) {
@@ -68,6 +68,16 @@ public :
 			throw "UnsupportedOperationException";
 		}
 	}
+
+	void print(std::ostream & os) const {
+		os << "(" << to_string(op) ;
+		for (Expression * c : children) {
+			os << " ";
+			c->print(os);
+		}
+		os << ")";
+	}
+
 /*
 	@Override
 	public int evalDistance(SparseIntArray state, boolean isNeg) {

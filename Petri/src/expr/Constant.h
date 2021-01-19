@@ -15,6 +15,10 @@ public :
 		return value ;
 	}
 
+	void print(std::ostream & os) const {
+		os << value;
+	}
+
 	/*
 	@Override
 	public <T> T accept(ExprVisitor<T> v) {

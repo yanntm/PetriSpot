@@ -11,6 +11,8 @@ class Expression {
 public :
 	virtual int eval(const SparseIntArray & state) = 0;
 	
+	virtual void print(std::ostream & os) const = 0;
+
 	virtual ~Expression(){}
 
 	/**

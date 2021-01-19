@@ -16,6 +16,13 @@ public :
 		return value ? 1 : 0;
 	}
 
+	void print(std::ostream & os)  const  {
+		if (value)
+			os << "true";
+		else
+			os << "false";
+	}
+
 	/*
 	@Override
 	public <T> T accept(ExprVisitor<T> v) {

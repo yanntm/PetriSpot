@@ -17,6 +17,10 @@ public :
 		return state.get(index);
 	}
 
+	void print(std::ostream & os)  const  {
+		os << "p" << index;
+	}
+
 	/*
 	@Override
 	public int getValue() {

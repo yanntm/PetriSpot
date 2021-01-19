@@ -58,12 +58,21 @@ public :
 		}
 		throw ("Unexpected operator type in expression " + op);
 	}
-/*
-	@Override
-	public String toString() {
-		return "(" + op +  (left != null ? (" " + left.toString()):"") + (right!=null ? " "+right.toString() : "") + ")";
+
+	void print(std::ostream & os) const {
+		os << "(" << to_string(op) << " ";
+		if (left != nullptr) {
+			left->print(os);
+		}
+		os << " ";
+		if (right != nullptr) {
+			right->print(os);
+		}
+		os << ")";
 	}
 
+
+	/*
 	@Override
 	public <T> T accept(ExprVisitor<T> v) {
 		return v.visit(this);
