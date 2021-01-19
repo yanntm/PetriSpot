@@ -17,7 +17,7 @@ class PTNetHandler {
 	std::stack<void *> stack;
 
 	// object constructed
-	SparsePetriNet * net = new SparsePetriNet();
+	SparsePetriNet * net ;
 
 	// form is a pair <isPlace, index>
 	// isPlace false = it's a transition

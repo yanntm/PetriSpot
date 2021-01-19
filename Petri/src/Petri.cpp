@@ -132,6 +132,8 @@ int main(int argc, const char** argv)
    			}
    			delete pc;
    		}
+
+   		delete pn;
    		return 0;
     }
 

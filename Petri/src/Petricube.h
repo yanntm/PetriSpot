@@ -40,6 +40,8 @@ class PT_iterator
       // will be inserted inside of the hashmap?
       // Since Spot relies on automatic memory management
       // we must add methods to delete states
+	  delete[] succs_;
+	  delete[] cond_;
     }
 
   void next()
@@ -153,6 +155,7 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
     	++i;
     }
 
+    delete [] list;
     return new PT_iterator(succ, list[0],cond);
   }
 

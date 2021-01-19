@@ -132,6 +132,7 @@ namespace petri::expr {
 
 			if ("property"== baliseName) { //$NON-NLS-1$
 				tthis->spec->getProperties().push_back(*(Property *) tthis->stack.top());
+				delete tthis->stack.top();
 				tthis->stack.pop();
 			} else if ("formula"== baliseName) { //$NON-NLS-1$
 				Expression * child = (Expression *) tthis->stack.top();
@@ -205,6 +206,7 @@ namespace petri::expr {
 					} else if (*childbalise=="until") {
 						tthis->popBinary(AU);
 					}
+					delete childbalise;
 				} else if ("exists-path"== baliseName) { //$NON-NLS-1$
 					std::string * childbalise = (std::string *) tthis->stack.top();
 					tthis->stack.pop();
@@ -222,6 +224,7 @@ namespace petri::expr {
 					} else if (*childbalise=="until") {
 						tthis->popBinary(EU);
 					}
+					delete childbalise;
 				} else {
 					std::cerr << "Unknown XML tag in source file: " << baliseName << std::endl; //$NON-NLS-1$
 				}

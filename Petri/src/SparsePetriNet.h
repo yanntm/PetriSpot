@@ -105,6 +105,12 @@ public :
 	std::vector<petri::expr::Property> & getProperties() {
 		return properties;
 	}
+
+	~SparsePetriNet() {
+		for (auto & p : properties) {
+			delete p.getBody();
+		}
+	}
 };
 
 

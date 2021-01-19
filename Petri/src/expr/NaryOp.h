@@ -15,7 +15,11 @@ public :
 	}
 	NaryOp(Op op, const std::vector<Expression *> & children) : op(op),children(children) {
 	}
-	
+	~NaryOp() {
+		for (auto & e : children) {
+			delete e;
+		}
+	}
 	Op getOp() {
 		return op;
 	}

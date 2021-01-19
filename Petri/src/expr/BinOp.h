@@ -20,6 +20,11 @@ public :
 		return op;
 	}
 
+	~BinOp() {
+		delete left;
+		delete right;
+	}
+
 	int eval(const SparseIntArray & state) {
 		// lazy cases
 		switch (op) {
