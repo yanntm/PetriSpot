@@ -26,6 +26,10 @@ public :
 	Expression * childAt(size_t index) {
 		throw "No Children.";
 	}
+
+	Op getOp() const {
+		return PLACEREF;
+	}
 	/*
 	@Override
 	public int getValue() {

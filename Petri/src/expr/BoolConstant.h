@@ -30,6 +30,9 @@ public :
 		throw "No Children.";
 	}
 
+	Op getOp() const {
+		return BOOLCONST;
+	}
 	/*
 	@Override
 	public <T> T accept(ExprVisitor<T> v) {

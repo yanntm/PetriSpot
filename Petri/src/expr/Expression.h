@@ -2,7 +2,7 @@
 
 #include "expr/Op.h"
 #include "SparseIntArray.h"
-
+#include <sstream>
 
 namespace petri {
 namespace expr {
@@ -17,7 +17,7 @@ public :
 
 	virtual size_t nbChildren() const = 0;
 	virtual Expression * childAt(size_t index) = 0;
-
+	virtual Op getOp() const = 0;
 	/**
 	 * A heuristic to choose successor states "Best-First Search".
 	 * Compute "distance" metric to a target state, based on 
@@ -474,5 +474,13 @@ public :
 
 };
 
+
+
+
+inline std::string to_string (Expression * e) {
+	std::ostringstream stream;
+	e->print(stream);
+	return stream.str();
+}
 
 }} // end namespace

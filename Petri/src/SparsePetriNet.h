@@ -20,7 +20,7 @@ class SparsePetriNet {
 	std::vector<std::string> tnames;
 	std::vector<std::string> pnames;
 	int maxArcValue;
-	std::vector<petri::expr::Property *> properties;
+	std::vector<petri::expr::Property> properties;
 
 	static const int DEBUG = 0;
 
@@ -102,7 +102,7 @@ public :
 		return marks;
 	}
 
-	std::vector<petri::expr::Property *> & getProperties() {
+	std::vector<petri::expr::Property> & getProperties() {
 		return properties;
 	}
 };

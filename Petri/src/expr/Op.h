@@ -98,11 +98,11 @@ inline std::string to_string (const Op & op) {
 	case AU :
 		return "AU";
 	case F :
-		return "AX";
+		return "F";
 	case G :
-		return "EU";
+		return "G";
 	case X :
-		return "AU";
+		return "X";
 	case U :
 		return "U";
 	default :

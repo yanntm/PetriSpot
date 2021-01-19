@@ -14,6 +14,8 @@
 #include "Walker.h"
 #include "parse/PTNetLoader.h"
 #include "expr/parse/ExprLoader.h"
+#include "expr/Expression.h"
+#include "expr/AtomicPropManager.h"
 
 #include "Petricube.h"
 
@@ -62,6 +64,65 @@ int main(int argc, const char** argv)
 
     if ( endsWith(formula,".xml")) {
     	petri::expr::loadXMLProperties(formula,pn);
+
+    	petri::expr::AtomicPropManager apm;
+    	apm.loadAtomicProps(pn->getProperties());
+
+    	std::cout << "Found a total of " << apm.getAtoms().size() << " AP" << std::endl;
+    	for (const auto & atom : apm.getAtoms()) {
+    		std::cout << atom.first << " : " ;
+    		atom.second->print(std::cout);
+    		std::cout << std::endl;
+    	}
+    	// Setup the environment and default dictionnary
+   		spot::default_environment& env = spot::default_environment::instance();
+   		auto dict = spot::make_bdd_dict();
+
+   		// Parse formula...
+   		for (auto & property : pn->getProperties()) {
+   	   		std::ostringstream ostr ;
+   	   		apm.print(property.getBody(), ostr);
+   	   		std::cout << "Working on formula " << property.getName() << " :" << ostr.str() << std::endl;
+   	   		auto pf = spot::parse_infix_psl(ostr.str(), env, false);
+   			auto f = pf.f;
+   			// and translate it!
+   			spot::translator trans(dict);
+   			auto prop = trans.run(&f);
+
+   			// collect atomic propositions
+   			spot::atomic_prop_set aps;
+   			atomic_prop_collect(f, &aps);
+
+
+   			std::cout << "\nWorking with the following " <<  aps.size() << " atomic propositions:\n";
+   			for (spot::atomic_prop_set::const_iterator ap = aps.begin();
+   			     ap != aps.end(); ++ap)
+   			  {
+   			    std::cout << "   " << ap->ap_name() << '\n';
+   			  }
+
+   			// Build the equivalent twacube
+   			auto propcube = spot::twa_to_twacube(prop);
+
+
+   			// FIXME do something with propcube
+
+   			auto* pc = new Petricube(*pn, propcube->ap());
+   			// FIXME do something with petricube
+   			std::cout << pc->to_string(pc->initial()) << std::endl;
+
+   			// Instanciate the modelchecking algorithm to use
+   		        auto result = spot::ec_instanciator<Petricube_ptr,
+   					      SparseIntArray,
+   		                              PT_iterator,
+   					      SparseIntArray_hash,
+   		                              SparseIntArray_equal>
+   			  (spot::mc_algorithm::CNDFS, pc, propcube, true);
+
+   			std::cout << result << std::endl;
+   			delete pc;
+   		}
+   		return 0;
     }
 
     if (display)

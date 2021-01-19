@@ -48,6 +48,7 @@ public :
 			}
 			return res?1:0;
 		}
+		case CARD :
 		case ADD :
 		{
 			int res = 0;
@@ -84,7 +85,9 @@ public :
 	Expression * childAt(size_t index) {
 		return children.at(index);
 	}
-
+	Op getOp() const {
+		return op;
+	}
 
 /*
 	@Override

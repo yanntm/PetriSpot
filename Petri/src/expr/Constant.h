@@ -24,7 +24,9 @@ public :
 	Expression * childAt(size_t index) {
 		throw "No Children.";
 	}
-
+	Op getOp() const {
+		return CONST;
+	}
 	/*
 	@Override
 	public <T> T accept(ExprVisitor<T> v) {

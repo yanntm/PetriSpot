@@ -131,7 +131,7 @@ namespace petri::expr {
 			// std::cerr << "end " << baliseName << std::endl;
 
 			if ("property"== baliseName) { //$NON-NLS-1$
-				tthis->spec->getProperties().push_back((Property *) tthis->stack.top());
+				tthis->spec->getProperties().push_back(*(Property *) tthis->stack.top());
 				tthis->stack.pop();
 			} else if ("formula"== baliseName) { //$NON-NLS-1$
 				Expression * child = (Expression *) tthis->stack.top();

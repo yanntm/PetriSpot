@@ -16,6 +16,10 @@ public :
 	BinOp(Op op, Expression * left, Expression * right) : op(op),left(left),right(right) {
 	}
 
+	Op getOp() const {
+		return op;
+	}
+
 	int eval(const SparseIntArray & state) {
 		// lazy cases
 		switch (op) {
