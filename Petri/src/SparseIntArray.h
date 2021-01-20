@@ -104,19 +104,19 @@ public :
 		return res;
 	}
 
-//	/**
-//	 * Acts like an std::move in c++ : steal the content of the argument.
-//	 * This method updates the content of "this".
-//	 * @param source an object that is invalidated by this operation.
-//	 */
-//	SparseIntArray (SparseIntArray && source) {
-//		mKeys = source.mKeys;
-//		source.mKeys = nullptr;
-//		mValues = source.mValues;
-//		source.mValues = nullptr;
-//		mSize = source.mSize;
-//		mCap = source.mCap;
-//	}
+	/**
+	 * Acts like an std::move in c++ : steal the content of the argument.
+	 * This method updates the content of "this".
+	 * @param source an object that is invalidated by this operation.
+	 */
+	SparseIntArray (SparseIntArray && source) {
+		mKeys = source.mKeys;
+		source.mKeys = nullptr;
+		mValues = source.mValues;
+		source.mValues = nullptr;
+		mSize = source.mSize;
+		mCap = source.mCap;
+	}
 
 
 	SparseIntArray & operator=(const SparseIntArray & source) {
