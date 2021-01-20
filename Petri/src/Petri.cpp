@@ -121,8 +121,9 @@ int main(int argc, const char** argv)
    		                              PT_iterator,
    					      SparseIntArray_hash,
    		                              SparseIntArray_equal>
-   			  (spot::mc_algorithm::BLOEMEN_EC, pc, propcube, true);
+   			  (spot::mc_algorithm::CNDFS, pc, propcube, true);
 
+  			std::cout << result  << std::endl;
 
    			std::cout << result.value.at(0) << std::endl;
    			if (result.value.at(0) == spot::mc_rvalue::NOT_EMPTY) {
@@ -131,6 +132,7 @@ int main(int argc, const char** argv)
    				std::cout << "FORMULA " << property.getName() << " TRUE " << " TECHNIQUES TODO" << std::endl ;
    			}
    			delete pc;
+   			//break;
    		}
 
    		delete pn;
