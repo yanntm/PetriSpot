@@ -30,8 +30,8 @@ class PT_iterator
 {
  public:
 
- PT_iterator(SparseIntArray* succs, unsigned size, spot::cube cond)
-   : succs_(succs), i_(0), size_(size), cond_(cond)
+ PT_iterator(const SparseIntArray & src, const MatrixCol & combFlow, int * list, spot::cube cond)
+   : src_(src),combFlow_(combFlow),list_(list), i_(0), cond_(cond)
     { }
 
   ~PT_iterator()
@@ -40,8 +40,7 @@ class PT_iterator
       // will be inserted inside of the hashmap?
       // Since Spot relies on automatic memory management
       // we must add methods to delete states
-	  delete[] succs_;
-	  delete[] cond_;
+	  delete[] list_;
     }
 
   void next()
@@ -51,12 +50,13 @@ class PT_iterator
 
   bool done()
   {
-    return i_ == size_;
+    return i_ == list_[0];
   }
 
   SparseIntArray state()
   {
-    return succs_[i_];
+	  //dropEmpty(list);
+	  return  SparseIntArray::sumProd(1, src_, 1, combFlow_.getColumn(list_[i_+1]));
   }
 
   spot::cube condition()
@@ -64,9 +64,10 @@ class PT_iterator
       return cond_;
     }
  private:
-  SparseIntArray* succs_;
+  SparseIntArray src_;
+  const MatrixCol & combFlow_;
+  int* list_;
   unsigned i_;
-  unsigned size_;
   spot::cube cond_;
 };
 
@@ -134,14 +135,6 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
   {
     (void) tid;
     int* list = computeEnabled(s);
-    dropEmpty(list);
-    SparseIntArray* succ = new SparseIntArray[list[0]];
-    for (int ti = 1 ; ti -1 < list[0] ; ti++)
-      {
-	succ[ti-1] = fire(list[ti], s /*FIXME is s the good parameter here?*/);
-	//i++; FIXME useless here?
-      }
-    // FIXME can we delete here list?
 
     auto cs = spot::cubeset(observed_aps_.size());
     cube cond = cs.alloc();
@@ -155,9 +148,7 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
     	++i;
     }
 
-    int sz = list[0];
-    delete [] list;
-    return new PT_iterator(succ, sz,cond);
+    return new PT_iterator(s,combFlow,list,cond);
   }
 
   /// \brief Allocation and deallocation of iterator is costly. This
@@ -224,7 +215,6 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
     // NB no enabling check
     return SparseIntArray::sumProd(1, state, 1, combFlow.getColumn(t));
   }
-
 
  private:
   const SparsePetriNet& sr_;
