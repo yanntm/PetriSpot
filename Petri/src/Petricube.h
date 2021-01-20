@@ -116,7 +116,7 @@ class spot::kripkecube<SparseIntArray, PT_iterator> final
   /// \brief Returns the number of threads that are handled by the kripkecube
   unsigned get_threads()
   {
-    return 1; // FIXME
+    return 8; // FIXME
   }
 
   /// \brief Provides a string representation of the parameter state
