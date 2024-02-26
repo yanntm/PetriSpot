@@ -20,6 +20,12 @@
 using namespace std;
 
 
+//	private static final String PFLOW="--Pflows";
+//	private static final String PSEMIFLOW="--Psemiflows";
+//	private static final String TFLOW="--Tflows";
+//	private static final String TSEMIFLOW="--Tsemiflows";
+
+
 int main(void) {
 	bool findDeadlock = false;
 	bool pflow=false;
