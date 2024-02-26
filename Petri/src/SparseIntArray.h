@@ -25,6 +25,7 @@
 #include <cassert>
 #include <iostream>
 #include <cmath>
+#include <limits>
 
 /**
  * SparseIntArrays map integers to integers.  Unlike a normal array of integers,
