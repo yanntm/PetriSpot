@@ -27,7 +27,7 @@ jobs:
     - name: configure
       run: cd Petri ; ./configure --prefix=$PWD/../usr/local/  --with-libexpat=$PWD/../usr/local/ --with-libspot=$(pwd)/../usr/local/ --with-libddd=$PWD/../usr/local/ --with-gmp=$PWD/../usr/local/ --with-antlrc=$PWD/../usr/local/   CPPFLAGS="-I$(pwd)/../usr/local/include -DNDEBUG" LDFLAGS="-L$(pwd)/../usr/local/lib" || cat config.log ; 
     - name: make 
-      run: make -j 4
+      run: cd Petri ; make -j 4
 #    - name: run tests
 #      run: cd tests ; ( rc=0 ; for TEST in *.data ; do ./run_test.pl $TEST || rc=$? ; done; exit $rc) ; cd ..
     - name: prepare binaries
