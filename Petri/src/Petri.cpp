@@ -66,45 +66,45 @@ int main(void) {
 			}
 		} else if (pflow || tflow || psemiflow || tsemiflow) {
 			// Go !
-			if (invariants) {
-				vector<int> tnames;
-				vector<int> repr = new ArrayList<>();
-				MatrixCol sumMatrix = computeReducedFlow(reader.getSPN(), tnames, repr);
-				SparsePetriNet spn = reader.getSPN();
-				if (pflows || psemiflows) {
-					long time = System.currentTimeMillis();
-					Set<SparseIntArray> invar;
-					if (pflows) {
-						invar = InvariantCalculator.computePInvariants(sumMatrix);
-					} else {
-						invar = InvariantCalculator.computePInvariants(sumMatrix, true, 120);
-					}
-					System.out.println("Computed "+invar.size()+" P "+(psemiflows?"semi":"")+" flows in "+(System.currentTimeMillis()-time)+" ms.");
-					InvariantSet inv = new InvariantSet(invar, sumMatrix.transpose());
-					inv.print(System.out, spn.getPnames(), spn.getMarks());
-	//				InvariantCalculator.printInvariant(invar, spn.getPnames(), reader.getSPN().getMarks());
-				}
-
-				if (tflows || tsemiflows) {
-					long time = System.currentTimeMillis();
-					Set<SparseIntArray> invarT;
-					if (tflows) {
-						invarT= DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, tnames,false);
-					} else {
-						invarT= DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, tnames,true);
-					}
-					List<Integer> empty = new ArrayList<>(tnames.size());
-					for (int i=0 ; i < tnames.size(); i++) empty.add(0);
-					List<String> strtnames = tnames.stream().map(id -> spn.getTnames().get(id)).collect(Collectors.toList());
-					System.out.println("Computed "+invarT.size()+" T "+(psemiflows?"semi":"")+" flows in "+(System.currentTimeMillis()-time)+" ms.");
-					InvariantSet inv = new InvariantSet(invarT, sumMatrix);
-					inv.print(System.out, strtnames, empty);
-					//InvariantCalculator.printInvariant(invarT, strtnames, empty );
-				}
-				SparseIntArray inv = DeadlockTester.findPositiveTsemiflow(sumMatrix);
-
-				return null;
-			}
+//			if (invariants) {
+//				vector<int> tnames;
+//				vector<int> repr = new ArrayList<>();
+//				MatrixCol sumMatrix = computeReducedFlow(reader.getSPN(), tnames, repr);
+//				SparsePetriNet spn = reader.getSPN();
+//				if (pflows || psemiflows) {
+//					long time = System.currentTimeMillis();
+//					Set<SparseIntArray> invar;
+//					if (pflows) {
+//						invar = InvariantCalculator.computePInvariants(sumMatrix);
+//					} else {
+//						invar = InvariantCalculator.computePInvariants(sumMatrix, true, 120);
+//					}
+//					System.out.println("Computed "+invar.size()+" P "+(psemiflows?"semi":"")+" flows in "+(System.currentTimeMillis()-time)+" ms.");
+//					InvariantSet inv = new InvariantSet(invar, sumMatrix.transpose());
+//					inv.print(System.out, spn.getPnames(), spn.getMarks());
+//	//				InvariantCalculator.printInvariant(invar, spn.getPnames(), reader.getSPN().getMarks());
+//				}
+//
+//				if (tflows || tsemiflows) {
+//					long time = System.currentTimeMillis();
+//					Set<SparseIntArray> invarT;
+//					if (tflows) {
+//						invarT= DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, tnames,false);
+//					} else {
+//						invarT= DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, tnames,true);
+//					}
+//					List<Integer> empty = new ArrayList<>(tnames.size());
+//					for (int i=0 ; i < tnames.size(); i++) empty.add(0);
+//					List<String> strtnames = tnames.stream().map(id -> spn.getTnames().get(id)).collect(Collectors.toList());
+//					System.out.println("Computed "+invarT.size()+" T "+(psemiflows?"semi":"")+" flows in "+(System.currentTimeMillis()-time)+" ms.");
+//					InvariantSet inv = new InvariantSet(invarT, sumMatrix);
+//					inv.print(System.out, strtnames, empty);
+//					//InvariantCalculator.printInvariant(invarT, strtnames, empty );
+//				}
+//				SparseIntArray inv = DeadlockTester.findPositiveTsemiflow(sumMatrix);
+//
+//				return null;
+//			}
 
 		}
 
