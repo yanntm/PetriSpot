@@ -4,6 +4,7 @@ tar xf gmp-6.3.0.tar.xz ; cd gmp-6.3.0 ;
 ake -j ; 
 make install ; 
 cd .. ;
+rm gmp-6.3.0.tar.xz ;
 
 wget --progress=dot:mega https://github.com/libexpat/libexpat/archive/R_2_2_4.tar.gz ; 
 tar xzf R_2_2_4.tar.gz ; 
@@ -13,13 +14,15 @@ cd libexpat-R_2_2_4/expat/ ;
 make -j ; 
 make install ; 
 cd ../.. ;
+rm R_2_2_4.tar.gz ;
 
 wget --progress=dot:mega https://github.com/lip6/libDDD/raw/gh-pages/linux.tgz ; 
 tar xzf linux.tgz ; 
-rm linux.tgz
+rm linux.tgz ;
 
 wget --progress=dot:mega https://yanntm.github.io/Spot-BinaryBuilds/spot_linux.tar.gz ; 
 tar xzf spot_linux.tar.gz ;
+rm spot_linux.tar.gz ;
 
 cd Petri ; 
 autoreconf -vfi ;
