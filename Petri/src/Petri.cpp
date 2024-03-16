@@ -9,6 +9,7 @@
  */
 
 #include <iostream>
+#include <string.h>
 #include "SparseIntArray.h"
 #include "MatrixCol.h"
 #include "SparsePetriNet.h"
@@ -20,13 +21,16 @@
 using namespace std;
 
 
-//	private static final String PFLOW="--Pflows";
-//	private static final String PSEMIFLOW="--Psemiflows";
-//	private static final String TFLOW="--Tflows";
-//	private static final String TSEMIFLOW="--Tsemiflows";
+const string FINDDEADLOCK="--findDeadlock";
+const string PFLOW="--Pflows";
+const string PSEMIFLOW="--Psemiflows";
+const string TFLOW="--Tflows";
+const string TSEMIFLOW="--Tsemiflows";
+const string INPUT="-i";
 
 
-int main(void) {
+int main(int argc, char * argv[]) {
+	char modelPath[20];
 	bool findDeadlock = false;
 	bool pflow=false;
 	bool tflow=false;
@@ -36,9 +40,35 @@ int main(void) {
 
 	try {
 
-		// parse -i input.pnml
-		const char * modelPath = "model.pnml";
-
+		// parse -i input.pnml	
+		if (argv[1] == INPUT)
+			strcpy(modelPath, argv[2]);
+			
+		if (argv[3] == FINDDEADLOCK)
+			findDeadlock = true;
+		else if (argv[3] == PFLOW || argv[3] == PSEMIFLOW 
+			|| argv[3] == TFLOW || argv[3] == TSEMIFLOW) {
+			invariants = true;
+			if (argv[3] == PFLOW) {
+				pflow = true;
+				if (argv[4] == TFLOW)
+					tflow = true;
+				else if (argv[4] == TSEMIFLOW)
+					tsemiflow = true;
+			}
+			else if (argv[3] == PSEMIFLOW) {
+				psemiflow = true;
+				if (argv[4] == TFLOW)
+					tflow = true;
+				else if (argv[4] == TSEMIFLOW)
+					tsemiflow = true;
+			}
+			else if (argv[3] == TFLOW)
+				tflow = true;
+			else if (argv[3] == TSEMIFLOW)
+				tsemiflow = true;
+		}
+		
 		SparsePetriNet * pn = loadXML(modelPath);
 
 		std::cout << "PN : " ;
