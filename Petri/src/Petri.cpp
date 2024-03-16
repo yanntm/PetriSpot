@@ -39,7 +39,7 @@ int main(int argc, char * argv[]) {
       	std::cerr << "usage: petri model.pnml [flags]\n";
       	std::cerr << "     model.pnml: the model in the pnml format\n";
       	std::cerr << "     [flags]: findDeadlock or flows to compute"
-			<< "(optional) \n";
+			<< " (optional) \n";
      	exit(1);
     	}
 	
