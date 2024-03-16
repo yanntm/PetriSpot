@@ -43,27 +43,29 @@ int main(int argc, char * argv[]) {
      	exit(1);
     	}
 	
-	string modelPath(argv[1]);
+	std::string modelPath(argv[1]);
 	if (argc > 2) {
-		if (argv[2] == FINDDEADLOCK)
+		if (argv[2] == FINDDEADLOCK) {
 			findDeadlock = true;
-		else if (argv[2] == PFLOW || argv[2] == PSEMIFLOW || argv[2] == TFLOW || argv[2] == TSEMIFLOW) {
+		} else if (argv[2] == PFLOW || argv[2] == PSEMIFLOW || argv[2] == TFLOW || argv[2] == TSEMIFLOW) {
 			invariants = true;
-			if (argv[2] == PFLOW)
+			if (argv[2] == PFLOW) {
 				pflow = true;
-			else if (argv[2] == PSEMIFLOW)
+			} else if (argv[2] == PSEMIFLOW) {
 				psemiflow = true;
-			else if (argv[2] == TFLOW)
+			} else if (argv[2] == TFLOW) {
 				tflow = true;
-			else if (argv[2] == TSEMIFLOW)
+			} else if (argv[2] == TSEMIFLOW) {
 				tsemiflow = true;
+			}
 		}
 	}
 	if (argc > 3) {
-		if (argv[3] == TFLOW)
+		if (argv[3] == TFLOW) {
 			tflow = true;
-		else if (argv[3] == TSEMIFLOW)
+		} else if (argv[3] == TSEMIFLOW) {
 			tsemiflow = true;
+		}
 	}
 		
 
