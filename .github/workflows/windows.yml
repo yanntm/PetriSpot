@@ -51,7 +51,7 @@ jobs:
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4.5.0
         with:
-          branch: Windows
+          branch: Inv-Windows
           folder: windows/ # The deployment folder should match the name of the artifact. Even though our project builds into the 'build' folder the artifact name of 'site' must be placed here.
           clean: true # Automatically remove deleted files from the deploy branch
           single-commit: true 
