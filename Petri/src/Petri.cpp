@@ -20,17 +20,13 @@
 
 using namespace std;
 
-
 const string FINDDEADLOCK="--findDeadlock";
 const string PFLOW="--Pflows";
 const string PSEMIFLOW="--Psemiflows";
 const string TFLOW="--Tflows";
 const string TSEMIFLOW="--Tsemiflows";
-const string INPUT="-i";
-
 
 int main(int argc, char * argv[]) {
-	char modelPath[20];
 	bool findDeadlock = false;
 	bool pflow=false;
 	bool tflow=false;
@@ -38,36 +34,40 @@ int main(int argc, char * argv[]) {
 	bool tsemiflow=false;
 	bool invariants=false;
 
-	try {
-
-		// parse -i input.pnml	
-		if (argv[1] == INPUT)
-			strcpy(modelPath, argv[2]);
-			
-		if (argv[3] == FINDDEADLOCK)
+	if (argc == 1 || argc > 4)
+    	{
+      	std::cerr << "usage: petri model.pnml [flags]\n";
+      	std::cerr << "     model.pnml: the model in the pnml format\n";
+      	std::cerr << "     [flags]: findDeadlock or flows to compute"
+			<< "(optional) \n";
+     	exit(1);
+    	}
+	
+	string modelPath(argv[1]);
+	if (argc > 2) {
+		if (argv[2] == FINDDEADLOCK)
 			findDeadlock = true;
-		else if (argv[3] == PFLOW || argv[3] == PSEMIFLOW 
-			|| argv[3] == TFLOW || argv[3] == TSEMIFLOW) {
+		else if (argv[2] == PFLOW || argv[2] == PSEMIFLOW || argv[2] == TFLOW || argv[2] == TSEMIFLOW) {
 			invariants = true;
-			if (argv[3] == PFLOW) {
+			if (argv[2] == PFLOW)
 				pflow = true;
-				if (argv[4] == TFLOW)
-					tflow = true;
-				else if (argv[4] == TSEMIFLOW)
-					tsemiflow = true;
-			}
-			else if (argv[3] == PSEMIFLOW) {
+			else if (argv[2] == PSEMIFLOW)
 				psemiflow = true;
-				if (argv[4] == TFLOW)
-					tflow = true;
-				else if (argv[4] == TSEMIFLOW)
-					tsemiflow = true;
-			}
-			else if (argv[3] == TFLOW)
+			else if (argv[2] == TFLOW)
 				tflow = true;
-			else if (argv[3] == TSEMIFLOW)
+			else if (argv[2] == TSEMIFLOW)
 				tsemiflow = true;
 		}
+	}
+	if (argc > 3) {
+		if (argv[3] == TFLOW)
+			tflow = true;
+		else if (argv[3] == TSEMIFLOW)
+			tsemiflow = true;
+	}
+		
+
+	try {
 		
 		SparsePetriNet * pn = loadXML(modelPath);
 
