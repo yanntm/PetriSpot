@@ -3,7 +3,9 @@
 ## How to install (the whole project) :
 
 ```
-git clone -b invariant https://github.com/soufianeelm/PetriSpot.git ; cd PetriSpot ; ./build.sh
+git clone -b invariant https://github.com/soufianeelm/PetriSpot.git ;
+cd PetriSpot ;
+./build.sh
 ```
 
 
@@ -12,7 +14,8 @@ git clone -b invariant https://github.com/soufianeelm/PetriSpot.git ; cd PetriSp
 LA PREMIERE COMMANDE NE MARCHE PAS
 
 ```
-wget --progress=dot:mega https://github.com/soufianeelm/PetriSpot/blob/Inv-Linux/petri ; chmod +x petri
+wget --progress=dot:mega https://github.com/soufianeelm/PetriSpot/blob/Inv-Linux/petri ;
+chmod +x petri
 ```
 
 
