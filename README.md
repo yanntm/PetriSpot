@@ -11,7 +11,7 @@ cd PetriSpot ;
 
 ## How to install (just the program) :
 
-LA PREMIERE COMMANDE NE MARCHE PAS
+LA PREMIERE COMMANDE NE RAMENE PAS LE BON FILE
 
 ```
 wget --progress=dot:mega https://github.com/soufianeelm/PetriSpot/blob/Inv-Linux/petri ;
