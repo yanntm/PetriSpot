@@ -1,3 +1,5 @@
+sudo apt install autoconf
+
 wget --progress=dot:mega https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz ; 
 tar xf gmp-6.3.0.tar.xz ; cd gmp-6.3.0 ; 
 ./configure --enable-cxx --enable-fat --prefix=$(pwd)/../usr/local  --build=westmere-pc-linux-gnu ; m
