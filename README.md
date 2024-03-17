@@ -9,6 +9,8 @@ git clone -b invariant https://github.com/soufianeelm/PetriSpot.git ; cd PetriSp
 
 ## How to install (just the program) :
 
+LA PREMIERE COMMANDE NE MARCHE PAS
+
 ```
 wget --progress=dot:mega https://github.com/soufianeelm/PetriSpot/blob/Inv-Linux/petri ; chmod +x petri
 ```
