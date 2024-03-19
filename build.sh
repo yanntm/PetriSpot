@@ -9,7 +9,7 @@ rm libtool-2.4.7.tar.gz ;
 
 wget --progress=dot:mega https://ftp.gnu.org/gnu/autoconf/autoconf-latest.tar.xz ;
 tar xf autoconf-latest.tar.xz ;
-cd autoconf-latest ;
+cd autoconf-* ;
 ./configure --prefix=$(pwd)/../usr/local ;
 make -j ;
 make install ;
