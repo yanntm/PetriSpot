@@ -1,20 +1,31 @@
-wget --progress=dot:mega https://ftpmirror.gnu.org/libtool/libtool-2.4.7.tar.gz ;
-tar xzf libtool-2.4.7.tar.gz ;
-rm libtool-2.4.7.tar.gz ;
-cd libtool-2.4.7 ;
-./configure --prefix=$(pwd)/../usr/local ;
-make -j ;
-make install ;
-cd .. ;
+# le build fonctionne parfaitement si on a préalablement fait sudo apt-get install autoconf ou libtool, sans ça, problème avec la lib m4 au moment du build d'autoconf et de libtool
 
-wget --progress=dot:mega https://ftp.gnu.org/gnu/autoconf/autoconf-latest.tar.xz ;
-tar xf autoconf-latest.tar.xz ;
-rm autoconf-latest.tar.xz ;
-cd autoconf-* ;
-./configure --prefix=$(pwd)/../usr/local ;
-make -j ;
-make install ;
-cd .. ;
+# wget --progress=dot:mega http://ftp.gnu.org/gnu/m4/m4-latest.tar.xz ;
+# tar xf m4-latest.tar.xz ;
+# rm m4-latest.tar.xz ;
+# cd m4-* ;
+# ./configure --prefix=$(pwd)/../usr/local ;
+# make -j ;
+# make install ;
+# cd .. ;
+
+# wget --progress=dot:mega https://ftpmirror.gnu.org/libtool/libtool-2.4.7.tar.gz ;
+# tar xzf libtool-2.4.7.tar.gz ;
+# rm libtool-2.4.7.tar.gz ;
+# cd libtool-2.4.7 ;
+# ./configure --prefix=$(pwd)/../usr/local ;
+# make -j ;
+# make install ;
+# cd .. ;
+
+# wget --progress=dot:mega https://ftp.gnu.org/gnu/autoconf/autoconf-latest.tar.xz ;
+# tar xf autoconf-latest.tar.xz ;
+# rm autoconf-latest.tar.xz ;
+# cd autoconf-* ;
+# ./configure --prefix=$(pwd)/../usr/local ;
+# make -j ;
+# make install ;
+# cd .. ;
 
 wget --progress=dot:mega https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz ; 
 tar xf gmp-6.3.0.tar.xz ; 
