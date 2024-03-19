@@ -1,39 +1,39 @@
 wget --progress=dot:mega https://ftpmirror.gnu.org/libtool/libtool-2.4.7.tar.gz ;
 tar xzf libtool-2.4.7.tar.gz ;
+rm libtool-2.4.7.tar.gz ;
 cd libtool-2.4.7 ;
 ./configure --prefix=$(pwd)/../usr/local ;
 make -j ;
 make install ;
 cd .. ;
-rm libtool-2.4.7.tar.gz ;
 
 wget --progress=dot:mega https://ftp.gnu.org/gnu/autoconf/autoconf-latest.tar.xz ;
 tar xf autoconf-latest.tar.xz ;
+rm autoconf-latest.tar.xz ;
 cd autoconf-* ;
 ./configure --prefix=$(pwd)/../usr/local ;
 make -j ;
 make install ;
 cd .. ;
-rm autoconf-latest.tar.xz ;
 
 wget --progress=dot:mega https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz ; 
 tar xf gmp-6.3.0.tar.xz ; 
+rm gmp-6.3.0.tar.xz ;
 cd gmp-6.3.0 ; 
 ./configure --enable-cxx --enable-fat --prefix=$(pwd)/../usr/local  --build=westmere-pc-linux-gnu ; 
 make -j ; 
 make install ; 
 cd .. ;
-rm gmp-6.3.0.tar.xz ;
 
 wget --progress=dot:mega https://github.com/libexpat/libexpat/archive/R_2_2_4.tar.gz ; 
 tar xzf R_2_2_4.tar.gz ; 
+rm R_2_2_4.tar.gz ;
 cd libexpat-R_2_2_4/expat/ ; 
 ./buildconf.sh ; 
 ./configure --prefix=$(pwd)/../../usr/local --without-xmlwf ; 
 make -j ; 
 make install ; 
 cd ../.. ;
-rm R_2_2_4.tar.gz ;
 
 wget --progress=dot:mega https://github.com/lip6/libDDD/raw/gh-pages/linux.tgz ; 
 tar xzf linux.tgz ; 
