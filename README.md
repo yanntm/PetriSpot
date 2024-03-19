@@ -37,6 +37,6 @@ path of model file in format .pnml
 
 --findDeadlock
 
---Psemiflows || --Pflows
+--Psemiflow || --Pflow
 
---Tsemiflows || --Tflows
+--Tsemiflow || --Tflow
