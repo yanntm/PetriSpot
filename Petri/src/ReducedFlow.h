@@ -20,24 +20,24 @@ static MatrixCol computeReducedFlow(const SparsePetriNet & sr, std::vector<int> 
         
 		typedef ext_hash_map<const SparseIntArray *, int> map_t;
 		map_t::accessor acc;
-        map_t seen;
+        	map_t seen;
 
 		for (int i=0 ; i < sr.getFlowPT().getColumnCount() ; i++) {
 			SparseIntArray combined = SparseIntArray::sumProd(-1, sr.getFlowPT().getColumn(i), 1, sr.getFlowTP().getColumn(i));
-
 			
 			bool found = seen.find(acc,&combined);
 			if (!found) {
 				seen.insert(acc,&combined);
-                sumMatrix.appendColumn(combined);
+                		sumMatrix.appendColumn(combined);
 				tnames.push_back(i);
 			}
-            representative.push_back((*acc).second);
+            		representative.push_back((*acc).second);
 		}
-        // add logger ?
+        	// add logger ?
 	}
 	return sumMatrix;
 }
+
 /*
 static void printInvariant(Collection<SparseIntArray> invariants, List<String> pnames, List<Integer> initial,
 		PrintStream out) {
