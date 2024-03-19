@@ -1,5 +1,6 @@
 wget --progress=dot:mega https://ftpmirror.gnu.org/libtool/libtool-2.4.7.tar.gz ;
 tar xzf libtool-2.4.7.tar.gz ;
+cd libtool-2.4.7 ;
 ./configure --prefix=$(pwd)/../usr/local ;
 make -j ;
 make install ;
@@ -14,7 +15,6 @@ make -j ;
 make install ;
 cd .. ;
 rm autoconf-latest.tar.xz ;
-
 
 wget --progress=dot:mega https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz ; 
 tar xf gmp-6.3.0.tar.xz ; 
