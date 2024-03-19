@@ -9,12 +9,12 @@ cd .. ;
 
 wget --progress=dot:mega https://ftp.gnu.org/gnu/autoconf/autoconf-latest.tar.xz ;
 tar xf autoconf-latest.tar.xz ;
-rm autoconf-latest.tar.xz ;
-cd autoconf-* ;
+cd $(find . -type d -name 'autoconf-c*') ;
 ./configure --prefix=$(pwd)/../usr/local ;
 make -j ;
 make install ;
 cd .. ;
+rm autoconf-latest.tar.xz ;
 
 wget --progress=dot:mega https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz ; 
 tar xf gmp-6.3.0.tar.xz ; 
