@@ -9,7 +9,7 @@ cd .. ;
 
 wget --progress=dot:mega https://ftp.gnu.org/gnu/autoconf/autoconf-latest.tar.xz ;
 tar xf autoconf-latest.tar.xz ;
-cd $(find . -type d -name 'autoconf-c*') ;
+cd $(find . -type d -name 'autoconf-*') ;
 ./configure --prefix=$(pwd)/../usr/local ;
 make -j ;
 make install ;
