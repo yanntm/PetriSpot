@@ -30,5 +30,5 @@ rm spot_linux.tar.gz ;
 
 cd Petri ; 
 autoreconf -vfi ;
-./configure --prefix=$PWD/../usr/local/  --with-autoconf=$PWD/../usr/local/ --with-libtool=$PWD/../usr/local/ --with-libexpat=$PWD/../usr/local/ --with-libspot=$(pwd)/../usr/local/ --with-libddd=$PWD/../usr/local/ --with-gmp=$PWD/../usr/local/ --with-antlrc=$PWD/../usr/local/   CPPFLAGS="-I$(pwd)/../usr/local/include -DNDEBUG" LDFLAGS="-L$(pwd)/../usr/local/lib" || cat config.log ;
+./configure --prefix=$PWD/../usr/local/  --with-libexpat=$PWD/../usr/local/ --with-libspot=$(pwd)/../usr/local/ --with-libddd=$PWD/../usr/local/ --with-gmp=$PWD/../usr/local/ --with-antlrc=$PWD/../usr/local/   CPPFLAGS="-I$(pwd)/../usr/local/include -DNDEBUG" LDFLAGS="-L$(pwd)/../usr/local/lib" || cat config.log ;
 make -j 4 ;
