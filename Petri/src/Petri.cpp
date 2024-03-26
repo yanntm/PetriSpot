@@ -120,7 +120,7 @@ int main(int argc, char * argv[]) {
 ////				inv.print(System.out, spn.getPnames(), spn.getMarks());
 //    				printInvariant(invar, pn->getPnames(), (*pn).getMarks());
 			}
-//			if (tflows || tsemiflows) {
+			if (tflows || tsemiflows) {
 //				long time = System.currentTimeMillis();
 				set<SparseIntArray> invarT;
 				if (tflows) {
