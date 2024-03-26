@@ -134,7 +134,8 @@ int main(int argc, char * argv[]) {
 //					//InvariantCalculator.printInvariant(invarT, strtnames, empty );
 				}
 //				SparseIntArray inv = DeadlockTester.findPositiveTsemiflow(sumMatrix);
-//
+//				
+//				delete pn;
 //				return null;
 			}
 
