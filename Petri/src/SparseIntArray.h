@@ -17,7 +17,7 @@
  * limitations under the License.
  * package android.util;
  */
-
+#include <functional>
 #include <vector>
 #include <utility>
 #include <algorithm>
@@ -335,6 +335,11 @@ public :
 		return ;
 	}
 
+	friend std::ostream& operator<< (std::ostream & os, const SparseIntArray & a) {
+		a.print(os);
+		return os;
+	}
+
 	/**
 	 * Returns a vector with : alpha * ta + beta * tb in each cell.
 	 * @return
@@ -581,6 +586,58 @@ private :
 
 };
 
+// Specialize std::hash for SparseIntArray
+namespace std {
+    template<>
+    struct hash<SparseIntArray> {
+        size_t operator()(const SparseIntArray& obj) const {
+            return obj.hash(); // Invoke the hash method of SparseIntArray
+        }
+    };
+}
+
+// Specialize std::hash for SparseIntArray*
+namespace std {
+    template<>
+    struct hash<SparseIntArray*> {
+        size_t operator()(const SparseIntArray* ptr) const {
+            return ptr ? ptr->hash() : 0; // Use the hash method or handle null
+        }
+    };
+}
+
+// Specialize std::equal_to for SparseIntArray*
+namespace std {
+    template<>
+    struct equal_to<SparseIntArray*> {
+        bool operator()(const SparseIntArray* lhs, const SparseIntArray* rhs) const {
+            if (lhs == rhs) return true; // Same pointer or both are null
+            if (!lhs || !rhs) return false; // One is null, the other isn't
+            return *lhs == *rhs; // Compare pointed-to objects
+        }
+    };
+}
+
+namespace std {
+    template<>
+    struct hash<const SparseIntArray*> {
+        size_t operator()(const SparseIntArray* ptr) const {
+            return ptr ? ptr->hash() : 0; // Use the hash method or handle null
+        }
+    };
+}
+
+// Specialize std::equal_to for SparseIntArray*
+namespace std {
+    template<>
+    struct equal_to<const SparseIntArray*> {
+        bool operator()(const SparseIntArray* lhs, const SparseIntArray* rhs) const {
+            if (lhs == rhs) return true; // Same pointer or both are null
+            if (!lhs || !rhs) return false; // One is null, the other isn't
+            return *lhs == *rhs; // Compare pointed-to objects
+        }
+    };
+}
 
 
 #endif /* SPARSEINTARRAY_H_ */
