@@ -104,6 +104,10 @@ public :
 		}
 	}
 
+	 void reserveColumns (size_t nbCol) {
+		 this->lCols.reserve(nbCol);
+	 }
+
 	/** Exchange back to explicit form if required.
 	 * @return an explicit verion of this matrix, mat[i] giving a column at index i.
 	 */
