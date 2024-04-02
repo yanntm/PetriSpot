@@ -45,9 +45,9 @@ private:
 		// The row
 		const int row;
 		// P+ set
-		const SparseBoolArray pPlus;
+		SparseBoolArray pPlus;
 		// P- set
-		const SparseBoolArray pMinus;
+		SparseBoolArray pMinus;
 
 		/**
 		 * initially empty.
@@ -70,15 +70,10 @@ private:
 			}
 		}
 
-		friend std::ostream& operator<<(std::ostream& os, const PpPm& obj) {
-			os << "PpPm [row=" << obj.row << ", pPlus=" << obj.pPlus << ", pMinus=" << obj.pMinus << "]";
-			return os;
+		std::string toString() const {
+			std::string res = "PpPm [row=" + std::to_string(row) + ", pPlus=" + pPlus.toString() + ", pMinus=" + pMinus.toString() + "]";
+        	return res;
 		}
-
-		~PpPm() {
-        	delete pPlus;
-        	delete pMinus;
-    	}
 
 	};
 
@@ -572,7 +567,7 @@ private:
 		return tot;
 	}
 
-	static void test1b1(const MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms,
+	static void test1b1(MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms,
 			const Check11bResult & chkResult) {
 		if (DEBUG) {
 			std::cout << "Rule 1b.1 : " << chkResult.row << std::endl;

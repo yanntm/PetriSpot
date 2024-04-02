@@ -16,15 +16,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package android.util;
-import com.android.internal.util.ArrayUtils;
-import com.android.internal.util.GrowingArrayUtils;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+#include <vector>
+#include <algorithm>
+#include <iostream>
 
-import libcore.util.EmptyArray;
 /**
  * SparseIntArrays map integers to integers.  Unlike a normal array of integers,
  * there can be gaps in the indices.  It is intended to be more memory efficient
@@ -46,14 +42,15 @@ import libcore.util.EmptyArray;
  * keys in ascending order, or the values corresponding to the keys in ascending
  * order in the case of <code>valueAt(int)</code>.</p>
  */
-public class SparseBoolArray implements Cloneable {
-    private int[] mKeys;
-    private int mSize;
+class SparseBoolArray {
+private:
+    std::vector<int> mKeys;
+    int mSize;
+public:
     /**
      * Creates a new SparseIntArray containing no mappings.
      */
-    public SparseBoolArray() {
-        this(10);
+    SparseBoolArray() : SparseBoolArray(10) {
     }
     /**
      * Creates a new SparseIntArray containing no mappings that will not
@@ -62,86 +59,82 @@ public class SparseBoolArray implements Cloneable {
      * sparse array will be initialized with a light-weight representation
      * not requiring any additional array allocations.
      */
-    public SparseBoolArray(int initialCapacity) {
-        if (initialCapacity == 0) {
-            mKeys = EmptyArray.INT;
-        } else {
-            mKeys = ArrayUtils.newUnpaddedIntArray(initialCapacity);
-        }
-        mSize = 0;
+    SparseBoolArray(int initialCapacity) : mKeys(std::vector<int>(initialCapacity)) , mSize(0) {
     }
     /** 
      * Convert a classic List<Int> to a sparse representation.
      * @param marks
      */
-    public SparseBoolArray(List<Boolean> marks) {
+    SparseBoolArray(std::vector<bool> marks) : SparseBoolArray(std::count_if(marks.begin(), marks.end(), [](int e) { return e != 0; })) {
     	// compute and set correct capacity
-    	this ( (int) marks.stream().filter(e -> e).count());
     	for (int  i = 0, e = marks.size() ; i < e ; i++) {
-    		boolean v = marks.get(i);
+    		bool v = marks[i];
     		if (v) {
     			append(i, v);    			
     		}
     	}    	
 	}
-    
-    public List<Boolean> toList (int size) {
-    	List<Boolean> res = new ArrayList<> (size);
+
+    std::vector<bool> toList (int size) {
+    	std::vector<bool> res(size);
     	int  j = 0;
     	for (int i=0; i < size ; i++ ) {
-    		if (j < size() && keyAt(j)==i) {
-    			res.add(true);
+    		if (j < SparseBoolArray::size() && keyAt(j)==i) {
+    			res.push_back(true);
     			++j;
     		} else {
-    			res.add(false);
+    			res.push_back(false);
     		}    		
     	}
     	return res;
     }
     
-	@Override
-    public SparseBoolArray clone() {
-        SparseBoolArray clone = null;
+    SparseBoolArray clone() {
+        SparseBoolArray clone;
         try {
-            clone = (SparseBoolArray) super.clone();
-            clone.mKeys = mKeys.clone();
-        } catch (CloneNotSupportedException cnse) {
-            /* ignore */
-        }
+            clone.mSize = mSize;
+            clone.mKeys = mKeys;
+        } catch (const char* e) {
+		    std::cout << e << std::endl;
+		    return 1;
+	    }
         return clone;
     }
     /**
      * Gets the int mapped from the specified key, or <code>0</code>
      * if no such mapping has been made.
      */
-    public boolean get(int key) {
+    bool get(int key) {
         return get(key, false);
     }
     /**
      * Gets the int mapped from the specified key, or the specified value
      * if no such mapping has been made.
      */
-    public boolean get(int key, boolean valueIfKeyNotFound) {
-        int i = ContainerHelpers.binarySearch(mKeys, mSize, key);
-        if (i < 0) {
-            return valueIfKeyNotFound;
-        } else {
+    bool get(int key, bool valueIfKeyNotFound) {
+        auto it = std::find(mKeys.begin(), mKeys.end(), key);
+        if (it != mKeys.end()) {
             return true;
+        } else {
+            return valueIfKeyNotFound;
         }
     }
     /**
      * Removes the mapping from the specified key, if there was any.
      */
-    public void delete(int key) {
-        int i = ContainerHelpers.binarySearch(mKeys, mSize, key);
-        if (i >= 0) {
-            removeAt(i);
+    void remove(int key) {
+        auto it = std::find(mKeys.begin(), mKeys.end(), key);
+        if (it != mKeys.end()) {
+            removeAt(std::distance(mKeys.begin(), it));
         }
     }
+
+// poursuivre ici
+
     /**
      * Removes the mapping at the given index.
      */
-    public void removeAt(int index) {
+    void removeAt(int index) {
         System.arraycopy(mKeys, index + 1, mKeys, index, mSize - (index + 1));        
         mSize--;
     }
@@ -150,13 +143,13 @@ public class SparseBoolArray implements Cloneable {
      * replacing the previous mapping from the specified key if there
      * was one.
      */
-    public void put(int key, boolean v) {    	
-        int i = ContainerHelpers.binarySearch(mKeys, mSize, key);
-        if (i >= 0) {
+    void put(int key, bool v) {    	
+        auto it = std::find(mKeys.begin(), mKeys.end(), key);
+        if (it != mKeys.end()) {
         	if (v) {
         		return;
         	} else {
-        		removeAt(i);
+        		removeAt(std::distance(mKeys.begin(), it));
         	}
         } else if (v) {
             i = ~i;
@@ -168,7 +161,7 @@ public class SparseBoolArray implements Cloneable {
      * Returns the number of key-value mappings that this SparseIntArray
      * currently stores.
      */
-    public int size() {
+    int size() const {
         return mSize;
     }
     /**
@@ -181,7 +174,7 @@ public class SparseBoolArray implements Cloneable {
      * smallest key and <code>keyAt(size()-1)</code> will return the largest
      * key.</p>
      */
-    public int keyAt(int index) {
+    int keyAt(int index) const {
         return mKeys[index];
     }
 
@@ -190,27 +183,27 @@ public class SparseBoolArray implements Cloneable {
      * specified key, or a negative number if the specified
      * key is not mapped.
      */
-    public int indexOfKey(int key) {
-        return ContainerHelpers.binarySearch(mKeys, mSize, key);
+    int indexOfKey(int key) {
+        return std::distance(mKeys.begin(), std::find(mKeys.begin(), mKeys.end(), key));
     }
     /**
-     * Removes all key-value mappings from this SparseIntArray.
+     * Removes all key-value mappings from this SparseBoolArray.
      */
-    public void clear() {
+    void clear() {
         mSize = 0;
     }
     /**
      * Puts a key/value pair into the array, optimizing for the case where
      * the key is greater than all existing keys in the array.
      */
-    public void append(int key, boolean v) {
+    void append(int key, bool v) {
     	if (! v)
     		return;
         if (mSize != 0 && key <= mKeys[mSize - 1]) {
             put(key, v);
             return;
         }
-        mKeys = GrowingArrayUtils.append(mKeys, mSize, key);
+        mKeys.push_back(key);
         mSize++;
     }
     /**
@@ -365,6 +358,7 @@ public class SparseBoolArray implements Cloneable {
 		res.mSize = cur;
 		return res;
 	}
+
 
 };
 
