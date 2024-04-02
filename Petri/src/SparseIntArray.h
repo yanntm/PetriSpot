@@ -55,13 +55,6 @@ class SparseIntArray {
 	int mCap;
 public :
 	/**
-	 * Default constructor
-	*/
-	SparseIntArray() : mCap(8), mSize(0) {
-        mKeys = new int[mCap];
-        mValues = new int[mCap];
-    }
-	/**
 	 * Creates a new SparseIntArray containing no mappings that will not
 	 * require any additional memory allocation to store the specified
 	 * number of mappings.  If you supply an initial capacity of 0, the

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef INVARIANTMIDDLE_H_
+#define INVARIANTMIDDLE_H_
 
 
 #include "SparsePetriNet.h"
@@ -39,3 +40,4 @@ static MatrixCol computeReducedFlow(const SparsePetriNet & sr, std::vector<int> 
 }
 
 
+#endif /* INVARIANTMIDDLE_H_ */
