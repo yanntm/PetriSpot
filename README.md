@@ -5,25 +5,22 @@
 ```
 git clone -b invariant https://github.com/soufianeelm/PetriSpot.git ;
 cd PetriSpot ;
-./build.sh
+./build.sh ;
+cd Petri/src
 ```
 
 
 ## How to install (just the program) :
 
-LA PREMIERE COMMANDE NE RAMENE PAS LE BON FILE
-
 ```
-wget --progress=dot:mega https://github.com/soufianeelm/PetriSpot/blob/Inv-Linux/petri ;
-chmod +x petri
+git clone -b Inv-Linux https://github.com/soufianeelm/PetriSpot.git ;
+cd PetriSpot ;
 ```
 
 
 ## How to use :
 
 ```
-cd Petri/src
-
 ./petri [model.pnml] [flags]
 ```
 
