@@ -16,11 +16,13 @@
  *
  */
 
+#include <numeric>
 #include <string>
 #include <iostream>
 #include <vector>
 #include <unordered_set>
 #include "MatrixCol.h"
+#include "SparseBoolArray.h"
 
 class InvariantCalculator {
 
@@ -52,7 +54,7 @@ private:
 		 *
 		 * @param row
 		 */
-		PpPm(int row) : row(row), pPlus(new SparseBoolArray()), pMinus(new SparseBoolArray()) {
+		PpPm(int row) : row(row), pPlus(), pMinus() {
 		}
 
 		void setValue(int j, int val) {
@@ -136,29 +138,29 @@ private:
 	 * @param startIndex
 	 * @return the row which satisfy |P+| == 1 or |P-| == 1 or null if not existent.
 	 */
-	static Check11bResult* check11b(const std::vector<PpPm>& pppms, int startIndex) {
+	static Check11bResult check11b(const std::vector<PpPm>& pppms, int startIndex) {
 		for (const PpPm& pppm : std::vector<PpPm>(pppms.begin() + startIndex, pppms.end())) {
-			Check11bResult* res = check11bPppm(pppm);
-			if (res != nullptr) {
+			Check11bResult res = check11bPppm(pppm);
+			if (res.col != -1) {
 				return res;
 			}
 		}
 		for (const PpPm& pppm : std::vector<PpPm>(pppms.begin(), pppms.begin() + startIndex)) {
-			Check11bResult* res = check11bPppm(pppm);
-			if (res != nullptr) {
+			Check11bResult res = check11bPppm(pppm);
+			if (res.col != -1) {
 				return res;
 			}
 		}
-		return nullptr;
+		return Check11bResult(-1, -1, SparseBoolArray());
 	}
 
-	static Check11bResult* check11bPppm(const PpPm& pppm) {
+	static Check11bResult check11bPppm(const PpPm& pppm) {
 		if (pppm.pMinus.size() == 1) {
-			return new Check11bResult(pppm.pMinus.keyAt(0), pppm.row, pppm.pPlus);
+			return Check11bResult(pppm.pMinus.keyAt(0), pppm.row, pppm.pPlus);
 		} else if (pppm.pPlus.size() == 1) {
-			return new Check11bResult(pppm.pPlus.keyAt(0), pppm.row, pppm.pMinus);
+			return Check11bResult(pppm.pPlus.keyAt(0), pppm.row, pppm.pMinus);
 		}
-		return nullptr;
+		return Check11bResult(-1, -1, SparseBoolArray());
 	}
 
 	/**
@@ -367,8 +369,9 @@ public:
 		std::cout << "Found " << colsBsparse.size() << " positive invariants." << std::endl;
 		return colsBsparse;
 	}
+
 private:
-	static void removeNegativeValues(std::unordered_set<SparseIntArray>& colsBsparse) {
+	static void removeNegativeValues(std::unordered_set<SparseIntArray> & colsBsparse) {
 		for (auto it = colsBsparse.begin(); it != colsBsparse.end();) {
 			const SparseIntArray& a = *it;
 			bool hasNegativeValue = false;
@@ -386,7 +389,7 @@ private:
 		}
 	}
 
-	static std::vector<int> normalize(SparseIntArray& col, int size) {
+	static std::vector<int> normalize(SparseIntArray & col, int size) {
 		std::vector<int> list(size);
 		bool allneg = true;
 		for (int i = 0; i < col.size(); i++) {
@@ -410,7 +413,7 @@ private:
 
 	static MatrixCol phase1PIPE(const MatrixCol & matC) {
 		// incidence matrix
-		const MatrixCol matB = MatrixCol::identity(matC.getColumnCount(), matC.getColumnCount());
+		MatrixCol matB = MatrixCol::identity(matC.getColumnCount(), matC.getColumnCount());
 
 		std::cout << "// Phase 1: matrix " << matC.getRowCount() << " rows " + matC.getColumnCount() << " cols" << std::endl;
 		std::vector<PpPm> pppms = calcPpPm(matC);
@@ -421,26 +424,75 @@ private:
 		return matB;
 	}
 
-	static int test1b(const MatrixCol & matC, const MatrixCol & matB, const std::vector<PpPm> & pppms,
+	static int test1b(const MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms,
 			int startIndex) {
 		// [1.1.b] if there exists a row h in C such that |P+| == 1 or |P-| == 1
-		const Check11bResult* chkResult = check11b(pppms, startIndex);
-		if (chkResult != nullptr) {
+		Check11bResult chkResult = check11b(pppms, startIndex);
+		if (chkResult.col != -1) {
 			test1b1(matC, matB, pppms, chkResult);
-			startIndex = chkResult->row;
+			startIndex = chkResult.row;
 		} else {
 			test1b2(matC, matB, pppms);
 		}
 		return startIndex;
 	}
-/*
-	static void test1b2(final IntMatrixCol matC, final IntMatrixCol matB, final List<PpPm> pppms) {
+
+public:
+	static SparseBoolArray sumProdInto(int alpha, SparseIntArray & ta, int beta, const SparseIntArray & tb) {
+		SparseBoolArray changed;
+		SparseIntArray flow(std::max(ta.size(), tb.size()));
+
+		int i = 0;
+		int j = 0;
+		while (i < ta.size() || j < tb.size()) {
+			int ki = i == ta.size() ? std::numeric_limits<int>::max() : ta.keyAt(i);
+			int kj = j == tb.size() ? std::numeric_limits<int>::max() : tb.keyAt(j);
+			if (ki == kj) {
+				int val =  alpha * ta.valueAt(i) + beta * tb.valueAt(j);
+				if (val != 0) {
+					flow.append(ki, val);
+				}
+				if (val != ta.valueAt(i)) {
+					changed.set(ki);
+				}
+				i++;
+				j++;
+			} else if (ki < kj) {
+				int val = alpha * ta.valueAt(i);
+				if (val != 0) {
+					flow.append(ki, val);
+				}
+				if (val != ta.valueAt(i)) {
+					changed.set(ki);
+				}
+				i++;
+			} else if (kj < ki) {
+				int val = beta * tb.valueAt(j);
+				if (val != 0) {
+					flow.append(kj, val);
+				}
+				if (val != 0) {
+					changed.set(kj);
+				}
+				j++;
+			}
+		}
+		ta.move(flow);
+		return changed;
+	}
+
+private:
+	static int signum(int value) {
+    	return (value > 0) - (value < 0);
+	}
+
+	static void test1b2(const MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms) {
 		// [1.1.b.1] let tRow be the index of a non-zero row of C.
 		// let tCol be the index of a column such that c[trow][tcol] != 0.
 
 		int candidate = -1;
-		int szcand = Integer.MAX_VALUE;
-		int totalcand = Integer.MAX_VALUE;
+		int szcand = std::numeric_limits<int>::max();
+		int totalcand = std::numeric_limits<int>::max();
 		for (int col = 0; col < matC.getColumnCount(); col++) {
 			int size = matC.getColumn(col).size();
 			if (size == 0) {
@@ -459,14 +511,14 @@ private:
 		int tCol = candidate;
 
 		int cHk = matC.get(tRow, tCol);
-		int bbeta = Math.abs(cHk);
+		int bbeta = std::abs(cHk);
 
 		if (DEBUG) {
-			System.out.println("Rule 1b2 : " + tCol);
+			std::cout << "Rule 1b2 : " << tCol << std::endl;
 		}
 		// for all cols j with j != tCol and c[tRow][j] != 0
-		PpPm rowppm = pppms.get(tRow);
-		SparseBoolArray toVisit = SparseBoolArray.or(rowppm.pMinus, rowppm.pPlus);
+		PpPm rowppm = pppms[tRow];
+		SparseBoolArray toVisit = SparseBoolArray::or(rowppm.pMinus, rowppm.pPlus);
 
 		for (int i = 0; i < toVisit.size(); i++) {
 			int j = toVisit.keyAt(i);
@@ -481,17 +533,17 @@ private:
 				// substitute to the column of index j the linear combination
 				// of the columns of indices tCol and j with coefficients
 				// alpha and beta defined as follows:
-				int alpha = ((Math.signum(cHj) * Math.signum(cHk)) < 0) ? Math.abs(cHj) : -Math.abs(cHj);
+				int alpha = ((signum(cHj) * signum(cHk)) < 0) ? std::abs(cHj) : -std::abs(cHj);
 				if (alpha == 0 && bbeta == 1) {
 					continue;
 				}
-				int gcd = MathTools.gcd(alpha, bbeta);
+				int gcd = std::gcd(alpha, bbeta);
 				alpha /= gcd;
 				int beta = bbeta / gcd;
 
 				SparseBoolArray changed = sumProdInto(beta, colj, alpha, matC.getColumn(tCol));
 				for (int ind = 0, inde = changed.size(); ind < inde; ind++) {
-					pppms.get(changed.keyAt(ind)).setValue(j, colj.get(changed.keyAt(ind)));
+					pppms[changed.keyAt(ind)].setValue(j, colj.get(changed.keyAt(ind)));
 				}
 				SparseIntArray coljb = matB.getColumn(j);
 				sumProdInto(beta, coljb, alpha, matB.getColumn(tCol));
@@ -500,28 +552,30 @@ private:
 		clearColumn(tCol, matC, matB, pppms);
 	}
 
-	public static void clearColumn(int tCol, final IntMatrixCol matC, final IntMatrixCol matB, final List<PpPm> pppms) {
+public:
+	static void clearColumn(int tCol, const MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms) {
 		// delete from the extended matrix the column of index k
 		SparseIntArray colk = matC.getColumn(tCol);
 		for (int i = 0, ie = colk.size(); i < ie; i++) {
-			pppms.get(colk.keyAt(i)).setValue(tCol, 0);
+			pppms[colk.keyAt(i)].setValue(tCol, 0);
 		}
 		colk.clear();
 		matB.getColumn(tCol).clear();
 	}
 
-	private static int sumAbsValues(SparseIntArray col) {
+private:
+	static int sumAbsValues(const SparseIntArray & col) {
 		int tot = 0;
 		for (int i = 0; i < col.size(); i++) {
-			tot += Math.abs(col.valueAt(i));
+			tot += std::abs(col.valueAt(i));
 		}
 		return tot;
 	}
 
-	private static void test1b1(final IntMatrixCol matC, final IntMatrixCol matB, final List<PpPm> pppms,
-			final Check11bResult chkResult) {
+	static void test1b1(const MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms,
+			const Check11bResult & chkResult) {
 		if (DEBUG) {
-			System.out.println("Rule 1b.1 : " + chkResult.row);
+			std::cout << "Rule 1b.1 : " << chkResult.row << std::endl;
 		}
 		int tCol = chkResult.col;
 		// [1.1.b.1] let k be the unique index of column belonging to P+ (resp. to P-)
@@ -530,15 +584,15 @@ private:
 			// substitute to the column of index j the linear combination of
 			// the columns indexed by k and j with the coefficients
 			// |chj| and |chk| respectively.
-			int chk = Math.abs(matC.get(chkResult.row, tCol));
-			int chj = Math.abs(matC.get(chkResult.row, j));
-			int gcd = MathTools.gcd(chk, chj);
+			int chk = std::abs(matC.get(chkResult.row, tCol));
+			int chj = std::abs(matC.get(chkResult.row, j));
+			int gcd = std::gcd(chk, chj);
 			chk /= gcd;
 			chj /= gcd;
 
 			SparseBoolArray changed = sumProdInto(chk, matC.getColumn(j), chj, matC.getColumn(tCol));
 			for (int ind = 0, inde = changed.size(); ind < inde; ind++) {
-				pppms.get(changed.keyAt(ind)).setValue(j, matC.getColumn(j).get(changed.keyAt(ind)));
+				pppms[changed.keyAt(ind)].setValue(j, matC.getColumn(j).get(changed.keyAt(ind)));
 			}
 			SparseIntArray coljb = matB.getColumn(j);
 			sumProdInto(chk, coljb, chj, matB.getColumn(tCol));
@@ -547,18 +601,41 @@ private:
 		clearColumn(chkResult.col, matC, matB, pppms);
 	}
 
-	private static void normalize(List<Integer> invariants) {
-		int gcd = MathTools.gcd(invariants);
+	static int gcd(std::vector<int> set) {
+		if (set.size() == 0)
+			return 0;
+		int gcd = set[0];
+		for (int i =1 ; i < set.size() ; i++) {
+			gcd = std::gcd(gcd, set[i]);
+			if (gcd == 1) return 1;
+		}
+		return gcd;
+	}
+	
+	static int gcd(SparseIntArray set) {
+		if (set.size()==0)
+			return 0;
+		int gcd = set.valueAt(0);
+		for (int i =1 ; i < set.size() ; i++) {
+			gcd = std::gcd(gcd, set.valueAt(i));
+			if (gcd == 1) return 1;
+		}
+		return gcd;
+	}
+
+	static void normalize(std::vector<int> invariants) {
+		int gcd = InvariantCalculator::gcd(invariants);
 		if (gcd > 1) {
 			for (int j = 0; j < invariants.size(); ++j) {
-				int norm = invariants.get(j) / gcd;
-				invariants.set(j, norm);
+				int norm = invariants[j] / gcd;
+				invariants[j] = norm;
 			}
 		}
 	}
+
 public:
-	public static void normalizeWithSign(SparseIntArray col) {
-		boolean allneg = true;
+	static void normalizeWithSign(SparseIntArray & col) {
+		bool allneg = true;
 		for (int i = 0; i < col.size(); i++) {
 			if (col.valueAt(i) > 0) {
 				allneg = false;
@@ -571,7 +648,7 @@ public:
 			}
 		}
 
-		int gcd = MathTools.gcd(col);
+		int gcd = InvariantCalculator::gcd(col);
 		if (gcd > 1) {
 			for (int j = 0; j < col.size(); ++j) {
 				int norm = col.valueAt(j) / gcd;
@@ -580,8 +657,8 @@ public:
 		}
 	}
 
-	public static void normalize(SparseIntArray invariants) {
-		int gcd = MathTools.gcd(invariants);
+	static void normalize(SparseIntArray invariants) {
+		int gcd = InvariantCalculator::gcd(invariants);
 		if (gcd > 1) {
 			for (int j = 0; j < invariants.size(); ++j) {
 				int norm = invariants.valueAt(j) / gcd;
@@ -589,7 +666,7 @@ public:
 			}
 		}
 	}
-*/
+
 };
 
 #endif /* INVARIANTCALCULATOR_H_ */
