@@ -1,13 +1,3 @@
-/*
- ============================================================================
- Name        : Petri.cpp
- Author      : 
- Version     :
- Copyright   : Your copyright notice
- Description : Hello World in C++,
- ============================================================================
- */
-
 #include <iostream>
 #include <string>
 #include "SparseIntArray.h"
