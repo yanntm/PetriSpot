@@ -75,7 +75,7 @@ public:
     	}    	
 	}
 
-    std::vector<bool> toList (int size) {
+    std::vector<bool> toList (int size) const {
     	std::vector<bool> res(size);
     	int  j = 0;
     	for (int i=0; i < size ; i++ ) {
@@ -104,14 +104,14 @@ public:
      * Gets the int mapped from the specified key, or <code>0</code>
      * if no such mapping has been made.
      */
-    bool get(int key) {
+    bool get(int key) const {
         return get(key, false);
     }
     /**
      * Gets the int mapped from the specified key, or the specified value
      * if no such mapping has been made.
      */
-    bool get(int key, bool valueIfKeyNotFound) {
+    bool get(int key, bool valueIfKeyNotFound) const {
         auto it = std::find(mKeys.begin(), mKeys.end(), key);
         if (it != mKeys.end()) {
             return true;
