@@ -19,6 +19,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <unordered_set>
 #include "MatrixCol.h"
 
 class InvariantCalculator {
@@ -79,7 +80,14 @@ private:
 
 	};
 
-	static std::vector<PpPm> calcPpPm(MatrixCol matC) {
+	/**
+	 * Calculates for a given matrix the P+ = {j | c_hj &gt; 0} and P- = {j | c_hj
+	 * less 0} sets for each row.
+	 *
+	 * @param matC - the matrix from which the sets should be calculated.
+	 * @return The result of the calculation
+	 */
+	static std::vector<PpPm> calcPpPm(const MatrixCol& matC) {
 		std::vector<PpPm> result;
 		for (int row = 0; row < matC.getRowCount(); row++) {
 			result.push_back(PpPm(row));
@@ -116,35 +124,472 @@ private:
 		 * @param h     - the whole row.
 		 * @param pPlus - the set P+ respectively P-.
 		 */
-		Check11bResult(int k, int row, SparseBoolArray pPlus) : col(k), row(row), pPlus(pPlus) {
+		Check11bResult(int k, int row, const SparseBoolArray& pPlus) : col(k), row(row), p(pPlus) {
 		}
 	};
 
-//	static Check11bResult check11b(std::vector<PpPm> pppms, int startIndex) {
-//		for (PpPm pppm : pppms.subList(startIndex, pppms.size())) {
-//			Check11bResult res = check11bPppm(pppm);
-//			if (res != nullptr) {
-//				return res;
-//			}
-//		}
-//		for (PpPm pppm : pppms.subList(0, startIndex)) {
-//			Check11bResult res = check11bPppm(pppm);
-//			if (res != null) {
-//				return res;
-//			}
-//		}
-//		return nullptr;
-//	}
-//
-//	static Check11bResult check11bPppm(PpPm pppm) {
-//		if (pppm.pMinus.size() == 1) {
-//			return Check11bResult(pppm.pMinus.keyAt(0), pppm.row, pppm.pPlus);
-//		} else if (pppm.pPlus.size() == 1) {
-//			return Check11bResult(pppm.pPlus.keyAt(0), pppm.row, pppm.pMinus);
-//		}
-//		return nullptr;
-//	}
+	/**
+	 * Checks if there exists a row in the given matrix such that |P+| == 1 or |P-|
+	 * == 1 and returns the row or null if such a row do not exists.
+	 *
+	 * @param pppms      the list of all rows with P+ and P- sets.
+	 * @param startIndex
+	 * @return the row which satisfy |P+| == 1 or |P-| == 1 or null if not existent.
+	 */
+	static Check11bResult* check11b(const std::vector<PpPm>& pppms, int startIndex) {
+		for (const PpPm& pppm : std::vector<PpPm>(pppms.begin() + startIndex, pppms.end())) {
+			Check11bResult* res = check11bPppm(pppm);
+			if (res != nullptr) {
+				return res;
+			}
+		}
+		for (const PpPm& pppm : std::vector<PpPm>(pppms.begin(), pppms.begin() + startIndex)) {
+			Check11bResult* res = check11bPppm(pppm);
+			if (res != nullptr) {
+				return res;
+			}
+		}
+		return nullptr;
+	}
 
-}
+	static Check11bResult* check11bPppm(const PpPm& pppm) {
+		if (pppm.pMinus.size() == 1) {
+			return new Check11bResult(pppm.pMinus.keyAt(0), pppm.row, pppm.pPlus);
+		} else if (pppm.pPlus.size() == 1) {
+			return new Check11bResult(pppm.pPlus.keyAt(0), pppm.row, pppm.pMinus);
+		}
+		return nullptr;
+	}
+
+	/**
+	 * Calculates the invariants with the algorithm based on
+	 * http://pipe2.sourceforge.net/documents/PIPE-Report.pdf (page 19).
+	 *
+	 * @param mat          - the matrix to calculate the invariants from.
+	 * @param onlyPositive whether we just stop at Flows or go for Semi-Flows
+	 * @param pnames       variable names
+	 * @return a generator set of the invariants.
+	 */
+public:	
+	static std::unordered_set<SparseIntArray> calcInvariantsPIPE(MatrixCol mat, bool onlyPositive) {
+		if (mat.getColumnCount() == 0 || mat.getRowCount() == 0) {
+			return std::unordered_set<SparseIntArray>();
+		}
+		MatrixCol tmat = mat.transpose();
+		std::unordered_set<SparseIntArray> normed = std::unordered_set<SparseIntArray>();
+		for (int i = 0; i < tmat.getColumnCount(); i++) {
+			SparseIntArray norm = tmat.getColumn(i);
+			normalize(norm);
+			normed.insert(norm);
+		}
+		if (normed.size() < tmat.getColumnCount()) {
+			std::cout << "Normalized transition count is " << normed.size() << " out of " << tmat.getColumnCount()
+					<< " initially." << std::endl;
+		}
+		MatrixCol matnorm(tmat.getRowCount(), 0);
+		for (SparseIntArray col : normed) {
+			matnorm.appendColumn(col);
+		}
+		const MatrixCol matB = phase1PIPE(matnorm.transpose());
+
+//		const MatrixCol matB = phase1PIPE(new MatrixCol(mat));
+		// We want to work with columns in this part of the algorithm
+		// We add and remove columns all day => we want to switch to a column based
+		// representation
+		// order of rows is really irrelevant + columns which are identical up to
+		// scaling factor are useless
+		// let's use a set of columns.
+		std::unordered_set<SparseIntArray> colsBsparse(2 * matB.getColumnCount());
+		for (int i = 0; i < matB.getColumnCount(); i++) {
+			SparseIntArray col = matB.getColumn(i);
+			if (col.size() != 0) {
+				normalizeWithSign(col);
+				colsBsparse.insert(col);
+			}
+		}
+
+		if (!onlyPositive) {
+			return colsBsparse;
+		}
+
+		MatrixCol colsB (tmat.getRowCount(), 0);
+		for (const SparseIntArray & cb : colsBsparse) {
+			colsB.appendColumn(cb);
+		}
+
+		// phase 2
+		std::cout << "// Phase 2 : computing semi flows from basis of " << colsB.getColumnCount() << " invariants " << std::endl;
+
+		int iter = 0;
+		SparseBoolArray treated;
+		colsBsparse = std::unordered_set<SparseIntArray>();
+		while (colsB.getColumnCount() < 20000) {
+			if (treated.size() > 0) {
+				for (int i = treated.size() - 1; i >= 0; i--) {
+					colsBsparse.insert(colsB.getColumn(treated.keyAt(i)));
+					colsB.deleteColumn(treated.keyAt(i));
+				}
+				treated.clear();
+			}
+
+			std::vector<PpPm> pppms = calcPpPm(colsB);
+			SparseBoolArray negRows;
+
+			int minRow = -1;
+			int minRowWeight = -1;
+			for (int row = 0, rowe = pppms.size(); row < rowe; row++) {
+				PpPm pp = pppms[row];
+				int pps = pp.pPlus.size();
+				int ppm = pp.pMinus.size();
+				int weight = pps + ppm;
+
+				if (pps == 0) {
+					for (int i = 0; i < ppm; i++) {
+						negRows.set(pp.pMinus.keyAt(i));
+					}
+				}
+				if (pps > 0 && ppm > 0) {
+					if (pps == 1 || ppm == 1) {
+						// can't grow the size
+						minRow = row;
+						break;
+					}
+					if (minRow == -1 || minRowWeight > weight) {
+						int refinedweight = 0;
+						for (int i = 0, ie = pp.pPlus.size(); i < ie; i++) {
+							refinedweight += colsB.getColumn(pp.pPlus.keyAt(i)).size();
+						}
+						for (int i = 0, ie = pp.pMinus.size(); i < ie; i++) {
+							refinedweight += colsB.getColumn(pp.pMinus.keyAt(i)).size();
+						}
+						if (minRow == -1 || minRowWeight > refinedweight) {
+							minRow = row;
+							minRowWeight = refinedweight;
+						}
+					}
+				}
+			}
+
+			if (negRows.size() > 0) {
+				// cleanup
+				for (int j = negRows.size() - 1; j >= 0; j--) {
+					colsB.deleteColumn(negRows.keyAt(j));
+				}
+				continue;
+			}
+			// check for a pure positive column
+			int purePos = -1;
+
+			for (int i = 0, ie = colsB.getColumnCount(); i < ie; i++) {
+				if (treated.get(i)) {
+					continue;
+				}
+				SparseIntArray col = colsB.getColumn(i);
+				bool hasNeg = false;
+				for (int j = 0, je = col.size(); j < je; j++) {
+					if (col.valueAt(j) < 0) {
+						hasNeg = true;
+						break;
+					}
+				}
+				if (!hasNeg) {
+					// check intersection
+					bool needed = false;
+					for (int j = 0, je = col.size(); j < je; j++) {
+						int row = col.keyAt(j);
+						PpPm ppm = pppms[row];
+						if (ppm.pMinus.size() > 0) {
+							needed = true;
+							purePos = i;
+							minRow = row;
+							break;
+						}
+					}
+					if (!needed) {
+						treated.set(i);
+					} else {
+						break;
+					}
+				}
+			}
+
+			int targetRow = minRow;
+			if (targetRow == -1) {
+				// no more negative rows to treat
+				break;
+			}
+			PpPm ppm = pppms[targetRow];
+			if (ppm.pPlus.size() > 0) {
+				for (int j = 0, je = ppm.pPlus.size(); j < je; j++) {
+					SparseIntArray colj = colsB.getColumn(ppm.pPlus.keyAt(j));
+					if (purePos != -1) {
+						colj = colsB.getColumn(purePos);
+						j = je;
+					}
+					for (int k = 0, ke = ppm.pMinus.size(); k < ke; k++) {
+						SparseIntArray colk = colsB.getColumn(ppm.pMinus.keyAt(k));
+						// operate a linear combination on the columns of indices j and k
+						// in order to get a new column having the pair.getFirst element equal
+						// to zero
+						int a = -colk.get(targetRow);
+						int b = colj.get(targetRow);
+						SparseIntArray column = SparseIntArray::sumProd(a, colj, b, colk);
+						// add normalization step : we don't need scalar scaling of each other
+						normalize(column);
+						// append column to matrix B
+						// tests existence
+						if (column.size() > 0) {
+							colsB.appendColumn(column);
+						}
+					}
+				}
+				// Delete from B all the columns of index k \in P-
+				// cleanup
+				for (int j = ppm.pMinus.size() - 1; j >= 0; j--) {
+					colsB.deleteColumn(ppm.pMinus.keyAt(j));
+					treated.deleteAndShift(ppm.pMinus.keyAt(j));
+				}
+			}
+			// std::cout << "Phase 2 iter " << iter++ << " rows : " <<
+			// colsB.getRowCount() << " cols " << colsB.getColumnCount() << " treated " <<
+			// colsBsparse.size() << std::endl;
+			// std::cout << colsB << std::endl;
+		}
+		// std::cout << "Found "<< colsB.getColumnCount() << " invariants."<< std::endl;
+
+		for (SparseIntArray l : colsB.getColumns()) {
+			if (l.size() > 0) {
+				colsBsparse.insert(l);
+			}
+		}
+		// std::cout << "Found "<< colsBsparse.size() << " different invariants."<< std:endl;
+		removeNegativeValues(colsBsparse);
+		std::cout << "Found " << colsBsparse.size() << " positive invariants." << std::endl;
+		return colsBsparse;
+	}
+private:
+	static void removeNegativeValues(std::unordered_set<SparseIntArray>& colsBsparse) {
+		for (auto it = colsBsparse.begin(); it != colsBsparse.end();) {
+			const SparseIntArray& a = *it;
+			bool hasNegativeValue = false;
+			for (int i = 0, ie = a.size(); i < ie; i++) {
+				if (a.valueAt(i) < 0) {
+					hasNegativeValue = true;
+					break;
+				}
+			}
+			if (hasNegativeValue) {
+				it = colsBsparse.erase(it);
+			} else {
+				++it;
+			}
+		}
+	}
+
+	static std::vector<int> normalize(SparseIntArray& col, int size) {
+		std::vector<int> list(size);
+		bool allneg = true;
+		for (int i = 0; i < col.size(); i++) {
+			if (col.valueAt(i) > 0) {
+				allneg = false;
+				break;
+			}
+		}
+		if (allneg) {
+			for (int i = 0; i < col.size(); i++) {
+				col.setValueAt(i, -col.valueAt(i));
+			}
+		}
+
+		for (int i = 0; i < size; i++) {
+			list.push_back(col.get(i, 0));
+		}
+		normalize(list);
+		return list;
+	}
+
+	static MatrixCol phase1PIPE(const MatrixCol & matC) {
+		// incidence matrix
+		const MatrixCol matB = MatrixCol::identity(matC.getColumnCount(), matC.getColumnCount());
+
+		std::cout << "// Phase 1: matrix " << matC.getRowCount() << " rows " + matC.getColumnCount() << " cols" << std::endl;
+		std::vector<PpPm> pppms = calcPpPm(matC);
+		int startIndex = 0;
+		while (!matC.isZero()) {
+			startIndex = test1b(matC, matB, pppms, startIndex);
+		}
+		return matB;
+	}
+
+	static int test1b(const MatrixCol & matC, const MatrixCol & matB, const std::vector<PpPm> & pppms,
+			int startIndex) {
+		// [1.1.b] if there exists a row h in C such that |P+| == 1 or |P-| == 1
+		const Check11bResult* chkResult = check11b(pppms, startIndex);
+		if (chkResult != nullptr) {
+			test1b1(matC, matB, pppms, chkResult);
+			startIndex = chkResult->row;
+		} else {
+			test1b2(matC, matB, pppms);
+		}
+		return startIndex;
+	}
+/*
+	static void test1b2(final IntMatrixCol matC, final IntMatrixCol matB, final List<PpPm> pppms) {
+		// [1.1.b.1] let tRow be the index of a non-zero row of C.
+		// let tCol be the index of a column such that c[trow][tcol] != 0.
+
+		int candidate = -1;
+		int szcand = Integer.MAX_VALUE;
+		int totalcand = Integer.MAX_VALUE;
+		for (int col = 0; col < matC.getColumnCount(); col++) {
+			int size = matC.getColumn(col).size();
+			if (size == 0) {
+				continue;
+			} else if (size <= szcand) {
+				int total = sumAbsValues(matC.getColumn(col));
+				if (size < szcand || (size == szcand && total <= totalcand)) {
+					candidate = col;
+					szcand = size;
+					totalcand = total;
+				}
+			}
+		}
+		// int [] pair = matC.getNoneZeroRow();
+		int tRow = matC.getColumn(candidate).keyAt(0);
+		int tCol = candidate;
+
+		int cHk = matC.get(tRow, tCol);
+		int bbeta = Math.abs(cHk);
+
+		if (DEBUG) {
+			System.out.println("Rule 1b2 : " + tCol);
+		}
+		// for all cols j with j != tCol and c[tRow][j] != 0
+		PpPm rowppm = pppms.get(tRow);
+		SparseBoolArray toVisit = SparseBoolArray.or(rowppm.pMinus, rowppm.pPlus);
+
+		for (int i = 0; i < toVisit.size(); i++) {
+			int j = toVisit.keyAt(i);
+			SparseIntArray colj = matC.getColumn(j);
+
+			if (j == tCol) {
+				continue;
+			}
+
+			int cHj = colj.get(tRow);
+			if (cHj != 0) {
+				// substitute to the column of index j the linear combination
+				// of the columns of indices tCol and j with coefficients
+				// alpha and beta defined as follows:
+				int alpha = ((Math.signum(cHj) * Math.signum(cHk)) < 0) ? Math.abs(cHj) : -Math.abs(cHj);
+				if (alpha == 0 && bbeta == 1) {
+					continue;
+				}
+				int gcd = MathTools.gcd(alpha, bbeta);
+				alpha /= gcd;
+				int beta = bbeta / gcd;
+
+				SparseBoolArray changed = sumProdInto(beta, colj, alpha, matC.getColumn(tCol));
+				for (int ind = 0, inde = changed.size(); ind < inde; ind++) {
+					pppms.get(changed.keyAt(ind)).setValue(j, colj.get(changed.keyAt(ind)));
+				}
+				SparseIntArray coljb = matB.getColumn(j);
+				sumProdInto(beta, coljb, alpha, matB.getColumn(tCol));
+			}
+		}
+		clearColumn(tCol, matC, matB, pppms);
+	}
+
+	public static void clearColumn(int tCol, final IntMatrixCol matC, final IntMatrixCol matB, final List<PpPm> pppms) {
+		// delete from the extended matrix the column of index k
+		SparseIntArray colk = matC.getColumn(tCol);
+		for (int i = 0, ie = colk.size(); i < ie; i++) {
+			pppms.get(colk.keyAt(i)).setValue(tCol, 0);
+		}
+		colk.clear();
+		matB.getColumn(tCol).clear();
+	}
+
+	private static int sumAbsValues(SparseIntArray col) {
+		int tot = 0;
+		for (int i = 0; i < col.size(); i++) {
+			tot += Math.abs(col.valueAt(i));
+		}
+		return tot;
+	}
+
+	private static void test1b1(final IntMatrixCol matC, final IntMatrixCol matB, final List<PpPm> pppms,
+			final Check11bResult chkResult) {
+		if (DEBUG) {
+			System.out.println("Rule 1b.1 : " + chkResult.row);
+		}
+		int tCol = chkResult.col;
+		// [1.1.b.1] let k be the unique index of column belonging to P+ (resp. to P-)
+		while (chkResult.p.size() > 0) {
+			int j = chkResult.p.keyAt(0);
+			// substitute to the column of index j the linear combination of
+			// the columns indexed by k and j with the coefficients
+			// |chj| and |chk| respectively.
+			int chk = Math.abs(matC.get(chkResult.row, tCol));
+			int chj = Math.abs(matC.get(chkResult.row, j));
+			int gcd = MathTools.gcd(chk, chj);
+			chk /= gcd;
+			chj /= gcd;
+
+			SparseBoolArray changed = sumProdInto(chk, matC.getColumn(j), chj, matC.getColumn(tCol));
+			for (int ind = 0, inde = changed.size(); ind < inde; ind++) {
+				pppms.get(changed.keyAt(ind)).setValue(j, matC.getColumn(j).get(changed.keyAt(ind)));
+			}
+			SparseIntArray coljb = matB.getColumn(j);
+			sumProdInto(chk, coljb, chj, matB.getColumn(tCol));
+		}
+		// delete from the extended matrix the column of index k
+		clearColumn(chkResult.col, matC, matB, pppms);
+	}
+
+	private static void normalize(List<Integer> invariants) {
+		int gcd = MathTools.gcd(invariants);
+		if (gcd > 1) {
+			for (int j = 0; j < invariants.size(); ++j) {
+				int norm = invariants.get(j) / gcd;
+				invariants.set(j, norm);
+			}
+		}
+	}
+public:
+	public static void normalizeWithSign(SparseIntArray col) {
+		boolean allneg = true;
+		for (int i = 0; i < col.size(); i++) {
+			if (col.valueAt(i) > 0) {
+				allneg = false;
+				break;
+			}
+		}
+		if (allneg) {
+			for (int i = 0; i < col.size(); i++) {
+				col.setValueAt(i, -col.valueAt(i));
+			}
+		}
+
+		int gcd = MathTools.gcd(col);
+		if (gcd > 1) {
+			for (int j = 0; j < col.size(); ++j) {
+				int norm = col.valueAt(j) / gcd;
+				col.setValueAt(j, norm);
+			}
+		}
+	}
+
+	public static void normalize(SparseIntArray invariants) {
+		int gcd = MathTools.gcd(invariants);
+		if (gcd > 1) {
+			for (int j = 0; j < invariants.size(); ++j) {
+				int norm = invariants.valueAt(j) / gcd;
+				invariants.setValueAt(j, norm);
+			}
+		}
+	}
+*/
+};
 
 #endif /* INVARIANTCALCULATOR_H_ */
