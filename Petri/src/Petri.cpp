@@ -9,13 +9,13 @@
  */
 
 #include <iostream>
-#include <string.h>
+#include <string>
 #include "SparseIntArray.h"
 #include "MatrixCol.h"
 #include "SparsePetriNet.h"
 #include "Walker.h"
 #include "PTNetLoader.h"
-#include "ReducedFlow.h"
+#include "InvariantMiddle.h"
 #include <vector>
 #include <set>
 
