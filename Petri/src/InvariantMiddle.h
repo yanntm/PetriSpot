@@ -24,6 +24,8 @@ static MatrixCol computeReducedFlow(const SparsePetriNet & sr, std::vector<int> 
 
 		map_t seen;
 
+		int curr = 0;
+
 		for (int i=0 ; i < sr.getTransitionCount() ; i++) {
 			// effects of t
 			SparseIntArray combined = SparseIntArray::sumProd(-1, sr.getFlowPT().getColumn(i), 1, sr.getFlowTP().getColumn(i));
@@ -39,10 +41,12 @@ static MatrixCol computeReducedFlow(const SparsePetriNet & sr, std::vector<int> 
 
 				std::cout << "Transition " << i << " after append " << sumMatrix.getColumn(sumMatrix.getColumnCount()-1) << std::endl;
 
-				seen.insert(std::make_pair(& sumMatrix.getColumn(sumMatrix.getColumnCount()-1) ,i));
+				seen.insert(std::make_pair(& sumMatrix.getColumn(sumMatrix.getColumnCount()-1), curr));
 
 				// this transition is its own representative
-				representative.push_back(i);
+				representative.push_back(curr);
+
+				curr++;
 			} else {
 				// this transition is represented by the element at index :
 				representative.push_back(it->second);
