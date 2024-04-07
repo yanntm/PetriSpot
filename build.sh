@@ -1,5 +1,5 @@
-apt-get install -y libtool;
-apt-get install -y autoconf;
+#apt-get install -y libtool;
+#apt-get install -y autoconf;
 
 wget --progress=dot:mega https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz ; 
 tar xf gmp-6.3.0.tar.xz ; 
