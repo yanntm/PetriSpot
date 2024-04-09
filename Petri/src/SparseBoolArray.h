@@ -111,30 +111,27 @@ public:
      * if no such mapping has been made.
      */
     bool get(int key, bool valueIfKeyNotFound) const {
-        auto it = std::find(mKeys.begin(), mKeys.end(), key);
-        if (it != mKeys.end()) {
-            return true;
-        } else {
+        int i = binarySearch(mKeys, mSize, key);
+        if (i < 0) {
             return valueIfKeyNotFound;
+        } else {
+            return true;
         }
     }
     /**
      * Removes the mapping from the specified key, if there was any.
      */
     void remove(int key) {
-        auto it = std::find(mKeys.begin(), mKeys.end(), key);
-        if (it != mKeys.end()) {
-            removeAt(std::distance(mKeys.begin(), it));
+        int i = binarySearch(mKeys, mSize, key);
+        if (i >= 0) {
+            removeAt(i);
         }
     }
-
-// poursuivre ici
-
     /**
      * Removes the mapping at the given index.
      */
     void removeAt(int index) {
-        System.arraycopy(mKeys, index + 1, mKeys, index, mSize - (index + 1));        
+        mKeys.erase(mKeys.begin() + index);    
         mSize--;
     }
     /**
@@ -143,16 +140,16 @@ public:
      * was one.
      */
     void put(int key, bool v) {    	
-        auto it = std::find(mKeys.begin(), mKeys.end(), key);
-        if (it != mKeys.end()) {
+        int i = binarySearch(mKeys, mSize, key);
+        if (i >= 0) {
         	if (v) {
         		return;
         	} else {
-        		removeAt(std::distance(mKeys.begin(), it));
+        		removeAt(i);
         	}
         } else if (v) {
             i = ~i;
-            mKeys = GrowingArrayUtils.insert(mKeys, mSize, i, key);            
+            mKeys.insert(mKeys.begin() + i, key);           
             mSize++;
         }
     }
@@ -176,14 +173,13 @@ public:
     int keyAt(int index) const {
         return mKeys[index];
     }
-
     /**
      * Returns the index for which {@link #keyAt} would return the
      * specified key, or a negative number if the specified
      * key is not mapped.
      */
     int indexOfKey(int key) {
-        return std::distance(mKeys.begin(), std::find(mKeys.begin(), mKeys.end(), key));
+        return binarySearch(mKeys, mSize, key);
     }
     /**
      * Removes all key-value mappings from this SparseBoolArray.
@@ -210,89 +206,67 @@ public:
      *
      * @hide
      * */
-    public int[] copyKeys() {
+    std::vector<int> copyKeys() {
         if (size() == 0) {
-            return null;
+            return std::vector<int>();
         }
-        return Arrays.copyOf(mKeys, size());
+        return std::vector<int>(mKeys.begin(), mKeys.begin() + size());
     }
     /**
      * Provides direct access to keys, client should not modify.
      * As side effect, trims the representation array if it's overlarge.
      * @return an array of sorted integers corresponding to true entries of this BoolArray
      */
-	public int[] refKeys() {
+	std::vector<int> refKeys() {
         if (size() == 0) {
-            return new int[0];
+            return std::vector<int>(0);
         }
-        if (mKeys.length > size()) {
-        	mKeys = Arrays.copyOf(mKeys, size()); 
+        if (mKeys.size() > (size_t)size()) {
+        	mKeys.resize(size()); 
         }
         return mKeys;
 	}
 
     
-    @Override
-	public int hashCode() {
-		final int prime = 1409;
-		int result = 1;
-		result = prime * result + ContainerHelpers.hashCode(mKeys,mSize);
+    size_t hash() const {
+		size_t prime = 1409;
+		size_t result = 1;
+		result = prime * result + hashCode(mKeys,mSize);
 		result = prime * result + mSize;
 		return result;
 	}
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (!(obj instanceof SparseBoolArray))
-			return false;
-		SparseBoolArray other = (SparseBoolArray) obj;		
-		if (mSize != other.mSize)
-			return false;
 
-		if (!equalsRange(mKeys,other.mKeys,mSize))
-			return false;
-		return true;
-	}
-	private boolean equalsRange(int[] a, int[] b, int s) {
-		if (a==b) {
-			return true;
-		}
-		for (int i=0; i< s; i++) {
-			if (a[i] != b[i])
-				return false;
-		}
-		return true;
-	}
 	/**
      * {@inheritDoc}
      *
      * <p>This implementation composes a string by iterating over its mappings.
      */
-    @Override
-    public String toString() {
+    void print(std::ostream & os) const {
         if (size() <= 0) {
-            return "{}";
+            os << "{}";
+            return ;
         }
-        StringBuilder buffer = new StringBuilder(mSize * 28);
-        buffer.append('{');
+        os << '{';
         for (int i=0; i<mSize; i++) {
             if (i > 0) {
-                buffer.append(", ");
+                os <<  (", ");
             }
             int key = keyAt(i);
-            buffer.append(key);
+            os << key;
         }
-        buffer.append('}');
-        return buffer.toString();
+        os << '}';
+        return ;
     }
+
+    friend std::ostream& operator<< (std::ostream & os, const SparseBoolArray & a) {
+		a.print(os);
+		return os;
+	}
     
-	public void clear(int j) {
+	void clear(int j) {
 		put (j,false);
 	}
-	public void set(int j) {
+	void set(int j) {
 		put (j,true);
 	}
 	
@@ -300,7 +274,7 @@ public:
      * Delete an element at index and shift elements to the right by one.
      * @param i
      */
-	public void deleteAndShift(int i) {
+	void deleteAndShift(int i) {
 		if (mSize==0 || i > mKeys[mSize-1]) {
 			return;
 		}
@@ -312,7 +286,8 @@ public:
 			removeAt(k);
 		}
 	}
-	public static SparseBoolArray or(SparseBoolArray a, SparseBoolArray b) {
+
+	static SparseBoolArray unionOperation(const SparseBoolArray& a, const SparseBoolArray& b) {
 		int inter = 0;
 		// step 1 evaluate size	
 		int i=0;
@@ -329,7 +304,7 @@ public:
 			}
 		}
 		int resSize = a.size() + b.size() - inter;
-		SparseBoolArray res = new SparseBoolArray(resSize);
+		SparseBoolArray res(resSize);
 		// step 2 assign
 		int cur=0;
 		i=0;
@@ -357,6 +332,53 @@ public:
 		res.mSize = cur;
 		return res;
 	}
+private:
+    static size_t hashCode(const std::vector<int> & a, int sz) {
+		if (a.empty())
+			return 0;
+
+		size_t result = 1;
+		for (int i=0; i < sz ; i++)
+			result = 31 * result + a[i];
+
+		return result;
+	}
+
+    bool equalsRange(const std::vector<int> & a, const std::vector<int> & b, int s) const {
+		if (a==b) {
+			return true;
+		}
+		for (int i=0; i< s; i++) {
+			if (a[i] != b[i])
+				return false;
+		}
+		return true;
+	}
+
+    int binarySearch(std::vector<int> array, int size, int value) const {
+		int lo = 0;
+        int hi = size - 1;
+        
+		return binarySearch(array, value, lo, hi); 
+	}
+
+    /**
+     * Performs binary search of element in the given vector
+    */
+    int binarySearch(std::vector<int> array, int value, int lo, int hi) const {
+        while (lo <= hi) {
+            int mid = (lo + hi) >> 1;
+            int midVal = array[mid];
+            if (midVal < value) {
+                lo = mid + 1;
+            } else if (midVal > value) {
+                hi = mid - 1;
+            } else {
+                return mid;  // value found
+            }
+        }
+        return ~lo;  // value not present
+    }
 
 
 };
