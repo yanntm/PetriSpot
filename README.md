@@ -21,7 +21,7 @@ cd PetriSpot ;
 ## How to use :
 
 ```
-./petri [model.pnml] [flags]
+./petri -i [model.pnml] [flags]
 ```
 
 
