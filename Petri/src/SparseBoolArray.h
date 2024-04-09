@@ -43,7 +43,6 @@
  * order in the case of <code>valueAt(int)</code>.</p>
  */
 class SparseBoolArray {
-private:
     std::vector<int> mKeys;
     int mSize;
 public:
