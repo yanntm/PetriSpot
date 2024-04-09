@@ -353,14 +353,7 @@ private:
 	}
 
     bool equalsRange(const std::vector<int> & a, const std::vector<int> & b, int s) const {
-		if (a==b) {
-			return true;
-		}
-		for (int i=0; i< s; i++) {
-			if (a[i] != b[i])
-				return false;
-		}
-		return true;
+		return std::equal(a.begin(), a.begin()+s, b.begin());
 	}
 
     int binarySearch(std::vector<int> array, int size, int value) const {
