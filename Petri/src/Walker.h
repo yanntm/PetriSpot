@@ -13,9 +13,7 @@
 
 #include "MatrixCol.h"
 #include "SparsePetriNet.h"
-
-#include "ddd/util/ext_hash_map.hh"
-
+#include <unordered_map>
 class Walker {
 	const SparsePetriNet * sr;
 	MatrixCol combFlow;
@@ -26,7 +24,7 @@ class Walker {
 public :
 	Walker(const SparsePetriNet & ssr) : combFlow(ssr.getPnames().size(),0) {
 		this->sr = & ssr;
-		typedef ext_hash_map<SparseIntArray *, std::vector<int>> map_t;
+		typedef std::unordered_map<const SparseIntArray *, std::vector<int>, std::hash<SparseIntArray*>, std::equal_to<SparseIntArray*>> map_t;
 		map_t effects;
 
 		for (int i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
@@ -35,15 +33,13 @@ public :
 
 		for (int i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
 			SparseIntArray & col = combFlow.getColumn(i);
-			map_t::accessor acc;
-			bool found = effects.find(acc,&col);
-			if (found) {
-				acc->second.push_back(i);
+			map_t::iterator it = effects.find(&col);
+			if (it != effects.end()) {
+				it->second.push_back(i);
 			} else {
 				std::vector<int> r;
 				r.push_back(i);
-				effects.insert(acc,&col);
-				acc->second = r;
+				effects.insert(std::make_pair(&col, r));
 			}
 		}
 		behaviorMap = new int [sr->getTnames().size()];
@@ -172,7 +168,7 @@ public :
 		int i=0;
 		for ( ; i < nbSteps ; i++) {
 			size_t dur = std::chrono::duration_cast<std::chrono::milliseconds>(steady_clock::now() - time).count() + 1;
-			if (dur > 1000 * timeout) {
+			if (dur > 1000 * (size_t)timeout) {
 				std::cout << "Interrupted Parikh directed walk after " << i  << "  steps, including " << nbresets<<" resets, run timeout after "<< dur <<" ms. (steps per millisecond=" << (i/dur) << " )" ;
 				if (DEBUG >=1) {
 					std::cout <<  " reached state ";
