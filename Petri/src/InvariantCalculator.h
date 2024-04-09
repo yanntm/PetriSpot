@@ -184,7 +184,7 @@ public:
 			normalize(norm);
 			normed.insert(norm);
 		}
-		if (normed.size() < tmat.getColumnCount()) {
+		if (normed.size() < (size_t)tmat.getColumnCount()) {
 			std::cout << "Normalized transition count is " << normed.size() << " out of " << tmat.getColumnCount()
 					<< " initially." << std::endl;
 		}
@@ -222,7 +222,7 @@ public:
 		// phase 2
 		std::cout << "// Phase 2 : computing semi flows from basis of " << colsB.getColumnCount() << " invariants " << std::endl;
 
-		int iter = 0;
+		//int iter = 0;
 		SparseBoolArray treated;
 		colsBsparse = std::unordered_set<SparseIntArray>();
 		while (colsB.getColumnCount() < 20000) {
@@ -411,11 +411,11 @@ private:
 		return list;
 	}
 
-	static MatrixCol phase1PIPE(const MatrixCol & matC) {
+	static MatrixCol phase1PIPE(MatrixCol matC) {
 		// incidence matrix
 		MatrixCol matB = MatrixCol::identity(matC.getColumnCount(), matC.getColumnCount());
 
-		std::cout << "// Phase 1: matrix " << matC.getRowCount() << " rows " + matC.getColumnCount() << " cols" << std::endl;
+		std::cout << "// Phase 1: matrix " << matC.getRowCount() << " rows " << matC.getColumnCount() << " cols" << std::endl;
 		std::vector<PpPm> pppms = calcPpPm(matC);
 		int startIndex = 0;
 		while (!matC.isZero()) {
@@ -424,7 +424,7 @@ private:
 		return matB;
 	}
 
-	static int test1b(const MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms,
+	static int test1b(MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms,
 			int startIndex) {
 		// [1.1.b] if there exists a row h in C such that |P+| == 1 or |P-| == 1
 		Check11bResult chkResult = check11b(pppms, startIndex);
@@ -438,7 +438,7 @@ private:
 	}
 
 public:
-	static SparseBoolArray sumProdInto(int alpha, SparseIntArray & ta, int beta, const SparseIntArray & tb) {
+	static SparseBoolArray sumProdInto(int alpha, SparseIntArray & ta, int beta, SparseIntArray & tb) {
 		SparseBoolArray changed;
 		SparseIntArray flow(std::max(ta.size(), tb.size()));
 
@@ -486,7 +486,7 @@ private:
     	return (value > 0) - (value < 0);
 	}
 
-	static void test1b2(const MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms) {
+	static void test1b2(MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms) {
 		// [1.1.b.1] let tRow be the index of a non-zero row of C.
 		// let tCol be the index of a column such that c[trow][tcol] != 0.
 
@@ -518,7 +518,7 @@ private:
 		}
 		// for all cols j with j != tCol and c[tRow][j] != 0
 		PpPm rowppm = pppms[tRow];
-		SparseBoolArray toVisit = SparseBoolArray::or(rowppm.pMinus, rowppm.pPlus);
+		SparseBoolArray toVisit = SparseBoolArray::unionOperation(rowppm.pMinus, rowppm.pPlus);
 
 		for (int i = 0; i < toVisit.size(); i++) {
 			int j = toVisit.keyAt(i);
@@ -537,7 +537,7 @@ private:
 				if (alpha == 0 && bbeta == 1) {
 					continue;
 				}
-				int gcd = std::gcd(alpha, bbeta);
+				int gcd = InvariantCalculator::gcd(alpha, bbeta);
 				alpha /= gcd;
 				int beta = bbeta / gcd;
 
@@ -586,7 +586,7 @@ private:
 			// |chj| and |chk| respectively.
 			int chk = std::abs(matC.get(chkResult.row, tCol));
 			int chj = std::abs(matC.get(chkResult.row, j));
-			int gcd = std::gcd(chk, chj);
+			int gcd = InvariantCalculator::gcd(chk, chj);
 			chk /= gcd;
 			chj /= gcd;
 
@@ -605,8 +605,8 @@ private:
 		if (set.size() == 0)
 			return 0;
 		int gcd = set[0];
-		for (int i =1 ; i < set.size() ; i++) {
-			gcd = std::gcd(gcd, set[i]);
+		for (int i =1 ; i < (int) set.size() ; i++) {
+			gcd = InvariantCalculator::gcd(gcd, set[i]);
 			if (gcd == 1) return 1;
 		}
 		return gcd;
@@ -617,16 +617,25 @@ private:
 			return 0;
 		int gcd = set.valueAt(0);
 		for (int i =1 ; i < set.size() ; i++) {
-			gcd = std::gcd(gcd, set.valueAt(i));
+			gcd = InvariantCalculator::gcd(gcd, set.valueAt(i));
 			if (gcd == 1) return 1;
 		}
 		return gcd;
 	}
 
+	static int gcd(int a, int b) {
+    while (b != 0) {
+        int temp = b;
+        b = a % b;
+        a = temp;
+    }
+    return a;
+}
+
 	static void normalize(std::vector<int> invariants) {
 		int gcd = InvariantCalculator::gcd(invariants);
 		if (gcd > 1) {
-			for (int j = 0; j < invariants.size(); ++j) {
+			for (int j = 0; j < (int)invariants.size(); ++j) {
 				int norm = invariants[j] / gcd;
 				invariants[j] = norm;
 			}

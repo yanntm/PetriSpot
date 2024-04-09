@@ -7,17 +7,19 @@
 // #include "Walker.h"
 #include "PTNetLoader.h"
 #include "InvariantMiddle.h"
-//#include "InvariantCalculator.h"
+#include "InvariantCalculator.h"
 #include <vector>
-#include <set>
+#include <unordered_set>
 
 using namespace std;
 
 const string FINDDEADLOCK="--findDeadlock";
-const string PFLOWS="--Pflows";
-const string PSEMIFLOWS="--Psemiflows";
-const string TFLOWS="--Tflows";
-const string TSEMIFLOWS="--Tsemiflows";
+const string PFLOW="--Pflows";
+const string PSEMIFLOW="--Psemiflows";
+const string TFLOW="--Tflows";
+const string TSEMIFLOW="--Tsemiflows";
+const string INVARIANT="--invariant";
+
 
 int main(int argc, char * argv[]) {
 	bool findDeadlock=false;
@@ -26,41 +28,45 @@ int main(int argc, char * argv[]) {
 	bool psemiflows=false;
 	bool tsemiflows=false;
 	bool invariants=false;
+	std::string modelPath;
 
 	if (argc == 1 || argc > 4)
     	{
-      	std::cerr << "usage: petri model.pnml [flags]\n";
+      	std::cerr << "usage: petri -i model.pnml [flags]\n";
       	std::cerr << "     model.pnml: the model in the pnml format\n";
       	std::cerr << "     [flags]: findDeadlock or flows to compute"
 			<< " (optional) \n";
      	exit(1);
     	}
 	
-	std::string modelPath(argv[1]);
-	if (argc > 2) {
-		if (argv[2] == FINDDEADLOCK) {
+	for (int i = 1; i < argc; i++) {
+		cout << argv[i] << endl;
+		if (strcmp(argv[i], "-i") == 0) {
+			modelPath = argv[++i];
+		}
+		else if (argv[i] == FINDDEADLOCK) {
 			findDeadlock = true;
-		} else if (argv[2] == PFLOWS || argv[2] == PSEMIFLOWS || argv[2] == TFLOWS || argv[2] == TSEMIFLOWS) {
+		}
+		else if (argv[i] == INVARIANT) {
 			invariants = true;
-			if (argv[2] == PFLOWS) {
-				pflows = true;
-			} else if (argv[2] == PSEMIFLOWS) {
-				psemiflows = true;
-			} else if (argv[2] == TFLOWS) {
-				tflows = true;
-			} else if (argv[2] == TSEMIFLOWS) {
-				tsemiflows = true;
-			}
 		}
-	}
-	if (argc > 3) {
-		if (argv[3] == TFLOWS) {
+		else if (argv[i] == PFLOW) {
+			pflows = true;
+			invariants = true;
+		}
+		else if (argv[i] == PSEMIFLOW) {
+			psemiflows = true;
+			invariants = true;
+		}
+		else if (argv[i] == TFLOW) {
 			tflows = true;
-		} else if (argv[3] == TSEMIFLOWS) {
+			invariants = true;
+		}
+		else if (argv[i] == TSEMIFLOW) {
 			tsemiflows = true;
+			invariants = true;
 		}
 	}
-		
 
 	try {
 		
@@ -100,38 +106,31 @@ int main(int argc, char * argv[]) {
 			MatrixCol sumMatrix = computeReducedFlow(*pn, repr);
 			if (pflows || psemiflows) {
 //				long time = System.currentTimeMillis();
-				set<SparseIntArray> invar;
+				unordered_set<SparseIntArray> invar;
 				if (pflows) {
-		//			invar = InvariantCalculator::calcInvariantsPIPE(sumMatrix);
+					invar = InvariantCalculator::calcInvariantsPIPE(sumMatrix.transpose(), false);
 				} else {
-//					invar = computePInvariants(sumMatrix, true, 120);
+					invar = InvariantCalculator::calcInvariantsPIPE(sumMatrix.transpose(), true);
 				}
 				std::cout << "Computed " << invar.size() << " P " << (psemiflows?"semi":"") << " flows in " << " ms." << endl;
-////				InvariantSet inv = new InvariantSet(invar, sumMatrix.transpose());
-////				inv.print(System.out, spn.getPnames(), spn.getMarks());
-//    				printInvariant(invar, pn->getPnames(), (*pn).getMarks());
+////			InvariantSet inv = new InvariantSet(invar, sumMatrix.transpose());
+////			inv.print(System.out, spn.getPnames(), spn.getMarks());
+//    			printInvariant(invar, pn->getPnames(), (*pn).getMarks());
 			}
 			if (tflows || tsemiflows) {
 //				long time = System.currentTimeMillis();
-				set<SparseIntArray> invarT;
+				unordered_set<SparseIntArray> invarT;
 				if (tflows) {
-//					invarT= DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, tnames,false);
+//					invarT = DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, repr,false);
 				} else {
-//					invarT= DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, tnames,true);
+//					invarT = DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, repr,true);
 				}
-				//vector<int> empty(tnames.size());
-//				for (int i=0 ; i < tnames.size(); i++) empty.add(0);
-//				vector<string> strtnames = tnames.stream().map(id -> spn.getTnames().get(id)).collect(Collectors.toList());
-//				System.out.println("Computed "+invarT.size()+" T "+(psemiflows?"semi":"")+" flows in "+(System.currentTimeMillis()-time)+" ms.");
-////				InvariantSet inv = new InvariantSet(invarT, sumMatrix);
-////				inv.print(System.out, strtnames, empty);
+				cout << "Computed " << invarT.size() << " T " << (psemiflows?"semi":"") << " flows in " << " ms." << endl;
+////			InvariantSet inv = new InvariantSet(invarT, sumMatrix);
+////			inv.print(System.out, strtnames, empty);
 //				InvariantCalculator.printInvariant(invarT, strtnames, empty );
 			}
-////			SparseIntArray inv = DeadlockTester.findPositiveTsemiflow(sumMatrix);
-//			
-//			delete pn;
-//			return 0;
-				
+////		SparseIntArray inv = DeadlockTester.findPositiveTsemiflow(sumMatrix);
 		}
 
 		delete pn;
