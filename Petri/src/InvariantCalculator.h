@@ -70,9 +70,14 @@ private:
 			}
 		}
 
-		std::string toString() const {
-			std::string res = "PpPm [row=" + std::to_string(row) + ", pPlus=" + pPlus.toString() + ", pMinus=" + pMinus.toString() + "]";
-        	return res;
+		void print(std::ostream & os) const {
+			os << "PpPm [row=" << row << ", pPlus=" << pPlus << ", pMinus=" << pMinus << "]";
+        		return ;
+		}
+
+		friend std::ostream& operator<<(std::ostream & os, const PpPm & obj) {
+			obj.print(os);
+			return os;
 		}
 
 	};
