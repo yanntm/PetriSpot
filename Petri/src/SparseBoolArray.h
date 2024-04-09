@@ -235,8 +235,16 @@ public:
 		result = prime * result + mSize;
 		return result;
 	}
+    bool operator==(const SparseBoolArray & other) const {
+		if (mSize != other.mSize)
+			return false;
 
-	/**
+		if (!equalsRange(mKeys,other.mKeys,mSize))
+			return false;
+		return true;
+    }
+
+    /**
      * {@inheritDoc}
      *
      * <p>This implementation composes a string by iterating over its mappings.
