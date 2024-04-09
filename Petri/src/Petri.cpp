@@ -4,7 +4,7 @@
 #include "SparseIntArray.h"
 #include "MatrixCol.h"
 #include "SparsePetriNet.h"
-// #include "Walker.h"
+#include "Walker.h"
 #include "PTNetLoader.h"
 #include "InvariantMiddle.h"
 #include "InvariantCalculator.h"
@@ -81,22 +81,22 @@ int main(int argc, char * argv[]) {
 
 		if (findDeadlock) {
 
-//			Walker walk (*pn);
-//
-//			if (walk.runDeadlockDetection(1000000, true, 30)) {
-//				std::cout << "Deadlock found !" << std::endl;
-//				delete pn;
-//				return 0;
-//			} else {
-//				std::cout << "No deadlock found !" << std::endl;
-//			}
-//			if (walk.runDeadlockDetection(1000000, false, 30)) {
-//				std::cout << "Deadlock found !" << std::endl;
-//			} else {
-//				std::cout << "No deadlock found !" << std::endl;
-//			}
-//
-//			delete pn;
+			Walker walk (*pn);
+
+			if (walk.runDeadlockDetection(1000000, true, 30)) {
+				std::cout << "Deadlock found !" << std::endl;
+				delete pn;
+				return 0;
+			} else {
+				std::cout << "No deadlock found !" << std::endl;
+			}
+			if (walk.runDeadlockDetection(1000000, false, 30)) {
+				std::cout << "Deadlock found !" << std::endl;
+			} else {
+				std::cout << "No deadlock found !" << std::endl;
+			}
+
+			delete pn;
 			return 0;
 			
 		}
