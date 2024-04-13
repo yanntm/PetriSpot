@@ -18,7 +18,6 @@ const string PFLOW="--Pflows";
 const string PSEMIFLOW="--Psemiflows";
 const string TFLOW="--Tflows";
 const string TSEMIFLOW="--Tsemiflows";
-const string INVARIANT="--invariant";
 
 
 int main(int argc, char * argv[]) {
@@ -30,25 +29,19 @@ int main(int argc, char * argv[]) {
 	bool invariants=false;
 	std::string modelPath;
 
-	if (argc == 1 || argc > 4)
+	if (argc == 1 || argc > 6)
     	{
-      	std::cerr << "usage: petri -i model.pnml [flags]\n";
-      	std::cerr << "     model.pnml: the model in the pnml format\n";
-      	std::cerr << "     [flags]: findDeadlock or flows to compute"
-			<< " (optional) \n";
+      	cerr << "usage: petri -i model.pnml [options]\n";
      	exit(1);
     	}
 	
 	for (int i = 1; i < argc; i++) {
-		cout << argv[i] << endl;
+		cout << argv[i] << endl; // a enlever !!!!!
 		if (strcmp(argv[i], "-i") == 0) {
 			modelPath = argv[++i];
 		}
 		else if (argv[i] == FINDDEADLOCK) {
 			findDeadlock = true;
-		}
-		else if (argv[i] == INVARIANT) {
-			invariants = true;
 		}
 		else if (argv[i] == PFLOW) {
 			pflows = true;
@@ -66,10 +59,18 @@ int main(int argc, char * argv[]) {
 			tsemiflows = true;
 			invariants = true;
 		}
+		else {
+			std::cout << "option : " << argv[i] << " not recognized\n";
+			std::cout << "Resume execution ? y/n" << std::endl;
+			char ans;
+			std::cin >> ans;
+			if (ans != 'y') {
+				exit(0);
+			}
+		}
 	}
 
 	try {
-		
 		SparsePetriNet * pn = loadXML(modelPath);
 
 		std::cout << "PN : " ;
@@ -79,8 +80,8 @@ int main(int argc, char * argv[]) {
 		pn->getFlowTP().print(std::cout);
 		std::cout << std::endl;
 
-		if (findDeadlock) {
-
+		if (findDeadlock) 
+		{
 			Walker walk (*pn);
 
 			if (walk.runDeadlockDetection(1000000, true, 30)) {
@@ -94,14 +95,11 @@ int main(int argc, char * argv[]) {
 				std::cout << "Deadlock found !" << std::endl;
 			} else {
 				std::cout << "No deadlock found !" << std::endl;
-			}
-
-			delete pn;
-			return 0;
-			
+			}	
 		}
 		
-		if (invariants) {
+		if (invariants) 
+		{
 			vector<int> repr;
 			MatrixCol sumMatrix = computeReducedFlow(*pn, repr);
 			if (pflows || psemiflows) {
@@ -130,7 +128,7 @@ int main(int argc, char * argv[]) {
 ////			inv.print(System.out, strtnames, empty);
 //				InvariantCalculator.printInvariant(invarT, strtnames, empty );
 			}
-////		SparseIntArray inv = DeadlockTester.findPositiveTsemiflow(sumMatrix);
+////		SparseIntArray inv = DeadlockTester.findPositiveTsemiflow(sumMatrix);	
 		}
 
 		delete pn;
@@ -139,5 +137,6 @@ int main(int argc, char * argv[]) {
 		std::cout << e << std::endl;
 		return 1;
 	}
+	
 	return 0;
 }
