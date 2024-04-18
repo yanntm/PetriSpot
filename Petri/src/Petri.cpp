@@ -61,7 +61,7 @@ int main(int argc, char * argv[]) {
 		}
 		else {
 			std::cout << "option : " << argv[i] << " not recognized\n";
-			std::cout << "Resume execution ? y/n" << std::endl;
+			std::cout << "Resume execution ? y/n\n" << std::endl;
 			char ans;
 			std::cin >> ans;
 			if (ans != 'y') {
