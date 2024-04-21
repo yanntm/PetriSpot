@@ -184,7 +184,7 @@ public:
 			normalize(norm);
 			normed.insert(norm);
 		}
-		if (normed.size() < (size_t)tmat.getColumnCount()) {
+		if (normed.size() < tmat.getColumnCount()) {
 			std::cout << "Normalized transition count is " << normed.size() << " out of " << tmat.getColumnCount()
 					<< " initially." << std::endl;
 		}
@@ -605,7 +605,7 @@ private:
 		if (set.size() == 0)
 			return 0;
 		int gcd = set[0];
-		for (int i =1 ; i < (int) set.size() ; i++) {
+		for (size_t i =1 ; i < set.size() ; i++) {
 			gcd = InvariantCalculator::gcd(gcd, set[i]);
 			if (gcd == 1) return 1;
 		}
@@ -616,7 +616,7 @@ private:
 		if (set.size()==0)
 			return 0;
 		int gcd = set.valueAt(0);
-		for (int i =1 ; i < set.size() ; i++) {
+		for (size_t i =1 ; i < set.size() ; i++) {
 			gcd = InvariantCalculator::gcd(gcd, set.valueAt(i));
 			if (gcd == 1) return 1;
 		}
@@ -635,7 +635,7 @@ private:
 	static void normalize(std::vector<int> invariants) {
 		int gcd = InvariantCalculator::gcd(invariants);
 		if (gcd > 1) {
-			for (int j = 0; j < (int)invariants.size(); ++j) {
+			for (size_t j = 0; j < invariants.size(); ++j) {
 				int norm = invariants[j] / gcd;
 				invariants[j] = norm;
 			}

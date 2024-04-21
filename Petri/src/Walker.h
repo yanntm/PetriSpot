@@ -155,7 +155,7 @@ public :
 	}
 
 
-	bool runDeadlockDetection (long nbSteps, bool fullRand, int timeout) {
+	bool runDeadlockDetection (long nbSteps, bool fullRand, size_t timeout) {
 		using std::chrono::steady_clock;
 		auto time = steady_clock::now();
 		SparseIntArray state(sr->getMarks());
@@ -168,7 +168,7 @@ public :
 		int i=0;
 		for ( ; i < nbSteps ; i++) {
 			size_t dur = std::chrono::duration_cast<std::chrono::milliseconds>(steady_clock::now() - time).count() + 1;
-			if (dur > 1000 * (size_t)timeout) {
+			if (dur > 1000 * timeout) {
 				std::cout << "Interrupted Parikh directed walk after " << i  << "  steps, including " << nbresets<<" resets, run timeout after "<< dur <<" ms. (steps per millisecond=" << (i/dur) << " )" ;
 				if (DEBUG >=1) {
 					std::cout <<  " reached state ";
