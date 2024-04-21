@@ -36,7 +36,6 @@ int main(int argc, char * argv[]) {
     	}
 	
 	for (int i = 1; i < argc; i++) {
-		cout << argv[i] << endl; // a enlever !!!!!
 		if (strcmp(argv[i], "-i") == 0) {
 			modelPath = argv[++i];
 		}
