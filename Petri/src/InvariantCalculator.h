@@ -95,7 +95,7 @@ private:
 			result.push_back(PpPm(row));
 		}
 		for (int icol = 0, cole = matC.getColumnCount(); icol < cole; icol++) {
-			SparseIntArray col = matC.getColumn(icol);
+			const SparseIntArray& col = matC.getColumn(icol);
 			for (int i = 0, ie = col.size(); i < ie; i++) {
 				PpPm toedit = result[col.keyAt(i)];
 				if (col.valueAt(i) < 0) {
@@ -180,7 +180,7 @@ public:
 		MatrixCol tmat = mat.transpose();
 		std::unordered_set<SparseIntArray> normed = std::unordered_set<SparseIntArray>();
 		for (int i = 0; i < tmat.getColumnCount(); i++) {
-			SparseIntArray norm = tmat.getColumn(i);
+			SparseIntArray& norm = tmat.getColumn(i);
 			normalize(norm);
 			normed.insert(norm);
 		}
@@ -192,7 +192,7 @@ public:
 		for (SparseIntArray col : normed) {
 			matnorm.appendColumn(col);
 		}
-		const MatrixCol matB = phase1PIPE(matnorm.transpose());
+		MatrixCol matB = phase1PIPE(matnorm.transpose());
 
 //		const MatrixCol matB = phase1PIPE(new MatrixCol(mat));
 		// We want to work with columns in this part of the algorithm
@@ -203,7 +203,7 @@ public:
 		// let's use a set of columns.
 		std::unordered_set<SparseIntArray> colsBsparse(2 * matB.getColumnCount());
 		for (int i = 0; i < matB.getColumnCount(); i++) {
-			SparseIntArray col = matB.getColumn(i);
+			SparseIntArray& col = matB.getColumn(i);
 			if (col.size() != 0) {
 				normalizeWithSign(col);
 				colsBsparse.insert(col);
@@ -286,7 +286,7 @@ public:
 				if (treated.get(i)) {
 					continue;
 				}
-				SparseIntArray col = colsB.getColumn(i);
+				SparseIntArray& col = colsB.getColumn(i);
 				bool hasNeg = false;
 				for (int j = 0, je = col.size(); j < je; j++) {
 					if (col.valueAt(j) < 0) {
@@ -323,13 +323,13 @@ public:
 			PpPm ppm = pppms[targetRow];
 			if (ppm.pPlus.size() > 0) {
 				for (int j = 0, je = ppm.pPlus.size(); j < je; j++) {
-					SparseIntArray colj = colsB.getColumn(ppm.pPlus.keyAt(j));
+					SparseIntArray& colj = colsB.getColumn(ppm.pPlus.keyAt(j));
 					if (purePos != -1) {
 						colj = colsB.getColumn(purePos);
 						j = je;
 					}
 					for (int k = 0, ke = ppm.pMinus.size(); k < ke; k++) {
-						SparseIntArray colk = colsB.getColumn(ppm.pMinus.keyAt(k));
+						SparseIntArray& colk = colsB.getColumn(ppm.pMinus.keyAt(k));
 						// operate a linear combination on the columns of indices j and k
 						// in order to get a new column having the pair.getFirst element equal
 						// to zero
@@ -523,7 +523,7 @@ private:
 
 		for (int i = 0; i < toVisit.size(); i++) {
 			int j = toVisit.keyAt(i);
-			SparseIntArray colj = matC.getColumn(j);
+			SparseIntArray& colj = matC.getColumn(j);
 
 			if (j == tCol) {
 				continue;
@@ -546,7 +546,7 @@ private:
 				for (int ind = 0, inde = changed.size(); ind < inde; ind++) {
 					pppms[changed.keyAt(ind)].setValue(j, colj.get(changed.keyAt(ind)));
 				}
-				SparseIntArray coljb = matB.getColumn(j);
+				SparseIntArray& coljb = matB.getColumn(j);
 				sumProdInto(beta, coljb, alpha, matB.getColumn(tCol));
 			}
 		}
@@ -595,7 +595,7 @@ private:
 			for (int ind = 0, inde = changed.size(); ind < inde; ind++) {
 				pppms[changed.keyAt(ind)].setValue(j, matC.getColumn(j).get(changed.keyAt(ind)));
 			}
-			SparseIntArray coljb = matB.getColumn(j);
+			SparseIntArray& coljb = matB.getColumn(j);
 			sumProdInto(chk, coljb, chj, matB.getColumn(tCol));
 		}
 		// delete from the extended matrix the column of index k
