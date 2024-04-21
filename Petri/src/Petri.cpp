@@ -59,8 +59,8 @@ int main(int argc, char * argv[]) {
 			invariants = true;
 		}
 		else {
-			std::cout << "option : " << argv[i] << " not recognized\n";
-			std::cout << "Resume execution ? y/n\n" << std::endl;
+			std::cout << "- [WARNING] option : " << argv[i] << " not recognized\n";
+			std::cout << "- Resume execution ? y/n\n" << std::endl;
 			char ans;
 			std::cin >> ans;
 			if (ans != 'y') {
@@ -109,7 +109,7 @@ int main(int argc, char * argv[]) {
 				} else {
 					invar = InvariantCalculator::calcInvariantsPIPE(sumMatrix.transpose(), true);
 				}
-				std::cout << "Computed " << invar.size() << " P " << (psemiflows?"semi":"") << " flows in " << " ms." << endl;
+				std::cout << "Computed " << invar.size() << " P " << (psemiflows?"semi":"") << "flows in " << " ms." << endl;
 ////			InvariantSet inv = new InvariantSet(invar, sumMatrix.transpose());
 ////			inv.print(System.out, spn.getPnames(), spn.getMarks());
 //    			printInvariant(invar, pn->getPnames(), (*pn).getMarks());
@@ -122,7 +122,7 @@ int main(int argc, char * argv[]) {
 				} else {
 //					invarT = DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, repr,true);
 				}
-				cout << "Computed " << invarT.size() << " T " << (psemiflows?"semi":"") << " flows in " << " ms." << endl;
+				cout << "Computed " << invarT.size() << " T " << (tsemiflows?"semi":"") << "flows in " << " ms." << endl;
 ////			InvariantSet inv = new InvariantSet(invarT, sumMatrix);
 ////			inv.print(System.out, strtnames, empty);
 //				InvariantCalculator.printInvariant(invarT, strtnames, empty );

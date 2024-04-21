@@ -420,6 +420,7 @@ private:
 		int startIndex = 0;
 		while (!matC.isZero()) {
 			startIndex = test1b(matC, matB, pppms, startIndex);
+			std::cout << "test 1" << std::endl;
 		}
 		return matB;
 	}
@@ -553,9 +554,9 @@ private:
 	}
 
 public:
-	static void clearColumn(int tCol, const MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms) {
+	static void clearColumn(int tCol, MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms) {
 		// delete from the extended matrix the column of index k
-		SparseIntArray colk = matC.getColumn(tCol);
+		SparseIntArray& colk = matC.getColumn(tCol);
 		for (int i = 0, ie = colk.size(); i < ie; i++) {
 			pppms[colk.keyAt(i)].setValue(tCol, 0);
 		}
@@ -616,7 +617,7 @@ private:
 		if (set.size()==0)
 			return 0;
 		int gcd = set.valueAt(0);
-		for (size_t i =1 ; i < set.size() ; i++) {
+		for (int i =1 ; i < set.size() ; i++) {
 			gcd = InvariantCalculator::gcd(gcd, set.valueAt(i));
 			if (gcd == 1) return 1;
 		}

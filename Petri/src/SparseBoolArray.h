@@ -22,7 +22,7 @@
 #include <iostream>
 
 /**
- * SparseIntArrays map integers to integers.  Unlike a normal array of integers,
+ * SparseBoolArrays map integers to integers.  Unlike a normal array of integers,
  * there can be gaps in the indices.  It is intended to be more memory efficient
  * than using a HashMap to map Integers to Integers, both because it avoids
  * auto-boxing keys and values and its data structure doesn't rely on an extra entry object
@@ -48,12 +48,12 @@ class SparseBoolArray {
 		int mCap;
 public:
 	/**
-     * Creates a new SparseIntArray containing no mappings.
+     * Creates a new SparseBoolArray containing no mappings.
      */
     SparseBoolArray() : SparseBoolArray(10) {
     }
     /**
-     * Creates a new SparseIntArray containing no mappings that will not
+     * Creates a new SparseBoolArray containing no mappings that will not
      * require any additional memory allocation to store the specified
      * number of mappings.  If you supply an initial capacity of 0, the
      * sparse array will be initialized with a light-weight representation
@@ -180,7 +180,7 @@ public :
        	}
     }
     /**
-     * Returns the number of key-value mappings that this SparseIntArray
+     * Returns the number of key-value mappings that this SparseBoolArray
      * currently stores.
      */
     int size() const {
@@ -189,7 +189,7 @@ public :
 	/**
    	 * Given an index in the range <code>0...size()-1</code>, returns
    	 * the key from the <code>index</code>th key-value mapping that this
-   	 * SparseIntArray stores.
+   	 * SparseBoolArray stores.
    	 *
    	 * <p>The keys corresponding to indices in ascending order are guaranteed to
    	 * be in ascending order, e.g., <code>keyAt(0)</code> will return the
