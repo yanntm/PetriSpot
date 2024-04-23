@@ -82,7 +82,7 @@ public:
     }
 
 	~SparseBoolArray() {
-		delete mKeys;
+		delete [] mKeys;
 	}
 
     std::vector<bool> toList (int size) const {
