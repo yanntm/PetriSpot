@@ -17,6 +17,7 @@
  */
 
 #include <numeric>
+#include <stdexcept> // for std::overflow_error
 #include <string>
 #include <iostream>
 #include <vector>
@@ -97,7 +98,7 @@ private:
 		for (int icol = 0, cole = matC.getColumnCount(); icol < cole; icol++) {
 			const SparseIntArray& col = matC.getColumn(icol);
 			for (int i = 0, ie = col.size(); i < ie; i++) {
-				PpPm toedit = result[col.keyAt(i)];
+				PpPm & toedit = result[col.keyAt(i)];
 				if (col.valueAt(i) < 0) {
 					toedit.pMinus.append(icol, true);
 				} else {
@@ -116,7 +117,7 @@ private:
 		// The whole row
 		const int row;
 		// The set P+ respectivly P-
-		const SparseBoolArray p;
+		SparseBoolArray* p;
 
 		/**
 		 * Constructor to save the data.
@@ -126,7 +127,7 @@ private:
 		 * @param h     - the whole row.
 		 * @param pPlus - the set P+ respectively P-.
 		 */
-		Check11bResult(int k, int row, const SparseBoolArray& pPlus) : col(k), row(row), p(pPlus) {
+		Check11bResult(int k, int row, SparseBoolArray* pPlus) : col(k), row(row), p(pPlus) {
 		}
 	};
 
@@ -138,29 +139,30 @@ private:
 	 * @param startIndex
 	 * @return the row which satisfy |P+| == 1 or |P-| == 1 or null if not existent.
 	 */
-	static Check11bResult check11b(const std::vector<PpPm>& pppms, int startIndex) {
-		for (const PpPm& pppm : std::vector<PpPm>(pppms.begin() + startIndex, pppms.end())) {
-			Check11bResult res = check11bPppm(pppm);
+	static Check11bResult check11b(std::vector<PpPm>& pppms, int startIndex) {
+
+		for (auto it = pppms.begin() + startIndex; it != pppms.end() ; ++it ) {
+			Check11bResult res = check11bPppm(*it);
 			if (res.col != -1) {
 				return res;
 			}
 		}
-		for (const PpPm& pppm : std::vector<PpPm>(pppms.begin(), pppms.begin() + startIndex)) {
-			Check11bResult res = check11bPppm(pppm);
+		for (auto it = pppms.begin(), _end = it + startIndex; it != _end ; ++it ) {
+			Check11bResult res = check11bPppm(*it);
 			if (res.col != -1) {
 				return res;
 			}
 		}
-		return Check11bResult(-1, -1, SparseBoolArray());
+		return Check11bResult(-1, -1, nullptr);
 	}
 
-	static Check11bResult check11bPppm(const PpPm& pppm) {
+	static Check11bResult check11bPppm(PpPm& pppm) {
 		if (pppm.pMinus.size() == 1) {
-			return Check11bResult(pppm.pMinus.keyAt(0), pppm.row, pppm.pPlus);
+			return Check11bResult(pppm.pMinus.keyAt(0), pppm.row, & pppm.pPlus);
 		} else if (pppm.pPlus.size() == 1) {
-			return Check11bResult(pppm.pPlus.keyAt(0), pppm.row, pppm.pMinus);
+			return Check11bResult(pppm.pPlus.keyAt(0), pppm.row, & pppm.pMinus);
 		}
-		return Check11bResult(-1, -1, SparseBoolArray());
+		return Check11bResult(-1, -1, nullptr);
 	}
 
 	/**
@@ -438,6 +440,25 @@ private:
 		return startIndex;
 	}
 
+
+	static int32_t addExact(int32_t x, int32_t y) {
+		int32_t result;
+		if (__builtin_add_overflow(x, y, &result)) {
+			throw std::overflow_error("Overflow in addition");
+		}
+		return result;
+	}
+
+	static int32_t multiplyExact(int32_t x, int32_t y) {
+		int32_t result;
+		if (__builtin_mul_overflow(x, y, &result)) {
+			throw std::overflow_error("Overflow in multiplication");
+		}
+		return result;
+	}
+
+
+
 public:
 	static SparseBoolArray sumProdInto(int alpha, SparseIntArray & ta, int beta, SparseIntArray & tb) {
 		SparseBoolArray changed;
@@ -449,7 +470,7 @@ public:
 			int ki = i == ta.size() ? std::numeric_limits<int>::max() : ta.keyAt(i);
 			int kj = j == tb.size() ? std::numeric_limits<int>::max() : tb.keyAt(j);
 			if (ki == kj) {
-				int val =  alpha * ta.valueAt(i) + beta * tb.valueAt(j);
+				int val =  addExact( multiplyExact(alpha, ta.valueAt(i)) , multiplyExact(beta, tb.valueAt(j)));
 				if (val != 0) {
 					flow.append(ki, val);
 				}
@@ -459,7 +480,7 @@ public:
 				i++;
 				j++;
 			} else if (ki < kj) {
-				int val = alpha * ta.valueAt(i);
+				int val = multiplyExact(alpha, ta.valueAt(i));
 				if (val != 0) {
 					flow.append(ki, val);
 				}
@@ -468,7 +489,7 @@ public:
 				}
 				i++;
 			} else if (kj < ki) {
-				int val = beta * tb.valueAt(j);
+				int val = multiplyExact(beta, tb.valueAt(j));
 				if (val != 0) {
 					flow.append(kj, val);
 				}
@@ -580,8 +601,8 @@ private:
 		}
 		int tCol = chkResult.col;
 		// [1.1.b.1] let k be the unique index of column belonging to P+ (resp. to P-)
-		while (chkResult.p.size() > 0) {
-			int j = chkResult.p.keyAt(0);
+		while (chkResult.p->size() > 0) {
+			int j = chkResult.p->keyAt(0);
 			// substitute to the column of index j the linear combination of
 			// the columns indexed by k and j with the coefficients
 			// |chj| and |chk| respectively.
