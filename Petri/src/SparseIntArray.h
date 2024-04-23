@@ -49,10 +49,10 @@
  * order in the case of <code>valueAt(int)</code>.</p>
  */
 class SparseIntArray {
-	int * mKeys;
+	unsigned int * mKeys;
 	int * mValues;
-	int mSize;
-	int mCap;
+	size_t mSize;
+	size_t mCap;
 public :
 	/**
 	 * Creates a new SparseIntArray containing no mappings that will not
@@ -61,9 +61,9 @@ public :
 	 * sparse array will be initialized with a light-weight representation
 	 * not requiring any additional array allocations.
 	 */
-	SparseIntArray(int initialCapacity=8) {
+	SparseIntArray(size_t initialCapacity=8) {
 		mCap = initialCapacity;
-		mKeys = new int[mCap];
+		mKeys = new unsigned int[mCap];
 		mValues = new int[mCap];
 		mSize = 0;
 	}
@@ -74,7 +74,7 @@ public :
 	SparseIntArray(const std::vector<int> & marks) {
 		// compute and set correct capacity
 		mCap = count_if (marks.begin(), marks.end(), [](const int &e) { return e != 0; });
-		mKeys = new int[mCap];
+		mKeys = new  unsigned  int[mCap];
 		mValues = new int[mCap];
 		mSize = 0;
 		for (int  i = 0, e = marks.size() ; i < e ; i++) {
@@ -90,11 +90,11 @@ public :
 		delete [] mValues;
 	}
 
-	std::vector<int> toList (int size) const {
+	std::vector<int> toList (size_t size) const {
 		std::vector<int> res ;
 		res.reserve(size);
 		int  j = 0;
-		for (int i=0; i < size ; i++ ) {
+		for (size_t i=0; i < size ; i++ ) {
 			if (j < this->size() && keyAt(j)==i) {
 				res.push_back(valueAt(j));
 				++j;
@@ -135,7 +135,7 @@ private :
 	static void initFrom(SparseIntArray & a, const SparseIntArray & o) {
 		a.mCap = o.mCap;
 		a.mSize = o.mSize;
-		a.mKeys = new int[a.mCap];
+		a.mKeys = new  unsigned int[a.mCap];
 		a.mValues = new int[a.mCap];;
 
 		memcpy(a.mKeys, o.mKeys, a.mSize * sizeof(int));
@@ -289,7 +289,8 @@ public :
 		}
 		auto p = append(mKeys, mCap, mSize, key);
 		mKeys = p.first;
-		mValues = append(mValues, mCap, mSize, value).first;
+		auto p2 = append(mValues, mCap, mSize, value);
+		mValues = p2.first;
 		mCap = p.second;
 		mSize++;
 	}
@@ -504,14 +505,16 @@ public :
 	}
 
 private :
-	static int binarySearch(const int * const array, int sz, int value) {
+	template<typename T>
+	static int binarySearch(const T * const array, int sz, int value) {
 		int lo = 0;
 		int hi = sz - 1;
 
 		return binarySearch(array, value, lo, hi);
 	}
 	// This is Arrays.binarySearch(), but doesn't do any argument validation.
-	static int binarySearch(const int * const array, int value, int lo, int hi) {
+	template<typename T>
+	static int binarySearch(const T * const array, int value, int lo, int hi) {
 		while (lo <= hi) {
 			int mid = (lo + hi) >> 1;
 			int midVal = array[mid];
@@ -534,13 +537,14 @@ private :
 	static int growSize(int currentSize) {
 		return currentSize <= 4 ? 8 : currentSize * 2;
 	}
-	static std::pair<int*,int> append(int* array, int aCap, int currentSize, int element) {
+	template <typename T>
+	static std::pair<T*,int> append(T* array, int aCap, int currentSize, int element) {
 		assert (currentSize <= aCap) ;
 		int nCap = aCap;
 		if (currentSize + 1 > aCap) {
 			nCap = growSize(currentSize);
-			int * newArray = new int [nCap];
-			memcpy(newArray, array, currentSize * sizeof(int));
+			T * newArray = new T [nCap];
+			memcpy(newArray, array, currentSize * sizeof(T));
 			delete [] array;
 			array = newArray;
 		}
@@ -551,7 +555,8 @@ private :
 	/**
 	 * Primitive int version of {@link #insert(Object[], int, int, Object)}.
 	 */
-	static std::pair<int*,int> insert(int* array, int aCap, int currentSize, int index, int element) {
+	template <typename T>
+	static std::pair<T*,int> insert(T* array, int aCap, int currentSize, int index, int element) {
 		assert (currentSize <= aCap);
 		if (currentSize + 1 <= aCap) {
 			memmove(array+index+1, array+index, (currentSize - index)*sizeof(int));
@@ -559,19 +564,20 @@ private :
 			return {array,aCap};
 		}
 		int nCap = growSize(currentSize);
-		int * newArray = new int [nCap];
-		memcpy(newArray, array, index * sizeof(int));
+		T * newArray = new T [nCap];
+		memcpy(newArray, array, index * sizeof(T));
 		newArray[index] = element;
-		memcpy(newArray+index+1, array+index, (aCap -index) * sizeof(int));
+		memcpy(newArray+index+1, array+index, (aCap -index) * sizeof(T));
 		delete [] array;
 		return {newArray,nCap};
 	}
 
-	static bool equalsRange(const int* const a, const int* const b, int s) {
+	template <typename T>
+	static bool equalsRange(const T* const a, const T* const b, size_t s) {
 		return std::equal(a, a +s, b);
 	}
 
-	static int hashCode(const int * const a, const int * const b, int sz) {
+	static int hashCode(const unsigned int * const a, const int * const b, int sz) {
 		if (a == nullptr || b==nullptr)
 			return 0;
 
