@@ -18,6 +18,8 @@ const string PFLOW="--Pflows";
 const string PSEMIFLOW="--Psemiflows";
 const string TFLOW="--Tflows";
 const string TSEMIFLOW="--Tsemiflows";
+const string PATH="-i";
+const string QUIET="-q";
 
 
 int main(int argc, char * argv[]) {
@@ -27,6 +29,7 @@ int main(int argc, char * argv[]) {
 	bool psemiflows=false;
 	bool tsemiflows=false;
 	bool invariants=false;
+	bool quiet=false;
 	std::string modelPath;
 
 	if (argc == 1 || argc > 6)
@@ -36,8 +39,11 @@ int main(int argc, char * argv[]) {
     	}
 	
 	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-i") == 0) {
+		if (argv[i] == PATH) {
 			modelPath = argv[++i];
+		}
+		else if (argv[i] == QUIET) {
+			quiet = true;
 		}
 		else if (argv[i] == FINDDEADLOCK) {
 			findDeadlock = true;

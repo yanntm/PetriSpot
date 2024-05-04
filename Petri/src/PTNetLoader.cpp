@@ -26,7 +26,7 @@ SparsePetriNet * loadXML(std::string filename) {
 		size_t len = fread(buf, 1, sizeof(buf), in);
 		done = len < sizeof(buf);
 		if (XML_Parse(parser, buf, (int)len, done) == XML_STATUS_ERROR) {
-			fprintf(stderr, "%s at line %d \n",
+			fprintf(stderr, "%s at line %ld \n",
 					XML_ErrorString(XML_GetErrorCode(parser)),
 					XML_GetCurrentLineNumber(parser));
 			XML_ParserFree(parser);

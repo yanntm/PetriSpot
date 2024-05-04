@@ -116,8 +116,8 @@ public :
 		::memset(mat,0,iRows*iCols*sizeof(int));
 		for (size_t col = 0; col < this->iCols; ++col) {
 			const SparseIntArray & arr = lCols[col];
-			for (int i = 0 ; i < arr.size() ; i++) {
-				int row = arr.keyAt(i);
+			for (size_t i = 0 ; i < arr.size() ; i++) {
+				size_t row = arr.keyAt(i);
 				int val = arr.valueAt(i);
 				mat [row + col*iRows] =  val;
 			}
@@ -154,10 +154,10 @@ public :
 	 * @param i - the index of the wished column of this matrix.
 	 * @return a copy of the column with the given index of this matrix.
 	 */
-	 SparseIntArray & getColumn(int i) {
+	 SparseIntArray & getColumn(size_t i) {
 		return lCols[i];
 	}
-	const SparseIntArray & getColumn(int i) const {
+	const SparseIntArray & getColumn(size_t i) const {
 		return lCols[i];
 	}
 
@@ -251,8 +251,8 @@ public :
 			tr.clear(getColumnCount(),getRowCount());
 		for (size_t tcol = 0; tcol < iCols; tcol++) {
 			const SparseIntArray & col = lCols[tcol];
-			for (int k =0 ; k < col.size() ; k++) {
-				int trow = col.keyAt(k);
+			for (size_t k =0 ; k < col.size() ; k++) {
+				size_t trow = col.keyAt(k);
 				int val = col.valueAt(k);
 				tr.set(tcol, trow, val);
 			}
@@ -297,7 +297,7 @@ public :
 		iRows -= 1;
 	}
 
-	 void deleteRows(const std::vector<int> & todel) {
+	 void deleteRows(const std::vector<unsigned int> & todel) {
 //		if (getColumnCount() >= 1000)
 //			getColumns().parallelStream().unordered().forEach(col -> col.deleteAndShift(todel));
 //		else

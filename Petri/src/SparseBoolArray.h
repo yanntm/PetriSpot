@@ -43,14 +43,14 @@
  * order in the case of <code>valueAt(int)</code>.</p>
  */
 class SparseBoolArray {
-		int * mKeys;
-    	int mSize;
-		int mCap;
+	size_t * mKeys;
+	size_t mSize;
+	size_t mCap;
 public:
 	/**
-     * Creates a new SparseBoolArray containing no mappings.
-     */
-    SparseBoolArray() : SparseBoolArray(10) {
+	 * Creates a new SparseBoolArray containing no mappings.
+	 */
+	SparseBoolArray() : SparseBoolArray(10) {
     }
     /**
      * Creates a new SparseBoolArray containing no mappings that will not
@@ -59,9 +59,9 @@ public:
      * sparse array will be initialized with a light-weight representation
      * not requiring any additional array allocations.
      */
-    SparseBoolArray(int initialCapacity) {
+    SparseBoolArray(size_t initialCapacity) {
 		mCap = initialCapacity;
-		mKeys = new int[mCap];
+		mKeys = new size_t[mCap];
 		mSize = 0;
     }
     /** 
@@ -70,10 +70,10 @@ public:
      */
     SparseBoolArray(const std::vector<bool> & marks) {
 	// compute and set correct capacity
-		mCap = count_if(marks.begin(), marks.end(), [](const int & e) { return e != 0; });
-		mKeys = new int[mCap];
+		mCap = count_if(marks.begin(), marks.end(), [](const size_t & e) { return e != 0; });
+		mKeys = new size_t[mCap];
 		mSize = 0;
-	   	for (int  i = 0, e = marks.size() ; i < e ; i++) {
+	   	for (size_t i = 0, e = marks.size() ; i < e ; i++) {
 	    	bool v = marks.at(i);
 	    	if (v) {
 		    	append(i, v);    			
@@ -85,10 +85,10 @@ public:
 		delete [] mKeys;
 	}
 
-    std::vector<bool> toList (int size) const {
+    std::vector<bool> toList (size_t size) const {
     	std::vector<bool> res(size);
-    	int  j = 0;
-    	for (int i=0; i < size ; i++ ) {
+    	size_t  j = 0;
+    	for (size_t i=0; i < size ; i++ ) {
     		if (j < this->size() && keyAt(j)==i) {
     			res.push_back(true);
     			++j;
@@ -112,9 +112,9 @@ private :
 	static void initFrom(SparseBoolArray & a, const SparseBoolArray & o) {
 		a.mCap = o.mCap;
 		a.mSize = o.mSize;
-		a.mKeys = new int[a.mCap];
+		a.mKeys = new size_t[a.mCap];
 
-		memcpy(a.mKeys, o.mKeys, a.mSize * sizeof(int));
+		memcpy(a.mKeys, o.mKeys, a.mSize * sizeof(size_t));
 	}
 
 public :
@@ -127,14 +127,14 @@ public :
      * Gets the int mapped from the specified key, or <code>0</code>
      * if no such mapping has been made.
      */
-    bool get(int key) const {
+    bool get(size_t key) const {
        	return get(key, false);
     }
     /**
      * Gets the int mapped from the specified key, or the specified value
      * if no such mapping has been made.
      */
-    bool get(int key, bool valueIfKeyNotFound) const {
+    bool get(size_t key, bool valueIfKeyNotFound) const {
     	int i = binarySearch(mKeys, mSize, key);
        	if (i < 0) {
            		return valueIfKeyNotFound;
@@ -145,7 +145,7 @@ public :
     /**
      * Removes the mapping from the specified key, if there was any.
      */
-    void remove(int key) {
+    void remove(size_t key) {
        	int i = binarySearch(mKeys, mSize, key);
        	if (i >= 0) {
            		removeAt(i);
@@ -154,7 +154,7 @@ public :
     /**
      * Removes the mapping at the given index.
      */
-    void removeAt(int index) {
+    void removeAt(size_t index) {
        	std::copy(mKeys+index+1, mKeys+mSize, mKeys+index);  
        	mSize--;
     }
@@ -163,7 +163,7 @@ public :
      * replacing the previous mapping from the specified key if there
      * was one.
      */
-    void put(int key, bool v) {    	
+    void put(size_t key, bool v) {    	
        	int i = binarySearch(mKeys, mSize, key);
        	if (i >= 0) {
        		if (v) {
@@ -183,7 +183,7 @@ public :
      * Returns the number of key-value mappings that this SparseBoolArray
      * currently stores.
      */
-    int size() const {
+    size_t size() const {
        	return mSize;
     }
 	/**
@@ -196,7 +196,7 @@ public :
    	 * smallest key and <code>keyAt(size()-1)</code> will return the largest
    	 * key.</p>
    	 */
-   	int keyAt(int index) const {
+   	size_t keyAt(size_t index) const {
        	return mKeys[index];
    	}
    	/**
@@ -204,7 +204,7 @@ public :
    	 * specified key, or a negative number if the specified
    	 * key is not mapped.
    	 */
-   	int indexOfKey(int key) {
+   	int indexOfKey(size_t key) {
        	return binarySearch(mKeys, mSize, key);
    	}
    	/**
@@ -217,7 +217,7 @@ public :
    	 * Puts a key/value pair into the array, optimizing for the case where
    	 * the key is greater than all existing keys in the array.
     	*/
-   	void append(int key, bool v) {
+   	void append(size_t key, bool v) {
    		if (! v)
    			return;
        	if (mSize != 0 && key <= mKeys[mSize - 1]) {
@@ -234,11 +234,11 @@ public :
      *
      * @hide
      * */
-    int * copyKeys() {
+    size_t * copyKeys() {
        	if (size() == 0) {
            	return nullptr;
        	}
-       	int* copiedKeys = new int[mSize];
+       	size_t* copiedKeys = new size_t[mSize];
         std::copy(mKeys, mKeys + mSize, copiedKeys);
         return copiedKeys;
     }
@@ -246,9 +246,9 @@ public :
      * Provides direct access to keys, client should not modify.
      * @return an array of sorted integers corresponding to true entries of this BoolArray
      */
-	int * refKeys() {
+	size_t * refKeys() {
     	if (size() == 0) {
-     		return new int[0];
+     		return new size_t[0];
     	}
     	return mKeys;
 	}
@@ -276,16 +276,16 @@ public :
      * <p>This implementation composes a string by iterating over its mappings.
      */
 	void print(std::ostream & os) const {
-	   	if (size() <= 0) {
+	   	if (size() == 0) {
        		os << "{}";
      		return ;
        	}
      	os << '{';
-    	for (int i=0; i<mSize; i++) {
+    	for (size_t i=0; i<mSize; i++) {
     		if (i > 0) {
          		os <<  (", ");
         	}
-       		int key = keyAt(i);
+       		size_t key = keyAt(i);
       		os << key;
     	}
        	os << '}';
@@ -297,10 +297,10 @@ public :
 		return os;
 	}
     
-	void clear(int j) {
+	void clear(size_t j) {
 		put (j,false);
 	}
-	void set(int j) {
+	void set(size_t j) {
 		put (j,true);
 	}
 	
@@ -308,11 +308,11 @@ public :
     	 * Delete an element at index and shift elements to the right by one.
     	 * @param i
      	 */
-	void deleteAndShift(int i) {
+	void deleteAndShift(size_t i) {
 		if (mSize==0 || i > mKeys[mSize-1]) {
 			return;
 		}
-		int k;
+		size_t k;
 		for (k= mSize-1 ; k>=0 && mKeys[k]>i ; k--) {
 			mKeys[k]--;			
 		}
@@ -322,11 +322,11 @@ public :
 	}
 
 	static SparseBoolArray unionOperation(const SparseBoolArray& a, const SparseBoolArray& b) {
-		int inter = 0;
+		size_t inter = 0;
 		// step 1 evaluate size	
-		int i=0;
-		int j=0;
-		for (int ie=a.size(), je=b.size() ; i < ie && j < je ; ) {
+		size_t i=0;
+		size_t j=0;
+		for (size_t ie=a.size(), je=b.size() ; i < ie && j < je ; ) {
 			if (a.mKeys[i] > b.mKeys[j]) {
 				j++;
 			} else if (a.mKeys[i] < b.mKeys[j]) {
@@ -337,13 +337,13 @@ public :
 				inter++;
 			}
 		}
-		int resSize = a.size() + b.size() - inter;
+		size_t resSize = a.size() + b.size() - inter;
 		SparseBoolArray res(resSize);
 		// step 2 assign
-		int cur=0;
+		size_t cur=0;
 		i=0;
 		j=0;
-		for (int ie=a.size(), je=b.size() ; i < ie && j < je ; ) {
+		for (size_t ie=a.size(), je=b.size() ; i < ie && j < je ; ) {
 			if (a.mKeys[i] > b.mKeys[j]) {
 				res.mKeys[cur++]=b.mKeys[j];
 				j++;
@@ -357,27 +357,27 @@ public :
 			}
 		}
 		// add remaining elements if any
-		for (int ie=a.size(); i < ie ; i++) {
+		for (size_t ie=a.size(); i < ie ; i++) {
 			res.mKeys[cur++]=a.mKeys[i];
 		}
-		for (int je=b.size(); j < je ; j++) {
+		for (size_t je=b.size(); j < je ; j++) {
 			res.mKeys[cur++]=b.mKeys[j];
 		}
 		res.mSize = cur;
 		return res;
 	}
 private :
-	static int binarySearch(const int * const array, int sz, int value) {
+	static int binarySearch(const size_t * const array, size_t sz, size_t value) {
 		int lo = 0;
 		int hi = sz - 1;
 
 		return binarySearch(array, value, lo, hi);
 	}
 	// This is Arrays.binarySearch(), but doesn't do any argument validation.
-	static int binarySearch(const int * const array, int value, int lo, int hi) {
+	static int binarySearch(const size_t * const array, size_t value, int lo, int hi) {
 		while (lo <= hi) {
 			int mid = (lo + hi) >> 1;
-			int midVal = array[mid];
+			size_t midVal = array[mid];
 			if (midVal < value) {
 				lo = mid + 1;
 			} else if (midVal > value) {
@@ -394,16 +394,16 @@ private :
 	 * This is typically double the given size, but should not be relied upon to do so in the
 	 * future.
 	 */
-	static int growSize(int currentSize) {
+	static size_t growSize(size_t currentSize) {
 		return currentSize <= 5 ? 10 : currentSize * 2;
 	}
-	static std::pair<int*,int> append(int* array, int aCap, int currentSize, int element) {
+	static std::pair<size_t*,size_t> append(size_t* array, size_t aCap, size_t currentSize, size_t element) {
 		assert (currentSize <= aCap) ;
-		int nCap = aCap;
+		size_t nCap = aCap;
 		if (currentSize + 1 > aCap) {
 			nCap = growSize(currentSize);
-			int * newArray = new int [nCap];
-			memcpy(newArray, array, currentSize * sizeof(int));
+			size_t * newArray = new size_t [nCap];
+			memcpy(newArray, array, currentSize * sizeof(size_t));
 			delete [] array;
 			array = newArray;
 		}
@@ -414,32 +414,32 @@ private :
 	/**
 	 * Primitive int version of {@link #insert(Object[], int, int, Object)}.
 	 */
-	static std::pair<int*,int> insert(int* array, int aCap, int currentSize, int index, int element) {
+	static std::pair<size_t*,size_t> insert(size_t* array, size_t aCap, size_t currentSize, size_t index, size_t element) {
 		assert (currentSize <= aCap);
 		if (currentSize + 1 <= aCap) {
-			memmove(array+index+1, array+index, (currentSize - index)*sizeof(int));
+			memmove(array+index+1, array+index, (currentSize - index)*sizeof(size_t));
 			array[index] = element;
 			return {array,aCap};
 		}
-		int nCap = growSize(currentSize);
-		int * newArray = new int [nCap];
-		memcpy(newArray, array, index * sizeof(int));
+		size_t nCap = growSize(currentSize);
+		size_t * newArray = new size_t [nCap];
+		memcpy(newArray, array, index * sizeof(size_t));
 		newArray[index] = element;
-		memcpy(newArray+index+1, array+index, (aCap -index) * sizeof(int));
+		memcpy(newArray+index+1, array+index, (aCap -index) * sizeof(size_t));
 		delete [] array;
 		return {newArray,nCap};
 	}
 
-	static bool equalsRange(const int* const a, const int* const b, int s) {
+	static bool equalsRange(const size_t* const a, const size_t* const b, size_t s) {
 		return std::equal(a, a +s, b);
 	}
 
-	static int hashCode(const int * const a, int sz) {
+	static size_t hashCode(const size_t * const a, size_t sz) {
 		if (a == nullptr)
 			return 0;
 
-		int result = 1;
-		for (int i=0; i < sz ; i++) {
+		size_t result = 1;
+		for (size_t i=0; i < sz ; i++) {
 			result = 31 * result + a[i];
 		}
 

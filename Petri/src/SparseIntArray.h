@@ -74,10 +74,10 @@ public :
 	SparseIntArray(const std::vector<int> & marks) {
 		// compute and set correct capacity
 		mCap = count_if (marks.begin(), marks.end(), [](const int &e) { return e != 0; });
-		mKeys = new  unsigned  int[mCap];
+		mKeys = new  unsigned int[mCap];
 		mValues = new int[mCap];
 		mSize = 0;
-		for (int  i = 0, e = marks.size() ; i < e ; i++) {
+		for (size_t  i = 0, e = marks.size() ; i < e ; i++) {
 			int v = marks.at(i);
 			if (v != 0) {
 				append(i, v);
@@ -93,7 +93,7 @@ public :
 	std::vector<int> toList (size_t size) const {
 		std::vector<int> res ;
 		res.reserve(size);
-		int  j = 0;
+		size_t  j = 0;
 		for (size_t i=0; i < size ; i++ ) {
 			if (j < this->size() && keyAt(j)==i) {
 				res.push_back(valueAt(j));
@@ -135,7 +135,7 @@ private :
 	static void initFrom(SparseIntArray & a, const SparseIntArray & o) {
 		a.mCap = o.mCap;
 		a.mSize = o.mSize;
-		a.mKeys = new  unsigned int[a.mCap];
+		a.mKeys = new unsigned int[a.mCap];
 		a.mValues = new int[a.mCap];;
 
 		memcpy(a.mKeys, o.mKeys, a.mSize * sizeof(int));
@@ -150,14 +150,14 @@ public :
 	 * Gets the int mapped from the specified key, or <code>0</code>
 	 * if no such mapping has been made.
 	 */
-	int get(int key) const {
+	int get(unsigned int key) const {
 		return get(key, 0);
 	}
 	/**
 	 * Gets the int mapped from the specified key, or the specified value
 	 * if no such mapping has been made.
 	 */
-	int get(int key, int valueIfKeyNotFound) const {
+	int get(unsigned int key, int valueIfKeyNotFound) const {
 		int i = binarySearch(mKeys, mSize, key);
 		if (i < 0) {
 			return valueIfKeyNotFound;
@@ -168,7 +168,7 @@ public :
 	/**
 	 * Removes the mapping from the specified key, if there was any.
 	 */
-	int del(int key) {
+	int del(unsigned int key) {
 		int i = binarySearch(mKeys, mSize, key);
 		if (i >= 0) {
 			removeAt(i);
@@ -178,7 +178,7 @@ public :
 	/**
 	 * Removes the mapping at the given index.
 	 */
-	void removeAt(int index) {
+	void removeAt(size_t index) {
 		std::copy(mKeys+index+1, mKeys+mSize, mKeys+index);
 		std::copy(mValues+index+1, mValues+mSize, mValues+index);
 		mSize--;
@@ -188,7 +188,7 @@ public :
 	 * replacing the previous mapping from the specified key if there
 	 * was one.
 	 */
-	void put(int key, int value) {
+	void put(unsigned int key, int value) {
 		int i = binarySearch(mKeys, mSize, key);
 		if (value==0) {
 			if (i >= 0) {
@@ -211,7 +211,7 @@ public :
 	 * Returns the number of key-value mappings that this SparseIntArray
 	 * currently stores.
 	 */
-	int size() const {
+	size_t size() const {
 		return mSize;
 	}
 	/**
@@ -224,7 +224,7 @@ public :
 	 * smallest key and <code>keyAt(size()-1)</code> will return the largest
 	 * key.</p>
 	 */
-	int keyAt(int index) const {
+	unsigned int keyAt(size_t index) const {
 		return mKeys[index];
 	}
 	/**
@@ -238,14 +238,14 @@ public :
 	 * smallest key and <code>valueAt(size()-1)</code> will return the value
 	 * associated with the largest key.</p>
 	 */
-	int valueAt(int index) const {
+	int valueAt(size_t index) const {
 		return mValues[index];
 	}
 	/**
 	 * Directly set the value at a particular index.
 	 * @hide
 	 */
-	void setValueAt(int index, int value) {
+	void setValueAt(size_t index, int value) {
 		mValues[index] = value;
 	}
 	/**
@@ -253,7 +253,7 @@ public :
 	 * specified key, or a negative number if the specified
 	 * key is not mapped.
 	 */
-	int indexOfKey(int key) const {
+	int indexOfKey(unsigned int key) const {
 		return binarySearch(mKeys, mSize, key);
 	}
 	/**
@@ -265,7 +265,7 @@ public :
 	 * find only one of them.
 	 */
 	int indexOfValue(int value) const {
-		for (int i = 0; i < mSize; i++)
+		for (size_t i = 0; i < mSize; i++)
 			if (mValues[i] == value)
 				return i;
 		return -1;
@@ -280,7 +280,7 @@ public :
 	 * Puts a key/value pair into the array, optimizing for the case where
 	 * the key is greater than all existing keys in the array.
 	 */
-	void append(int key, int value) {
+	void append(unsigned int key, int value) {
 		if (value == 0)
 			return;
 		if (mSize != 0 && key <= mKeys[mSize - 1]) {
@@ -325,7 +325,7 @@ public :
 			return;
 		}
 		os <<  '{';
-		for (int i=0; i<mSize; i++) {
+		for (size_t i=0; i<mSize; i++) {
 			if (i > 0) {
 				os <<  (", ");
 			}
@@ -351,25 +351,25 @@ public :
 	static SparseIntArray sumProd(int alpha, const SparseIntArray & ta, int beta, const SparseIntArray & tb, int except) {
 		SparseIntArray flow (std::max(ta.size(), tb.size()));
 
-		int i = 0;
-		int j = 0;
+		size_t i = 0;
+		size_t j = 0;
 		while (i < ta.size() || j < tb.size()) {
-			int ki = i==ta.size() ? std::numeric_limits<int>::max() : ta.keyAt(i);
-			int kj = j==tb.size() ? std::numeric_limits<int>::max() : tb.keyAt(j);
+			size_t ki = i==ta.size() ? std::numeric_limits<int>::max() : ta.keyAt(i);
+			size_t kj = j==tb.size() ? std::numeric_limits<int>::max() : tb.keyAt(j);
 			if (ki == kj) {
 				int val = alpha * ta.valueAt(i)+ beta* tb.valueAt(j);
-				if (val != 0 && ki != except) {
+				if (val != 0 && (except > 0 ? ki != (size_t)except : 1)) {
 					flow.append(ki, val);
 				}
 				i++;
 				j++;
 			} else if (ki < kj) {
 				int val = alpha * ta.valueAt(i);
-				if (val != 0 && ki != except) flow.append(ki, val);
+				if (val != 0 && (except > 0 ? ki != (size_t)except : 1)) flow.append(ki, val);
 				i++;
 			} else if (kj < ki) {
 				int val = beta * tb.valueAt(j);
-				if (val != 0 && kj != except) flow.append(kj, val);
+				if (val != 0 && (except > 0 ? kj != (size_t)except : 1)) flow.append(kj, val);
 				j++;
 			}
 		}
@@ -382,7 +382,7 @@ public :
 			return true;
 		}
 
-		for (int j = 0, i = 0 , ss1 =  s1.size() , ss2 = s2.size() ; i < ss1 && j < ss2 ; ) {
+		for (size_t j = 0, i = 0 , ss1 =  s1.size() , ss2 = s2.size() ; i < ss1 && j < ss2 ; ) {
 			int sk1 = s1.keyAt(i);
 			int sk2 = s2.keyAt(j);
 			if (sk1 == sk2) {
@@ -412,7 +412,7 @@ public :
 		}
 
 
-		for (int j = 0, i = 0 , ss1 =  s1.size() , ss2 = s2.size() ; i < ss1 && j < ss2 ; ) {
+		for (size_t j = 0, i = 0 , ss1 =  s1.size() , ss2 = s2.size() ; i < ss1 && j < ss2 ; ) {
 			int sk1 = s1.keyAt(i);
 			int sk2 = s2.keyAt(j);
 			if (sk1 == sk2) {
@@ -442,10 +442,10 @@ public :
 	}
 
 	static int manhattanDistance (const SparseIntArray& ta, const SparseIntArray& tb) {
-		int dist = 0;
+		size_t dist = 0;
 
-		int i = 0;
-		int j = 0;
+		size_t i = 0;
+		size_t j = 0;
 		while (i < ta.size() || j < tb.size()) {
 			int ki = i==ta.size() ? std::numeric_limits<int>::max() : ta.keyAt(i);
 			int kj = j==tb.size() ? std::numeric_limits<int>::max() : tb.keyAt(j);
@@ -469,11 +469,11 @@ public :
 	 * Delete an element at index and shift elements to the right by one.
 	 * @param i
 	 */
-	void deleteAndShift(int i) {
+	void deleteAndShift(unsigned int i) {
 		if (mSize==0 || i > mKeys[mSize-1]) {
 			return;
 		}
-		int k;
+		size_t k;
 		for (k= mSize-1 ; k>=0 && mKeys[k]>i ; k--) {
 			mKeys[k]--;
 		}
@@ -486,14 +486,14 @@ public :
 	 * More efficient one pass version for removing many at once.
 	 * @param todel a list of decreasing sorted indexes.
 	 */
-	void deleteAndShift(const std::vector<int> & todel) {
+	void deleteAndShift(const std::vector<unsigned int> & todel) {
 		if (mSize==0 || todel.empty() || todel.back() > mKeys[mSize-1]) {
 			return;
 		}
 		// start from rightmost key
 		int k = mSize-1 ;
-		for (int cur=0, e=todel.size() ; cur < e ; cur++) {
-			int val = todel.at(cur);
+		for (size_t cur=0, e=todel.size() ; cur < e ; cur++) {
+			unsigned int val = todel.at(cur);
 			for ( ; k>=0 && mKeys[k]> val ; k--) {
 				mKeys[k]-= todel.size() - cur;
 			}
@@ -505,19 +505,17 @@ public :
 	}
 
 private :
-	template<typename T>
-	static int binarySearch(const T * const array, int sz, int value) {
+	static int binarySearch(const unsigned int * const array, size_t sz, unsigned int value) {
 		int lo = 0;
 		int hi = sz - 1;
 
 		return binarySearch(array, value, lo, hi);
 	}
 	// This is Arrays.binarySearch(), but doesn't do any argument validation.
-	template<typename T>
-	static int binarySearch(const T * const array, int value, int lo, int hi) {
+	static int binarySearch(const unsigned int * const array, unsigned int value, int lo, int hi) {
 		while (lo <= hi) {
 			int mid = (lo + hi) >> 1;
-			int midVal = array[mid];
+			unsigned int midVal = array[mid];
 			if (midVal < value) {
 				lo = mid + 1;
 			} else if (midVal > value) {
@@ -534,13 +532,13 @@ private :
 	 * This is typically double the given size, but should not be relied upon to do so in the
 	 * future.
 	 */
-	static int growSize(int currentSize) {
+	static size_t growSize(size_t currentSize) {
 		return currentSize <= 4 ? 8 : currentSize * 2;
 	}
 	template <typename T>
-	static std::pair<T*,int> append(T* array, int aCap, int currentSize, int element) {
+	static std::pair<T*,size_t> append(T* array, size_t aCap, size_t currentSize, T element) {
 		assert (currentSize <= aCap) ;
-		int nCap = aCap;
+		size_t nCap = aCap;
 		if (currentSize + 1 > aCap) {
 			nCap = growSize(currentSize);
 			T * newArray = new T [nCap];
@@ -556,14 +554,14 @@ private :
 	 * Primitive int version of {@link #insert(Object[], int, int, Object)}.
 	 */
 	template <typename T>
-	static std::pair<T*,int> insert(T* array, int aCap, int currentSize, int index, int element) {
+	static std::pair<T*,size_t> insert(T* array, size_t aCap, size_t currentSize, size_t index, T element) {
 		assert (currentSize <= aCap);
 		if (currentSize + 1 <= aCap) {
 			memmove(array+index+1, array+index, (currentSize - index)*sizeof(int));
 			array[index] = element;
 			return {array,aCap};
 		}
-		int nCap = growSize(currentSize);
+		size_t nCap = growSize(currentSize);
 		T * newArray = new T [nCap];
 		memcpy(newArray, array, index * sizeof(T));
 		newArray[index] = element;
@@ -577,12 +575,12 @@ private :
 		return std::equal(a, a +s, b);
 	}
 
-	static int hashCode(const unsigned int * const a, const int * const b, int sz) {
+	static int hashCode(const unsigned int * const a, const int * const b, size_t sz) {
 		if (a == nullptr || b==nullptr)
 			return 0;
 
 		int result = 1;
-		for (int i=0; i < sz ; i++) {
+		for (size_t i=0; i < sz ; i++) {
 			result = 31 * result + a[i];
 			result = 31 * result + b[i];
 		}

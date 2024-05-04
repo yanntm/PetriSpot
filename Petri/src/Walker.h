@@ -27,11 +27,11 @@ public :
 		typedef std::unordered_map<const SparseIntArray *, std::vector<int>, std::hash<SparseIntArray*>, std::equal_to<SparseIntArray*>> map_t;
 		map_t effects;
 
-		for (int i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
+		for (size_t i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
 			combFlow.appendColumn(SparseIntArray::sumProd(-1, sr->getFlowPT().getColumn(i), 1, sr->getFlowTP().getColumn(i)));
 		}
 
-		for (int i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
+		for (size_t i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
 			SparseIntArray & col = combFlow.getColumn(i);
 			map_t::iterator it = effects.find(&col);
 			if (it != effects.end()) {
@@ -113,12 +113,12 @@ public :
 		// the places fed by this transition
 		SparseIntArray tp = combFlow.getColumn(tfired);
 		for (int  pi = 0, pie=tp.size() ; pi < pie ; pi++) {
-			int p = tp.keyAt(pi);
+			size_t p = tp.keyAt(pi);
 			if (tp.valueAt(pi) > 0) {
 				// the set of transitions taking from this place
 				SparseIntArray col = tFlowPT.getColumn(p);
-				for (int i = 0 ; i < col.size() ; i++) {
-					int t = col.keyAt(i);
+				for (size_t i = 0 ; i < col.size() ; i++) {
+					size_t t = col.keyAt(i);
 					if (seen[t] || seenEffects[behaviorMap[t]])
 						continue;
 

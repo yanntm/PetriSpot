@@ -44,7 +44,7 @@ private:
 
 	public:
 		// The row
-		const int row;
+		const size_t row;
 		// P+ set
 		SparseBoolArray pPlus;
 		// P- set
@@ -55,10 +55,10 @@ private:
 		 *
 		 * @param row
 		 */
-		PpPm(int row) : row(row), pPlus(), pMinus() {
+		PpPm(size_t row) : row(row), pPlus(), pMinus() {
 		}
 
-		void setValue(int j, int val) {
+		void setValue(size_t j, int val) {
 			if (val == 0) {
 				pMinus.clear(j);
 				pPlus.clear(j);
@@ -92,10 +92,10 @@ private:
 	 */
 	static std::vector<PpPm> calcPpPm(const MatrixCol& matC) {
 		std::vector<PpPm> result;
-		for (int row = 0; row < matC.getRowCount(); row++) {
+		for (size_t row = 0; row < matC.getRowCount(); row++) {
 			result.push_back(PpPm(row));
 		}
-		for (int icol = 0, cole = matC.getColumnCount(); icol < cole; icol++) {
+		for (size_t icol = 0, cole = matC.getColumnCount(); icol < cole; icol++) {
 			const SparseIntArray& col = matC.getColumn(icol);
 			for (int i = 0, ie = col.size(); i < ie; i++) {
 				PpPm & toedit = result[col.keyAt(i)];
@@ -181,7 +181,7 @@ public:
 		}
 		MatrixCol tmat = mat.transpose();
 		std::unordered_set<SparseIntArray> normed = std::unordered_set<SparseIntArray>();
-		for (int i = 0; i < tmat.getColumnCount(); i++) {
+		for (size_t i = 0; i < tmat.getColumnCount(); i++) {
 			SparseIntArray& norm = tmat.getColumn(i);
 			normalize(norm);
 			normed.insert(norm);
@@ -204,7 +204,7 @@ public:
 		// scaling factor are useless
 		// let's use a set of columns.
 		std::unordered_set<SparseIntArray> colsBsparse(2 * matB.getColumnCount());
-		for (int i = 0; i < matB.getColumnCount(); i++) {
+		for (size_t i = 0; i < matB.getColumnCount(); i++) {
 			SparseIntArray& col = matB.getColumn(i);
 			if (col.size() != 0) {
 				normalizeWithSign(col);
@@ -391,22 +391,22 @@ private:
 		}
 	}
 
-	static std::vector<int> normalize(SparseIntArray & col, int size) {
+	static std::vector<int> normalize(SparseIntArray & col, size_t size) {
 		std::vector<int> list(size);
 		bool allneg = true;
-		for (int i = 0; i < col.size(); i++) {
+		for (size_t i = 0; i < col.size(); i++) {
 			if (col.valueAt(i) > 0) {
 				allneg = false;
 				break;
 			}
 		}
 		if (allneg) {
-			for (int i = 0; i < col.size(); i++) {
+			for (size_t i = 0; i < col.size(); i++) {
 				col.setValueAt(i, -col.valueAt(i));
 			}
 		}
 
-		for (int i = 0; i < size; i++) {
+		for (size_t i = 0; i < size; i++) {
 			list.push_back(col.get(i, 0));
 		}
 		normalize(list);
@@ -464,11 +464,11 @@ public:
 		SparseBoolArray changed;
 		SparseIntArray flow(std::max(ta.size(), tb.size()));
 
-		int i = 0;
-		int j = 0;
+		size_t i = 0;
+		size_t j = 0;
 		while (i < ta.size() || j < tb.size()) {
-			int ki = i == ta.size() ? std::numeric_limits<int>::max() : ta.keyAt(i);
-			int kj = j == tb.size() ? std::numeric_limits<int>::max() : tb.keyAt(j);
+			size_t ki = i == ta.size() ? std::numeric_limits<int>::max() : ta.keyAt(i);
+			size_t kj = j == tb.size() ? std::numeric_limits<int>::max() : tb.keyAt(j);
 			if (ki == kj) {
 				int val =  addExact( multiplyExact(alpha, ta.valueAt(i)) , multiplyExact(beta, tb.valueAt(j)));
 				if (val != 0) {
@@ -513,14 +513,14 @@ private:
 		// let tCol be the index of a column such that c[trow][tcol] != 0.
 
 		int candidate = -1;
-		int szcand = std::numeric_limits<int>::max();
-		int totalcand = std::numeric_limits<int>::max();
-		for (int col = 0; col < matC.getColumnCount(); col++) {
-			int size = matC.getColumn(col).size();
+		size_t szcand = std::numeric_limits<int>::max();
+		size_t totalcand = std::numeric_limits<int>::max();
+		for (size_t col = 0; col < matC.getColumnCount(); col++) {
+			size_t size = matC.getColumn(col).size();
 			if (size == 0) {
 				continue;
 			} else if (size <= szcand) {
-				int total = sumAbsValues(matC.getColumn(col));
+				size_t total = sumAbsValues(matC.getColumn(col));
 				if (size < szcand || (size == szcand && total <= totalcand)) {
 					candidate = col;
 					szcand = size;
@@ -529,8 +529,12 @@ private:
 			}
 		}
 		// int [] pair = matC.getNoneZeroRow();
-		int tRow = matC.getColumn(candidate).keyAt(0);
-		int tCol = candidate;
+		size_t tRow;
+		size_t tCol;
+		if (candidate > 0) {
+			tRow = matC.getColumn((size_t)candidate).keyAt(0);
+			tCol = (size_t)candidate;
+		}
 
 		int cHk = matC.get(tRow, tCol);
 		int bbeta = std::abs(cHk);
@@ -542,8 +546,8 @@ private:
 		PpPm rowppm = pppms[tRow];
 		SparseBoolArray toVisit = SparseBoolArray::unionOperation(rowppm.pMinus, rowppm.pPlus);
 
-		for (int i = 0; i < toVisit.size(); i++) {
-			int j = toVisit.keyAt(i);
+		for (size_t i = 0; i < toVisit.size(); i++) {
+			size_t j = toVisit.keyAt(i);
 			SparseIntArray& colj = matC.getColumn(j);
 
 			if (j == tCol) {
@@ -564,7 +568,7 @@ private:
 				int beta = bbeta / gcd;
 
 				SparseBoolArray changed = sumProdInto(beta, colj, alpha, matC.getColumn(tCol));
-				for (int ind = 0, inde = changed.size(); ind < inde; ind++) {
+				for (size_t ind = 0, inde = changed.size(); ind < inde; ind++) {
 					pppms[changed.keyAt(ind)].setValue(j, colj.get(changed.keyAt(ind)));
 				}
 				SparseIntArray& coljb = matB.getColumn(j);
@@ -586,9 +590,9 @@ public:
 	}
 
 private:
-	static int sumAbsValues(const SparseIntArray & col) {
-		int tot = 0;
-		for (int i = 0; i < col.size(); i++) {
+	static size_t sumAbsValues(const SparseIntArray & col) {
+		size_t tot = 0;
+		for (size_t i = 0; i < col.size(); i++) {
 			tot += std::abs(col.valueAt(i));
 		}
 		return tot;
@@ -638,7 +642,7 @@ private:
 		if (set.size()==0)
 			return 0;
 		int gcd = set.valueAt(0);
-		for (int i =1 ; i < set.size() ; i++) {
+		for (size_t i =1 ; i < set.size() ; i++) {
 			gcd = InvariantCalculator::gcd(gcd, set.valueAt(i));
 			if (gcd == 1) return 1;
 		}
@@ -667,21 +671,21 @@ private:
 public:
 	static void normalizeWithSign(SparseIntArray & col) {
 		bool allneg = true;
-		for (int i = 0; i < col.size(); i++) {
+		for (size_t i = 0; i < col.size(); i++) {
 			if (col.valueAt(i) > 0) {
 				allneg = false;
 				break;
 			}
 		}
 		if (allneg) {
-			for (int i = 0; i < col.size(); i++) {
+			for (size_t i = 0; i < col.size(); i++) {
 				col.setValueAt(i, -col.valueAt(i));
 			}
 		}
 
 		int gcd = InvariantCalculator::gcd(col);
 		if (gcd > 1) {
-			for (int j = 0; j < col.size(); ++j) {
+			for (size_t j = 0; j < col.size(); ++j) {
 				int norm = col.valueAt(j) / gcd;
 				col.setValueAt(j, norm);
 			}
@@ -691,7 +695,7 @@ public:
 	static void normalize(SparseIntArray invariants) {
 		int gcd = InvariantCalculator::gcd(invariants);
 		if (gcd > 1) {
-			for (int j = 0; j < invariants.size(); ++j) {
+			for (size_t j = 0; j < invariants.size(); ++j) {
 				int norm = invariants.valueAt(j) / gcd;
 				invariants.setValueAt(j, norm);
 			}
