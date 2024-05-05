@@ -10,6 +10,7 @@
 #include "InvariantCalculator.h"
 #include <vector>
 #include <unordered_set>
+#include <chrono>
 
 using namespace std;
 
@@ -106,32 +107,41 @@ int main(int argc, char * argv[]) {
 		if (invariants) 
 		{
 			vector<int> repr;
-			MatrixCol sumMatrix = computeReducedFlow(*pn, repr);
+			MatrixCol sumMatrix = InvariantMiddle::computeReducedFlow(*pn, repr);
 			if (pflows || psemiflows) {
-//				long time = System.currentTimeMillis();
+				auto time = std::chrono::steady_clock::now();
 				unordered_set<SparseIntArray> invar;
 				if (pflows) {
-					invar = InvariantCalculator::calcInvariantsPIPE(sumMatrix.transpose(), false);
+				invar = InvariantCalculator::calcInvariantsPIPE(sumMatrix.transpose(), false);
 				} else {
-					invar = InvariantCalculator::calcInvariantsPIPE(sumMatrix.transpose(), true);
+				//	invar = InvariantMiddle::computePInvariants(sumMatrix, true, 120);
 				}
-				std::cout << "Computed " << invar.size() << " P " << (psemiflows?"semi":"") << "flows in " << " ms." << endl;
+				std::cout << "Computed " << invar.size() << " P " << (psemiflows?"semi":"") << "flows in " 
+					<< std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - time).count() 
+						<< " ms." << std::endl;
 ////			InvariantSet inv = new InvariantSet(invar, sumMatrix.transpose());
 ////			inv.print(System.out, spn.getPnames(), spn.getMarks());
-//    			printInvariant(invar, pn->getPnames(), (*pn).getMarks());
+				if (!quiet) {
+    				InvariantMiddle::printInvariant(invar, pn->getPnames(), (*pn).getMarks());
+				}
 			}
 			if (tflows || tsemiflows) {
-//				long time = System.currentTimeMillis();
+				auto time = std::chrono::steady_clock::now();
 				unordered_set<SparseIntArray> invarT;
 				if (tflows) {
-//					invarT = DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, repr,false);
+				//	invarT= InvariantMiddle::computeTinvariants(*pn, sumMatrix, repr,false);	
 				} else {
-//					invarT = DeadlockTester.computeTinvariants(reader.getSPN(), sumMatrix, repr,true);
+				//	invarT= InvariantMiddle::computeTinvariants(*pn, sumMatrix, repr,true);	
 				}
-				cout << "Computed " << invarT.size() << " T " << (tsemiflows?"semi":"") << "flows in " << " ms." << endl;
+				std::cout << "Computed " << invarT.size() << " T " << (tsemiflows?"semi":"") << "flows in " 
+					<< std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - time).count() 
+						<< " ms." << std::endl;
 ////			InvariantSet inv = new InvariantSet(invarT, sumMatrix);
 ////			inv.print(System.out, strtnames, empty);
-//				InvariantCalculator.printInvariant(invarT, strtnames, empty );
+				if (!quiet) {
+					std::vector<int> emptyVector;
+					InvariantMiddle::printInvariant(invarT, pn->getTnames(), emptyVector);
+				}
 			}
 ////		SparseIntArray inv = DeadlockTester.findPositiveTsemiflow(sumMatrix);	
 		}
