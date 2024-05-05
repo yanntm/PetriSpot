@@ -51,53 +51,53 @@ public:
 	 * Creates a new SparseBoolArray containing no mappings.
 	 */
 	SparseBoolArray() : SparseBoolArray(10) {
-    }
-    /**
-     * Creates a new SparseBoolArray containing no mappings that will not
-     * require any additional memory allocation to store the specified
-     * number of mappings.  If you supply an initial capacity of 0, the
-     * sparse array will be initialized with a light-weight representation
-     * not requiring any additional array allocations.
-     */
-    SparseBoolArray(size_t initialCapacity) {
+    	}
+    	/**
+    	 * Creates a new SparseBoolArray containing no mappings that will not
+    	 * require any additional memory allocation to store the specified
+    	 * number of mappings.  If you supply an initial capacity of 0, the
+    	 * sparse array will be initialized with a light-weight representation
+    	 * not requiring any additional array allocations.
+    	 */
+    	SparseBoolArray(size_t initialCapacity) {
 		mCap = initialCapacity;
 		mKeys = new size_t[mCap];
 		mSize = 0;
-    }
-    /** 
-     * Convert a classic std::vector<bool> to a sparse representation.
-     * @param marks
-     */
-    SparseBoolArray(const std::vector<bool> & marks) {
-	// compute and set correct capacity
+   	}
+    	/** 
+    	 * Convert a classic std::vector<bool> to a sparse representation.
+    	 * @param marks
+    	 */
+    	SparseBoolArray(const std::vector<bool> & marks) {
+		// compute and set correct capacity
 		mCap = count_if(marks.begin(), marks.end(), [](const size_t & e) { return e != 0; });
 		mKeys = new size_t[mCap];
 		mSize = 0;
 	   	for (size_t i = 0, e = marks.size() ; i < e ; i++) {
-	    	bool v = marks.at(i);
-	    	if (v) {
-		    	append(i, v);    			
-	    	}
+	    		bool v = marks.at(i);
+	    		if (v) {
+		    		append(i, v);    			
+	    		}
 	   	}    	
-    }
+    	}
 
 	~SparseBoolArray() {
 		delete [] mKeys;
 	}
 
-    std::vector<bool> toList (size_t size) const {
-    	std::vector<bool> res(size);
-    	size_t  j = 0;
-    	for (size_t i=0; i < size ; i++ ) {
-    		if (j < this->size() && keyAt(j)==i) {
-    			res.push_back(true);
-    			++j;
-    		} else {
-    			res.push_back(false);
-    		}    		
+    	std::vector<bool> toList (size_t size) const {
+    		std::vector<bool> res(size);
+    		size_t  j = 0;
+    		for (size_t i=0; i < size ; i++ ) {
+    			if (j < this->size() && keyAt(j)==i) {
+    				res.push_back(true);
+    				++j;
+    			} else {
+    				res.push_back(false);
+    			}    		
+    		}
+    		return res;
     	}
-    	return res;
-    }
 
 	SparseBoolArray & operator=(const SparseBoolArray & source) {
 		if (this != &source) {
@@ -123,69 +123,69 @@ public :
 	}
     
     
-    /**
-     * Gets the int mapped from the specified key, or <code>0</code>
-     * if no such mapping has been made.
-     */
-    bool get(size_t key) const {
-       	return get(key, false);
-    }
-    /**
-     * Gets the int mapped from the specified key, or the specified value
-     * if no such mapping has been made.
-     */
-    bool get(size_t key, bool valueIfKeyNotFound) const {
-    	int i = binarySearch(mKeys, mSize, key);
-       	if (i < 0) {
+    	/**
+    	 * Gets the int mapped from the specified key, or <code>0</code>
+    	 * if no such mapping has been made.
+    	 */
+    	bool get(size_t key) const {
+       		return get(key, false);
+    	}
+    	/**
+    	 * Gets the int mapped from the specified key, or the specified value
+    	 * if no such mapping has been made.
+    	 */
+    	bool get(size_t key, bool valueIfKeyNotFound) const {
+    		int i = binarySearch(mKeys, mSize, key);
+       		if (i < 0) {
            		return valueIfKeyNotFound;
-       	} else {
-           		return true;
-       	}
-    }
-    /**
-     * Removes the mapping from the specified key, if there was any.
-     */
-    void remove(size_t key) {
-       	int i = binarySearch(mKeys, mSize, key);
-       	if (i >= 0) {
-           		removeAt(i);
-       	}
-    }
-    /**
-     * Removes the mapping at the given index.
-     */
-    void removeAt(size_t index) {
-       	std::copy(mKeys+index+1, mKeys+mSize, mKeys+index);  
-       	mSize--;
-    }
-    /**
-     * Adds a mapping from the specified key to the specified value,
-     * replacing the previous mapping from the specified key if there
-     * was one.
-     */
-    void put(size_t key, bool v) {    	
-       	int i = binarySearch(mKeys, mSize, key);
-       	if (i >= 0) {
-       		if (v) {
-       			return;
        		} else {
-       			removeAt(i);
+           		return true;
        		}
-       	} else if (v) {
+    	}
+    	/**
+    	 * Removes the mapping from the specified key, if there was any.
+    	 */
+    	void remove(size_t key) {
+       		int i = binarySearch(mKeys, mSize, key);
+       		if (i >= 0) {
+           		removeAt(i);
+       		}
+    	}
+    	/**
+    	 * Removes the mapping at the given index.
+    	 */
+    	void removeAt(size_t index) {
+       		std::copy(mKeys+index+1, mKeys+mSize, mKeys+index);  
+       		mSize--;
+    	}
+    	/**
+    	 * Adds a mapping from the specified key to the specified value,
+    	 * replacing the previous mapping from the specified key if there
+    	 * was one.
+    	 */
+    	void put(size_t key, bool v) {    	
+       		int i = binarySearch(mKeys, mSize, key);
+       		if (i >= 0) {
+       			if (v) {
+       				return;
+       			} else {
+       				removeAt(i);
+       			}
+       		} else if (v) {
            		i = ~i;
            		auto p = insert(mKeys, mCap, mSize, i, key);
-				mKeys = p.first;    
-				mCap = p.second;   
+			mKeys = p.first;    
+			mCap = p.second;   
            		mSize++;
-       	}
-    }
-    /**
-     * Returns the number of key-value mappings that this SparseBoolArray
-     * currently stores.
-     */
-    size_t size() const {
-       	return mSize;
-    }
+       		}
+    	}
+    	/**
+    	 * Returns the number of key-value mappings that this SparseBoolArray
+    	 * currently stores.
+    	 */
+    	size_t size() const {
+       		return mSize;
+    	}
 	/**
    	 * Given an index in the range <code>0...size()-1</code>, returns
    	 * the key from the <code>index</code>th key-value mapping that this
@@ -197,7 +197,7 @@ public :
    	 * key.</p>
    	 */
    	size_t keyAt(size_t index) const {
-       	return mKeys[index];
+       		return mKeys[index];
    	}
    	/**
    	 * Returns the index for which {@link #keyAt} would return the
@@ -205,55 +205,56 @@ public :
    	 * key is not mapped.
    	 */
    	int indexOfKey(size_t key) {
-       	return binarySearch(mKeys, mSize, key);
+       		return binarySearch(mKeys, mSize, key);
    	}
    	/**
    	 * Removes all key-value mappings from this SparseBoolArray.
    	 */
    	void clear() {
-       	mSize = 0;
+       		mSize = 0;
    	}
    	/**
    	 * Puts a key/value pair into the array, optimizing for the case where
    	 * the key is greater than all existing keys in the array.
-    	*/
+    	 */
    	void append(size_t key, bool v) {
-   		if (! v)
+   		if (! v) {
    			return;
-       	if (mSize != 0 && key <= mKeys[mSize - 1]) {
-          	put(key, v);
-        	return;
-       	}
-       	auto p = append(mKeys, mCap, mSize, key);
+		}
+       		if (mSize != 0 && key <= mKeys[mSize - 1]) {
+          		put(key, v);
+        		return;
+       		}
+       		auto p = append(mKeys, mCap, mSize, key);
 		mKeys = p.first;
 		mCap = p.second;
-      	mSize++;
-    }
-    /**
-     * Provides a copy of keys.
-     *
-     * @hide
-     * */
-    size_t * copyKeys() {
-       	if (size() == 0) {
-           	return nullptr;
-       	}
-       	size_t* copiedKeys = new size_t[mSize];
-        std::copy(mKeys, mKeys + mSize, copiedKeys);
-        return copiedKeys;
-    }
-    /**
-     * Provides direct access to keys, client should not modify.
-     * @return an array of sorted integers corresponding to true entries of this BoolArray
-     */
-	size_t * refKeys() {
-    	if (size() == 0) {
-     		return new size_t[0];
+      		mSize++;
     	}
-    	return mKeys;
+    	/**
+    	 * Provides a copy of keys.
+    	 *
+    	 * @hide
+    	 */
+    	size_t * copyKeys() {
+       		if (size() == 0) {
+           		return nullptr;
+       		}
+       		size_t* copiedKeys = new size_t[mSize];
+        	std::copy(mKeys, mKeys + mSize, copiedKeys);
+        	return copiedKeys;
+    	}
+    	/**
+    	 * Provides direct access to keys, client should not modify.
+    	 * @return an array of sorted integers corresponding to true entries of this BoolArray
+    	 */
+	size_t * refKeys() {
+    		if (size() == 0) {
+     			return new size_t[0];
+    		}
+    		return mKeys;
 	}
     
-    size_t hash() const {
+    	size_t hash() const {
 		size_t prime = 1409;
 		size_t result = 1;
 		result = prime * result + hashCode(mKeys,mSize);
@@ -261,20 +262,21 @@ public :
 		return result;
 	}
 
-    bool operator==(const SparseBoolArray & other) const {
-		if (mSize != other.mSize)
+    	bool operator==(const SparseBoolArray & other) const {
+		if (mSize != other.mSize) {
 			return false;
-
-		if (!equalsRange(mKeys,other.mKeys,mSize))
+		}
+		if (!equalsRange(mKeys,other.mKeys,mSize)) {
 			return false;
+		}
 		return true;
-    }
+    	}
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>This implementation composes a string by iterating over its mappings.
-     */
+    	/**
+    	 * {@inheritDoc}
+    	 *
+    	 * <p>This implementation composes a string by iterating over its mappings.
+    	 */
 	void print(std::ostream & os) const {
 	   	if (size() == 0) {
        		os << "{}";
@@ -290,9 +292,9 @@ public :
     	}
        	os << '}';
        	return ;
-    }
+   	}
 
-    friend std::ostream& operator<< (std::ostream & os, const SparseBoolArray & a) {
+	friend std::ostream& operator<< (std::ostream & os, const SparseBoolArray & a) {
 		a.print(os);
 		return os;
 	}
