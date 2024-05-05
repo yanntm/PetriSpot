@@ -35,8 +35,8 @@ int main(int argc, char * argv[]) {
 
 	if (argc == 1 || argc > 6)
     	{
-      	cerr << "usage: petri -i model.pnml [options]\n";
-     	exit(1);
+      		cerr << "usage: petri -i model.pnml [options]\n";
+     		exit(1);
     	}
 	
 	for (int i = 1; i < argc; i++) {
@@ -60,7 +60,7 @@ int main(int argc, char * argv[]) {
 			invariants = true;
 		} else {
 			std::cout << "- [WARNING] option : " << argv[i] << " not recognized\n";
-			std::cout << "- Resume execution ? y/n\n" << std::endl;
+			std::cout << "- Resume execution ? [y]/[n]\n" << std::endl;
 			char ans;
 			std::cin >> ans;
 			if (ans != 'y') {
@@ -105,17 +105,18 @@ int main(int argc, char * argv[]) {
 				auto time = std::chrono::steady_clock::now();
 				unordered_set<SparseIntArray> invar;
 				if (pflows) {
-				invar = InvariantCalculator::calcInvariantsPIPE(sumMatrix.transpose(), false);
+					invar = InvariantCalculator::calcInvariantsPIPE(sumMatrix.transpose(), false);
 				} else {
 				//	invar = InvariantMiddle::computePInvariants(sumMatrix, true, 120);
 				}
 				std::cout << "Computed " << invar.size() << " P " << (psemiflows?"semi":"") << "flows in " 
-					<< std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - time).count() 
-						<< " ms." << std::endl;
-////			InvariantSet inv = new InvariantSet(invar, sumMatrix.transpose());
-////			inv.print(System.out, spn.getPnames(), spn.getMarks());
+					<< std::chrono::duration_cast<std::chrono::milliseconds>
+						(std::chrono::steady_clock::now() - time).count() 
+							<< " ms." << std::endl;
+////				InvariantSet inv = new InvariantSet(invar, sumMatrix.transpose());
+////				inv.print(System.out, spn.getPnames(), spn.getMarks());
 				if (!quiet) {
-    				InvariantMiddle::printInvariant(invar, pn->getPnames(), (*pn).getMarks());
+    					InvariantMiddle::printInvariant(invar, pn->getPnames(), (*pn).getMarks());
 				}
 			}
 			if (tflows || tsemiflows) {
@@ -127,10 +128,11 @@ int main(int argc, char * argv[]) {
 				//	invarT= InvariantMiddle::computeTinvariants(*pn, sumMatrix, repr,true);	
 				}
 				std::cout << "Computed " << invarT.size() << " T " << (tsemiflows?"semi":"") << "flows in " 
-					<< std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - time).count() 
-						<< " ms." << std::endl;
-////			InvariantSet inv = new InvariantSet(invarT, sumMatrix);
-////			inv.print(System.out, strtnames, empty);
+					<< std::chrono::duration_cast<std::chrono::milliseconds>
+						(std::chrono::steady_clock::now() - time).count() 
+							<< " ms." << std::endl;
+////				InvariantSet inv = new InvariantSet(invarT, sumMatrix);
+////				inv.print(System.out, strtnames, empty);
 				if (!quiet) {
 					std::vector<int> emptyVector;
 					InvariantMiddle::printInvariant(invarT, pn->getTnames(), emptyVector);
