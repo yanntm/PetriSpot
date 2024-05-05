@@ -42,30 +42,23 @@ int main(int argc, char * argv[]) {
 	for (int i = 1; i < argc; i++) {
 		if (argv[i] == PATH) {
 			modelPath = argv[++i];
-		}
-		else if (argv[i] == QUIET) {
+		} else if (argv[i] == QUIET) {
 			quiet = true;
-		}
-		else if (argv[i] == FINDDEADLOCK) {
+		} else if (argv[i] == FINDDEADLOCK) {
 			findDeadlock = true;
-		}
-		else if (argv[i] == PFLOW) {
+		} else if (argv[i] == PFLOW) {
 			pflows = true;
 			invariants = true;
-		}
-		else if (argv[i] == PSEMIFLOW) {
+		} else if (argv[i] == PSEMIFLOW) {
 			psemiflows = true;
 			invariants = true;
-		}
-		else if (argv[i] == TFLOW) {
+		} else if (argv[i] == TFLOW) {
 			tflows = true;
 			invariants = true;
-		}
-		else if (argv[i] == TSEMIFLOW) {
+		} else if (argv[i] == TSEMIFLOW) {
 			tsemiflows = true;
 			invariants = true;
-		}
-		else {
+		} else {
 			std::cout << "- [WARNING] option : " << argv[i] << " not recognized\n";
 			std::cout << "- Resume execution ? y/n\n" << std::endl;
 			char ans;
