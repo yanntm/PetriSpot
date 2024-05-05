@@ -83,6 +83,32 @@ public :
 		}
 	}
 
+	MatrixCol & operator=(const MatrixCol & source) {
+		if (this != &source) {
+			lCols.clear();
+			iRows = source.iRows;
+			iCols = source.iCols;
+			lCols.reserve(iCols);
+			for (const SparseIntArray & a : source.lCols) {
+			lCols.emplace_back(a);
+			}
+		}
+		return *this;
+	}
+
+	bool equals(const MatrixCol & other) const {
+		if (iRows != other.iRows || iCols != other.iCols) {
+			return false;
+		}
+
+		for (size_t col = 0; col < this->iCols; col++) {
+			if (!(lCols[col] == other.lCols[col])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	/**
 	 * Constructor for a new Matrix with the values from the given array.
 	 * @param src - the template to create the matrix from.

@@ -22,6 +22,7 @@
 #include <iostream>
 #include <vector>
 #include <unordered_set>
+#include "FlowMatrix.h"
 #include "MatrixCol.h"
 #include "SparseBoolArray.h"
 
@@ -29,10 +30,18 @@ class InvariantCalculator {
 
 	static const bool DEBUG = false;
 
+public:
+	/**
+	 * Enumeration for choosing which algorithm should be used.
+	 */
+	enum class InvariantAlgorithm {
+    	PIPE
+	};
+	
+private:	
 	/**
 	 * Hidden constructor
 	 */
-private:	
 	InvariantCalculator() {
 	}
 
@@ -422,7 +431,6 @@ private:
 		int startIndex = 0;
 		while (!matC.isZero()) {
 			startIndex = test1b(matC, matB, pppms, startIndex);
-			std::cout << "test 1" << std::endl;
 		}
 		return matB;
 	}
@@ -699,6 +707,57 @@ public:
 				int norm = invariants.valueAt(j) / gcd;
 				invariants.setValueAt(j, norm);
 			}
+		}
+	}
+
+	/**
+	 * Calculates the s-invariants of the the given petri net with the pipe
+	 * algorithm.
+	 *
+	 * @param pn - the petri net to calculate the s-invariants from.
+	 * @return a generator set of the invariants.
+	 */
+	static std::unordered_set<SparseIntArray> calcSInvariants(FlowMatrix pn, bool onlyPositive) {
+		return calcSInvariants(pn, InvariantAlgorithm::PIPE, onlyPositive);
+	}
+
+	/**
+	 * Calculates the s-invariants of the the given petri net with the given
+	 * algorithm.
+	 *
+	 * @param pn   - the petri net to calculate the s-invariants from.
+	 * @param algo - the algorithm with which the invariants should be calculated.
+	 * @return a generator set of the invariants.
+	 */
+	static std::unordered_set<SparseIntArray> calcSInvariants(FlowMatrix pn, InvariantAlgorithm algo, bool onlyPositive) {
+		switch (algo) {
+	//	case InvariantAlgorithm::Farkas:
+	//		return calcInvariantsFarkas(pn.getIncidenceMatrix().explicit());
+		case InvariantAlgorithm::PIPE:
+			return calcInvariantsPIPE(pn.getIncidenceMatrix().transpose(), onlyPositive);
+		default:
+			return calcInvariantsPIPE(pn.getIncidenceMatrix().transpose(), onlyPositive);
+	//		return calcInvariantsFarkas(pn.getIncidenceMatrix().explicit());
+		}
+	}
+
+	/**
+	 * Calculates the t-invariants of the the given petri net with the given
+	 * algorithm.
+	 *
+	 * @param pn   - the petri net to calculate the t-invariants from.
+	 * @param algo - the algorithm with which the invariants should be calculated.
+	 * @return a generator set of the invariants.
+	 */
+	static std::unordered_set<SparseIntArray> calcTInvariants(FlowMatrix pn, InvariantAlgorithm algo) {
+		switch (algo) {
+	//	case FARKAS:
+	//		return calcInvariantsFarkas(pn.getIncidenceMatrix().explicit());
+		case InvariantAlgorithm::PIPE:
+			return calcInvariantsPIPE(pn.getIncidenceMatrix(), true);
+		default:
+			return calcInvariantsPIPE(pn.getIncidenceMatrix(), true);
+	//		return calcInvariantsFarkas(pn.getIncidenceMatrix().transpose().explicit());
 		}
 	}
 
