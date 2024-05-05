@@ -29,98 +29,92 @@ private:
 	static std::unordered_set<SparseIntArray> lastInv;
 	
 public:
-    static const int DEBUG = 0;
+    	static const int DEBUG = 0;
 
-    /**
-     * Guaranteed polynomial runtime, returns flows (with positive AND negative
-     * coefficients)
-     * 
-     * @param pn representing the Petri net approximation
-     * @return a set of invariants, i.e. coeffs for each variable such that the sum
-     *         is constant in all markings/states.
-     */
-    static std::unordered_set<SparseIntArray> computePInvariants(FlowMatrix pn) {
-        std::unordered_set<SparseIntArray> invar;
-        auto time = std::chrono::steady_clock::now();
+    	/**
+    	 * Guaranteed polynomial runtime, returns flows (with positive AND negative
+    	 * coefficients)
+    	 * 
+    	 * @param pn representing the Petri net approximation
+   	  * @return a set of invariants, i.e. coeffs for each variable such that the sum
+    	 *         is constant in all markings/states.
+    	 */
+    	static std::unordered_set<SparseIntArray> computePInvariants(FlowMatrix pn) {
+        	std::unordered_set<SparseIntArray> invar;
+        	auto time = std::chrono::steady_clock::now();
 
 		std::ofstream logFile("log.txt", std::ios::app);
 		if (!logFile.is_open()) {
-        	std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
+        		std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
+    		}
+
+        	try {
+            		invar = InvariantCalculator::calcSInvariants(pn, InvariantCalculator::InvariantAlgorithm::PIPE, false);
+            		logFile << "Computed " << invar.size() << " place invariants in "
+                      		<< std::chrono::duration_cast<std::chrono::milliseconds>
+					(std::chrono::steady_clock::now() - time).count()
+                      				<< " ms" << std::endl;
+        	} catch (std::overflow_error& e) {
+            		invar = std::unordered_set<SparseIntArray>();
+            		logFile << "Invariants computation overflowed in "
+                      		<< std::chrono::duration_cast<std::chrono::milliseconds>
+					(std::chrono::steady_clock::now() - time).count()
+                      				<< " ms" << std::endl;
+        	}
+		logFile.close();
+        	return invar;
     	}
 
-        try {
-            // Assuming you have a similar function calcSInvariants defined somewhere
-            invar = InvariantCalculator::calcSInvariants(pn, InvariantCalculator::InvariantAlgorithm::PIPE, false);
-            // InvariantCalculator::printInvariant(invar, sr.getPnames(), sr.getMarks());
-            logFile << "Computed " << invar.size() << " place invariants in "
-                      << std::chrono::duration_cast<std::chrono::milliseconds>(
-                             std::chrono::steady_clock::now() - time)
-                             .count()
-                      << " ms" << std::endl;
-        } catch (std::overflow_error& e) {
-            invar = std::unordered_set<SparseIntArray>();
-            logFile << "Invariants computation overflowed in "
-                      << std::chrono::duration_cast<std::chrono::milliseconds>(
-                             std::chrono::steady_clock::now() - time)
-                             .count()
-                      << " ms" << std::endl;
-        }
-
-		logFile.close();
-
-        return invar;
-    }
-
 	static void printInvariant(const std::unordered_set<SparseIntArray>& invariants, const std::vector<std::string>& pnames, const std::vector<int>& initial, std::ostream& out) {
-        for (const auto& rv : invariants) {
-            std::stringstream sb;
-            try {
-                long sum = printEquation(rv, initial, pnames, sb);          
-                out << "inv : " << sb.str() << " = " << sum << std::endl;
-            } catch (std::overflow_error& e) {
-                std::cerr << "Overflow of 'long' when computing constant for invariant." << std::endl;
-            }
-        }
-        out << "Total of " << invariants.size() << " invariants." << std::endl;
-    }
+        	for (const auto& rv : invariants) {
+            		std::stringstream sb;
+            		try {
+                		long sum = printEquation(rv, initial, pnames, sb);          
+                		out << "inv : " << sb.str() << " = " << sum << std::endl;
+            		} catch (std::overflow_error& e) {
+                		std::cerr << "Overflow of 'long' when computing constant for invariant." << std::endl;
+            		}
+        	}
+        	out << "Total of " << invariants.size() << " invariants." << std::endl;
+    	}
 
 	static void printInvariant(const std::unordered_set<SparseIntArray>& invariants, const std::vector<std::string>& pnames, const std::vector<int>& initial) {
-        printInvariant(invariants, pnames, initial, std::cout);
-    }
+        	printInvariant(invariants, pnames, initial, std::cout);
+    	}
 
 	static long printEquation(const SparseIntArray& inv, const std::vector<int>& initial, const std::vector<std::string>& pnames, std::stringstream& sb) {
-        bool first = true;
-        long sum = 0;
-        for (size_t i = 0; i < inv.size(); i++) {
-            int k = inv.keyAt(i); // Suppose que keyAt() renvoie la clé à l'index i
-            int v = inv.valueAt(i); // Suppose que valueAt() renvoie la valeur à l'index i
-            if (v != 0) {
-                if (!first) {
-                    if (v < 0) {
-                        sb << " - ";
-                        v = -v;
-                    } else {
-                        sb << " + ";
-                    }
-                } else {
-                    if (v < 0) {
-                        sb << "-";
-                        v = -v;
-                    }
-                    first = false;
-                }
-                if (v != 1) {
-                    sb << v << "*" << pnames[k];
-                } else {
-                    sb << pnames[k];
-                }
-                if (!initial.empty()) {
-                    sum = addExact(sum, (multiplyExact((long)v, initial[k])));	
-                }
-            }
-        }
-        return sum;
-    }
+        	bool first = true;
+        	long sum = 0;
+        	for (size_t i = 0; i < inv.size(); i++) {
+            		int k = inv.keyAt(i);
+            		int v = inv.valueAt(i); 
+            		if (v != 0) {
+                		if (!first) {
+                    			if (v < 0) {
+                        			sb << " - ";
+                        			v = -v;
+                    			} else {
+                        			sb << " + ";
+                    			}
+                		} else {
+                    			if (v < 0) {
+                        			sb << "-";
+                        			v = -v;
+                    			}
+                    			first = false;
+                		}
+                		if (v != 1) {
+                    			sb << v << "*" << pnames[k];
+                		} else {
+                    			sb << pnames[k];
+                		}
+                		if (!initial.empty()) {
+                    			sum = addExact(sum, (multiplyExact((long)v, initial[k])));	
+                		}
+            		}
+        	}
+	        return sum;
+    	}
 
 private:
 	static int32_t addExact(int32_t x, int32_t y) {
@@ -141,55 +135,50 @@ private:
 
 public:
 	static std::unordered_set<SparseIntArray> computePInvariants(const MatrixCol& pn) {
-        return computePInvariants(pn, false, 120);
-    }
+        	return computePInvariants(pn, false, 120);
+    	}
 
-	// Méthode pour calculer les invariants P avec la gestion du timeout
-    static std::unordered_set<SparseIntArray> computePInvariants(const MatrixCol& pn, bool onlyPositive, int timeout) {
-        std::vector<std::thread> threads;
-        std::promise<std::unordered_set<SparseIntArray>> promise;
-        auto future = promise.get_future();
+    	static std::unordered_set<SparseIntArray> computePInvariants(const MatrixCol& pn, bool onlyPositive, int timeout) {
+        	std::vector<std::thread> threads;
+        	std::promise<std::unordered_set<SparseIntArray>> promise;
+        	auto future = promise.get_future();
 
-        threads.emplace_back([&](){
-            std::unordered_set<SparseIntArray> result = computePInvariants(pn, onlyPositive);
-            promise.set_value(result);
-        });
+        	threads.emplace_back([&](){
+            		std::unordered_set<SparseIntArray> result = computePInvariants(pn, onlyPositive);
+            		promise.set_value(result);
+        	});
 
-        // Attendre le résultat avec le timeout spécifié
-        auto status = future.wait_for(std::chrono::seconds(timeout));
-        if (status == std::future_status::timeout) {
+        	auto status = future.wait_for(std::chrono::seconds(timeout));
+        	if (status == std::future_status::timeout) {
 			std::ofstream logFile("log.txt", std::ios::app);
 			if (!logFile.is_open()) {
-        		std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    		}
-            // Timeout
-            for (auto& thread : threads) {
-                if (thread.joinable()) {
-                    thread.detach();
-                }
-            }
-            logFile << "Invariant computation timed out after " << timeout << " seconds." << std::endl;
+        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
+    			}
+            		for (auto& thread : threads) {
+                		if (thread.joinable()) {
+                    			thread.detach();
+                		}
+            		}
+            		logFile << "Invariant computation timed out after " << timeout << " seconds." << std::endl;
 			logFile.close();
-            return std::unordered_set<SparseIntArray>();
-        } else if (status == std::future_status::ready) {
-            // Résultat prêt
-            return future.get();
-        } else {
+            		return std::unordered_set<SparseIntArray>();
+        	} else if (status == std::future_status::ready) {
+            		return future.get();
+        	} else {
 			std::ofstream logFile("log.txt", std::ios::app);
 			if (!logFile.is_open()) {
-        		std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    		}
-            // Erreur
-            for (auto& thread : threads) {
-                if (thread.joinable()) {
-                    thread.detach();
-                }
-            }
-            logFile << "Error: Future is in invalid state." << std::endl;
+        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
+    			}
+            		for (auto& thread : threads) {
+                		if (thread.joinable()) {
+                    			thread.detach();
+                		}
+            		}
+            		logFile << "Error: Future is in invalid state." << std::endl;
 			logFile.close();
-            return std::unordered_set<SparseIntArray>();
-        }
-    }
+            		return std::unordered_set<SparseIntArray>();
+        	}
+    	}
 
 private:
 	static void cache(const MatrixCol& pn, const std::unordered_set<SparseIntArray>& inv) {
@@ -199,14 +188,14 @@ private:
 	}
 
 	static std::unordered_set<SparseIntArray> checkCache(const MatrixCol& pn) {
-        std::lock_guard<std::mutex> guard(lock);
+        	std::lock_guard<std::mutex> guard(lock);
 		if (pn.equals(last)) {
 			std::ofstream logFile("log.txt", std::ios::app);
 			if (!logFile.is_open()) {
-        		std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    		}
-			logFile << "Invariant cache hit." << std::endl; // Utilisez std::cout ou std::cerr pour afficher des messages
-            logFile.close();
+        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
+    			}
+			logFile << "Invariant cache hit." << std::endl;
+            		logFile.close();
 			return lastInv;
 		} else {
 			return std::unordered_set<SparseIntArray>();
@@ -222,41 +211,41 @@ public:
 
 		if (DEBUG >= 1 && !invarT.empty()) {
 			std::vector<int> empty(sr.getTransitionCount(), 0);
-        	printInvariant(invarT, sr.getTnames(), empty);
-    	}
+        		printInvariant(invarT, sr.getTnames(), empty);
+    		}
 		// so we have T invariants, using the reduced flow matrix
 		std::unordered_set<SparseIntArray> reindexT;
 		// reinterpret over the original indexes of transitions
 		for (const auto& inv : invarT) {
-        	std::vector<SparseIntArray> toadd = {SparseIntArray()};
-        	for (size_t i = 0; i < inv.size(); ++i) {
-            	int t = inv.keyAt(i);
-            	int val = inv.valueAt(i);
-            	const std::vector<int>& images = repSet[t];
-            	if (images.size() > 1) {
-               	 	std::vector<SparseIntArray> toadd2;
-                	for (const auto& img : images) {
-                    	for (const auto& b : toadd) {
-                        	SparseIntArray mod = b;
-                        	mod.put(img, val);
-                        	toadd2.push_back(mod);
-                    	}
-                	}
-                	toadd = std::move(toadd2);
-            	} else {
-                	for (auto& b : toadd) {
-                    	b.put(images[0], val);
-                	}
-            	}
-        	}
-        	for (const auto& b : toadd) {
-            	reindexT.insert(b);
-        	}
-    	}
+        		std::vector<SparseIntArray> toadd = {SparseIntArray()};
+        		for (size_t i = 0; i < inv.size(); ++i) {
+            			int t = inv.keyAt(i);
+            			int val = inv.valueAt(i);
+            			const std::vector<int>& images = repSet[t];
+            			if (images.size() > 1) {
+                			for (const auto& img : images) {
+               	 				std::vector<SparseIntArray> toadd2;
+                    				for (const auto& b : toadd) {
+                        				SparseIntArray mod = b;
+                        				mod.put(img, val);
+                        				toadd2.push_back(mod);
+                    				}
+						toadd = std::move(toadd2);
+                			}
+            			} else {
+                			for (auto& b : toadd) {
+                    				b.put(images[0], val);
+                			}
+            			}
+        		}
+        		for (const auto& b : toadd) {
+            			reindexT.insert(b);
+        		}
+    		}
 
 		if (DEBUG >= 2 && !invarT.empty()) {
-        printInvariant(reindexT, sr.getTnames(), {});
-    }
+        		printInvariant(reindexT, sr.getTnames(), {});
+    		}
 
 		return invarT;
 	}
@@ -267,35 +256,37 @@ public:
 	}
 
 	static std::unordered_set<SparseIntArray> computePInvariants(const MatrixCol& pn, bool onlyPositive) {
-    	std::unordered_set<SparseIntArray> invar = checkCache(pn);
-    	if (!invar.empty()) {
-        	return invar;
-    	}
+    		std::unordered_set<SparseIntArray> invar = checkCache(pn);
+    		if (!invar.empty()) {
+        		return invar;
+    		}
 
-    	auto startTime = std::chrono::steady_clock::now();
-    	try {
-        	invar = InvariantCalculator::calcInvariantsPIPE(pn.transpose(), onlyPositive);
-        	cache(pn, invar);
+    		auto startTime = std::chrono::steady_clock::now();
+    		try {
+        		invar = InvariantCalculator::calcInvariantsPIPE(pn.transpose(), onlyPositive);
+        		cache(pn, invar);
 			std::ofstream logFile("log.txt", std::ios::app);
 			if (!logFile.is_open()) {
-        		std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    		}
-       		logFile << "Computed " << std::to_string(invar.size()) << " invariants in " <<
-                  std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
-                          std::chrono::steady_clock::now() - startTime).count()) << " ms" << std::endl;
+        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
+    			}
+       			logFile << "Computed " << std::to_string(invar.size()) << " invariants in " 
+				<< std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
+					(std::chrono::steady_clock::now() - startTime).count()) 
+						<< " ms" << std::endl;
 			logFile.close();
-    	} catch (std::exception& e) {
-        	invar.clear();
+    		} catch (std::exception& e) {
+        		invar.clear();
 			std::ofstream logFile("log.txt", std::ios::app);
 			if (!logFile.is_open()) {
-        		std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    		}
-        	logFile << "Invariants computation overflowed in " <<
-                  std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
-                          std::chrono::steady_clock::now() - startTime).count()) << " ms" << std::endl;
+        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
+    			}
+        		logFile << "Invariants computation overflowed in " 
+				<< std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
+					(std::chrono::steady_clock::now() - startTime).count()) 
+						<< " ms" << std::endl;
 			logFile.close();
 		}
-    	return invar;
+    		return invar;
 	}
 
 	/**
@@ -352,8 +343,8 @@ public:
 			if (discarded > 0) {
 				std::ofstream logFile("log.txt", std::ios::app);
 				if (!logFile.is_open()) {
-        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    			}
+        				std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
+    				}
 				logFile << "Flow matrix only has " << sumMatrix.getColumnCount() << " transitions (discarded " << discarded << " similar events)" << std::endl;
 				logFile.close();
 			}
@@ -367,22 +358,22 @@ public:
 			int t = parikhori.keyAt(i);
 			int k = parikhori.valueAt(i);
 			auto it = repr.find(t);
-        	if (it != repr.end()) {
-            	for (int tr : it->second) {
-                	parikh.put(tr, k);
-            	}
-        	}
+        		if (it != repr.end()) {
+            			for (int tr : it->second) {
+                			parikh.put(tr, k);
+            			}
+        		}
 		}
 		return parikh;
 	}
 
 	static std::unordered_map<int, std::vector<int>> computeMap(const std::vector<int>& repr) {
-    	std::unordered_map<int, std::vector<int>> repSet;
-    	for (size_t i = 0; i < repr.size(); ++i) {
-        	int t = i;
-        	repSet[repr[t]].push_back(t);
-    	}
-    	return repSet;
+    		std::unordered_map<int, std::vector<int>> repSet;
+    		for (size_t i = 0; i < repr.size(); ++i) {
+        		int t = i;
+        		repSet[repr[t]].push_back(t);
+    		}
+    		return repSet;
 	}
 
 };
