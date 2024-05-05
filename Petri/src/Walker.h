@@ -148,10 +148,10 @@ public :
 	This function takes ~142% the time that calling rand() would take. For this extra
 	cost you get a better uniform distribution and thread-safety. */
 	static int intRand(const int & min, const int & max) {
-	    static thread_local std::mt19937* generator = nullptr;
-	    if (!generator) generator = new std::mt19937(std::chrono::steady_clock::now().time_since_epoch().count());
-	    std::uniform_int_distribution<int> distribution(min, max-1);
-	    return distribution(*generator);
+	    	static thread_local std::mt19937* generator = nullptr;
+	    	if (!generator) generator = new std::mt19937(std::chrono::steady_clock::now().time_since_epoch().count());
+	    		std::uniform_int_distribution<int> distribution(min, max-1);
+	    	return distribution(*generator);
 	}
 
 
