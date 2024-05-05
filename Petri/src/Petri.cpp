@@ -113,8 +113,6 @@ int main(int argc, char * argv[]) {
 					<< std::chrono::duration_cast<std::chrono::milliseconds>
 						(std::chrono::steady_clock::now() - time).count() 
 							<< " ms." << std::endl;
-////				InvariantSet inv = new InvariantSet(invar, sumMatrix.transpose());
-////				inv.print(System.out, spn.getPnames(), spn.getMarks());
 				if (!quiet) {
     					InvariantMiddle::printInvariant(invar, pn->getPnames(), (*pn).getMarks());
 				}
@@ -131,14 +129,11 @@ int main(int argc, char * argv[]) {
 					<< std::chrono::duration_cast<std::chrono::milliseconds>
 						(std::chrono::steady_clock::now() - time).count() 
 							<< " ms." << std::endl;
-////				InvariantSet inv = new InvariantSet(invarT, sumMatrix);
-////				inv.print(System.out, strtnames, empty);
 				if (!quiet) {
 					std::vector<int> emptyVector;
 					InvariantMiddle::printInvariant(invarT, pn->getTnames(), emptyVector);
 				}
 			}
-////		SparseIntArray inv = DeadlockTester.findPositiveTsemiflow(sumMatrix);	
 		}
 
 		delete pn;
