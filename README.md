@@ -32,6 +32,8 @@ path of model file in format .pnml
 
 ### [flags] :
 
+-q (quiet)
+
 --findDeadlock
 
 --Psemiflows || --Pflows
