@@ -22,6 +22,7 @@
 #include <iostream>
 #include <cstring>
 #include <cassert>
+#include <cstdint>
 
 /**
  * SparseBoolArrays map integers to integers.  Unlike a normal array of integers,
