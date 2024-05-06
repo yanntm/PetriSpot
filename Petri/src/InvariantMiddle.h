@@ -162,15 +162,7 @@ public:
         	});
 		
         	auto status = future.wait_for(std::chrono::seconds(timeout));
-        	if (status == std::future_status::timeout) {
-            		if (thread.joinable()) {
-                    		thread.detach();
-                	}
-            		std::string logMessage = "Invariant computation timed out after " +
-                             		std::to_string(timeout) + " seconds.";
-			writeToLog(logMessage);
-            		return std::unordered_set<SparseIntArray>();
-        	} else if (status == std::future_status::ready) {
+        	if (status == std::future_status::ready) {
 			thread.join();
             		return future.get();
         	} else {
