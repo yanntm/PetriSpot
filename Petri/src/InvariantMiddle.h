@@ -8,8 +8,8 @@
 #include <thread>
 #include <future>
 #include <iostream>
-#include <fstream>
 #include <sstream>
+#include <iomanip>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -43,50 +43,47 @@ public:
         	std::unordered_set<SparseIntArray> invar;
         	auto time = std::chrono::steady_clock::now();
 
-		std::ofstream logFile("log.txt", std::ios::app);
-		if (!logFile.is_open()) {
-        		std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    		}
-
         	try {
             		invar = InvariantCalculator::calcSInvariants(pn, InvariantCalculator::InvariantAlgorithm::PIPE, false);
-            		logFile << "Computed " << invar.size() << " place invariants in "
-                      		<< std::chrono::duration_cast<std::chrono::milliseconds>
-					(std::chrono::steady_clock::now() - time).count()
-                      				<< " ms" << std::endl;
-        	} catch (std::overflow_error& e) {
-            		invar = std::unordered_set<SparseIntArray>();
-            		logFile << "Invariants computation overflowed in "
-                      		<< std::chrono::duration_cast<std::chrono::milliseconds>
-					(std::chrono::steady_clock::now() - time).count()
-                      				<< " ms" << std::endl;
+			std::string logMessage = "Computed " + std::to_string(invar.size()) + " place invariants in " +
+                             		std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                	std::chrono::steady_clock::now() - time).count()) + " ms";
+			writeToLog(logMessage);
+		} catch (std::overflow_error& e) {
+			std::string logMessage = "Invariants computation overflowed in " +
+                             		std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                	std::chrono::steady_clock::now() - time).count()) + " ms";
+			writeToLog(logMessage);
         	}
-		logFile.close();
+		
         	return invar;
     	}
 
-	static void printInvariant(const std::unordered_set<SparseIntArray>& invariants, const std::vector<std::string>& pnames, const std::vector<int>& initial, std::ostream& out) {
+	static void printInvariant(const std::unordered_set<SparseIntArray>& invariants, const std::vector<std::string>& pnames, 
+			const std::vector<int>& initial, std::ostream& out) {
         	for (const auto& rv : invariants) {
             		std::stringstream sb;
             		try {
-                		long sum = printEquation(rv, initial, pnames, sb);          
+                		int sum = printEquation(rv, initial, pnames, sb);          
                 		out << "inv : " << sb.str() << " = " << sum << std::endl;
             		} catch (std::overflow_error& e) {
-                		std::cerr << "Overflow of 'long' when computing constant for invariant." << std::endl;
+                		std::cerr << "Overflow of 'int' when computing constant for invariant." << std::endl;
             		}
         	}
         	out << "Total of " << invariants.size() << " invariants." << std::endl;
     	}
 
-	static void printInvariant(const std::unordered_set<SparseIntArray>& invariants, const std::vector<std::string>& pnames, const std::vector<int>& initial) {
+	static void printInvariant(const std::unordered_set<SparseIntArray>& invariants, const std::vector<std::string>& pnames, 
+			const std::vector<int>& initial) {
         	printInvariant(invariants, pnames, initial, std::cout);
     	}
 
-	static long printEquation(const SparseIntArray& inv, const std::vector<int>& initial, const std::vector<std::string>& pnames, std::stringstream& sb) {
+	static int printEquation(const SparseIntArray& inv, const std::vector<int>& initial, const std::vector<std::string>& pnames, 
+			std::stringstream& sb) {
         	bool first = true;
-        	long sum = 0;
+        	int sum = 0;
         	for (size_t i = 0; i < inv.size(); i++) {
-            		int k = inv.keyAt(i);
+            		unsigned int k = inv.keyAt(i);
             		int v = inv.valueAt(i); 
             		if (v != 0) {
                 		if (!first) {
@@ -109,7 +106,7 @@ public:
                     			sb << pnames[k];
                 		}
                 		if (!initial.empty()) {
-                    			sum = addExact(sum, (multiplyExact((long)v, initial[k])));	
+                    			sum = addExact(sum, (multiplyExact(v, initial[k])));	
                 		}
             		}
         	}
@@ -134,48 +131,53 @@ private:
 	}
 
 public:
+	static void writeToLog(const std::string& message) {
+    		auto now = std::chrono::system_clock::now();
+    		std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    		struct std::tm* parts = std::localtime(&now_c);
+    
+    		std::cout << "[" << (parts->tm_year + 1900) << "-" << std::setw(2) << std::setfill('0') << (parts->tm_mon + 1)
+              			<< "-" << std::setw(2) << std::setfill('0') << parts->tm_mday << " "
+              			<< std::setw(2) << std::setfill('0') << parts->tm_hour << ":"
+              			<< std::setw(2) << std::setfill('0') << parts->tm_min << ":"
+              			<< std::setw(2) << std::setfill('0') << parts->tm_sec << "] " << "[INFO   ] " << message << std::endl;
+	}
+
 	static std::unordered_set<SparseIntArray> computePInvariants(const MatrixCol& pn) {
         	return computePInvariants(pn, false, 120);
     	}
 
     	static std::unordered_set<SparseIntArray> computePInvariants(const MatrixCol& pn, bool onlyPositive, int timeout) {
-        	std::vector<std::thread> threads;
         	std::promise<std::unordered_set<SparseIntArray>> promise;
         	auto future = promise.get_future();
 
-        	threads.emplace_back([&](){
-            		std::unordered_set<SparseIntArray> result = computePInvariants(pn, onlyPositive);
-            		promise.set_value(result);
+        	std::thread thread([&]() {
+            		try {
+            			std::unordered_set<SparseIntArray> result = computePInvariants(pn, onlyPositive); 
+            			promise.set_value(result);
+        		} catch (const std::exception& e) {
+            			std::cerr << "Exception caught: " << e.what() << std::endl;
+            			promise.set_exception(std::current_exception());
+        		}
         	});
-
+		
         	auto status = future.wait_for(std::chrono::seconds(timeout));
         	if (status == std::future_status::timeout) {
-			std::ofstream logFile("log.txt", std::ios::app);
-			if (!logFile.is_open()) {
-        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    			}
-            		for (auto& thread : threads) {
-                		if (thread.joinable()) {
-                    			thread.detach();
-                		}
-            		}
-            		logFile << "Invariant computation timed out after " << timeout << " seconds." << std::endl;
-			logFile.close();
+            		if (thread.joinable()) {
+                    		thread.detach();
+                	}
+            		std::string logMessage = "Invariant computation timed out after " +
+                             		std::to_string(timeout) + " seconds.";
+			writeToLog(logMessage);
             		return std::unordered_set<SparseIntArray>();
         	} else if (status == std::future_status::ready) {
+			thread.join();
             		return future.get();
         	} else {
-			std::ofstream logFile("log.txt", std::ios::app);
-			if (!logFile.is_open()) {
-        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    			}
-            		for (auto& thread : threads) {
-                		if (thread.joinable()) {
-                    			thread.detach();
-                		}
-            		}
-            		logFile << "Error: Future is in invalid state." << std::endl;
-			logFile.close();
+                	if (thread.joinable()) {
+                    		thread.detach();
+                	}
+			writeToLog("Error: Future is in invalid state.");
             		return std::unordered_set<SparseIntArray>();
         	}
     	}
@@ -190,12 +192,7 @@ private:
 	static std::unordered_set<SparseIntArray> checkCache(const MatrixCol& pn) {
         	std::lock_guard<std::mutex> guard(lock);
 		if (pn.equals(last)) {
-			std::ofstream logFile("log.txt", std::ios::app);
-			if (!logFile.is_open()) {
-        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    			}
-			logFile << "Invariant cache hit." << std::endl;
-            		logFile.close();
+			writeToLog("Invariant cache hit.");
 			return lastInv;
 		} else {
 			return std::unordered_set<SparseIntArray>();
@@ -265,26 +262,16 @@ public:
     		try {
         		invar = InvariantCalculator::calcInvariantsPIPE(pn.transpose(), onlyPositive);
         		cache(pn, invar);
-			std::ofstream logFile("log.txt", std::ios::app);
-			if (!logFile.is_open()) {
-        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    			}
-       			logFile << "Computed " << std::to_string(invar.size()) << " invariants in " 
-				<< std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
-					(std::chrono::steady_clock::now() - startTime).count()) 
-						<< " ms" << std::endl;
-			logFile.close();
+			std::string logMessage = "Computed " + std::to_string(invar.size()) + " invariants in " +
+        				std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
+        						(std::chrono::steady_clock::now() - startTime).count()) + " ms";
+			writeToLog(logMessage);
     		} catch (std::exception& e) {
         		invar.clear();
-			std::ofstream logFile("log.txt", std::ios::app);
-			if (!logFile.is_open()) {
-        			std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    			}
-        		logFile << "Invariants computation overflowed in " 
-				<< std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
-					(std::chrono::steady_clock::now() - startTime).count()) 
-						<< " ms" << std::endl;
-			logFile.close();
+			std::string logMessage = "Invariants computation overflowed in " +
+        				std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
+        						(std::chrono::steady_clock::now() - startTime).count()) + " ms";
+			writeToLog(logMessage);
 		}
     		return invar;
 	}
@@ -341,12 +328,9 @@ public:
 				}
 			}
 			if (discarded > 0) {
-				std::ofstream logFile("log.txt", std::ios::app);
-				if (!logFile.is_open()) {
-        				std::cerr << "Erreur : Impossible d'ouvrir le fichier de journalisation." << std::endl;
-    				}
-				logFile << "Flow matrix only has " << sumMatrix.getColumnCount() << " transitions (discarded " << discarded << " similar events)" << std::endl;
-				logFile.close();
+				std::string logMessage = "Flow matrix only has " + std::to_string(sumMatrix.getColumnCount()) +
+                          			" transitions (discarded " + std::to_string(discarded) + " similar events)";
+				writeToLog(logMessage);
 			}
 		}
 		return sumMatrix;

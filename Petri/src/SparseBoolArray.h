@@ -20,6 +20,8 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <cstring>
+#include <cassert>
 
 /**
  * SparseBoolArrays map integers to integers.  Unlike a normal array of integers,

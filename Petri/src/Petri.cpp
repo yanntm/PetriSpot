@@ -1,13 +1,9 @@
 
 #include <iostream>
 #include <string>
-#include "SparseIntArray.h"
-#include "MatrixCol.h"
-#include "SparsePetriNet.h"
 #include "Walker.h"
 #include "PTNetLoader.h"
 #include "InvariantMiddle.h"
-#include "InvariantCalculator.h"
 #include <vector>
 #include <unordered_set>
 #include <chrono>
@@ -24,6 +20,17 @@ const string QUIET="-q";
 
 
 int main(int argc, char * argv[]) {
+	std::string logMessage = "Running PetriSpot with arguments : [";
+	int i;
+	for (i = 1; i < argc-1; ++i) {
+        	logMessage += argv[i];
+        	logMessage += ", ";
+    	}
+	logMessage += argv[i];
+	logMessage += "]";
+	InvariantMiddle::writeToLog(logMessage);
+	auto runtime = std::chrono::steady_clock::now();
+	std::string modelPath;
 	bool findDeadlock=false;
 	bool pflows=false;
 	bool tflows=false;
@@ -31,7 +38,6 @@ int main(int argc, char * argv[]) {
 	bool tsemiflows=false;
 	bool invariants=false;
 	bool quiet=false;
-	std::string modelPath;
 
 	if (argc == 1 || argc > 6)
     	{
@@ -59,25 +65,19 @@ int main(int argc, char * argv[]) {
 			tsemiflows = true;
 			invariants = true;
 		} else {
-			std::cout << "- [WARNING] option : " << argv[i] << " not recognized\n";
-			std::cout << "- Resume execution ? [y]/[n]\n" << std::endl;
-			char ans;
-			std::cin >> ans;
-			if (ans != 'y') {
-				exit(0);
-			}
+			std::cout << "[WARNING   ] Option : " << argv[i] << " not recognized" << std::endl;
 		}
 	}
 
 	try {
 		SparsePetriNet * pn = loadXML(modelPath);
 
-		std::cout << "PN : " ;
-		std::cout << "\nPre : " << std::endl;
-		pn->getFlowPT().print(std::cout);
-		std::cout << "\nPost : " << std::endl;
-		pn->getFlowTP().print(std::cout);
-		std::cout << std::endl;
+// 		std::cout << "PN : " ;
+// 		std::cout << "\nPre : " << std::endl;
+// 		pn->getFlowPT().print(std::cout);
+// 		std::cout << "\nPost : " << std::endl;
+// 		pn->getFlowTP().print(std::cout);
+// 		std::cout << std::endl;
 
 		if (findDeadlock) 
 		{
@@ -105,9 +105,9 @@ int main(int argc, char * argv[]) {
 				auto time = std::chrono::steady_clock::now();
 				unordered_set<SparseIntArray> invar;
 				if (pflows) {
-					invar = InvariantCalculator::calcInvariantsPIPE(sumMatrix.transpose(), false);
+					invar = InvariantMiddle::computePInvariants(sumMatrix);
 				} else {
-				//	invar = InvariantMiddle::computePInvariants(sumMatrix, true, 120);
+					invar = InvariantMiddle::computePInvariants(sumMatrix, true, 120);
 				}
 				std::cout << "Computed " << invar.size() << " P " << (psemiflows?"semi":"") << "flows in " 
 					<< std::chrono::duration_cast<std::chrono::milliseconds>
@@ -121,9 +121,9 @@ int main(int argc, char * argv[]) {
 				auto time = std::chrono::steady_clock::now();
 				unordered_set<SparseIntArray> invarT;
 				if (tflows) {
-				//	invarT= InvariantMiddle::computeTinvariants(*pn, sumMatrix, repr,false);	
+					invarT= InvariantMiddle::computeTinvariants(*pn, sumMatrix, repr,false);	
 				} else {
-				//	invarT= InvariantMiddle::computeTinvariants(*pn, sumMatrix, repr,true);	
+					invarT= InvariantMiddle::computeTinvariants(*pn, sumMatrix, repr,true);	
 				}
 				std::cout << "Computed " << invarT.size() << " T " << (tsemiflows?"semi":"") << "flows in " 
 					<< std::chrono::duration_cast<std::chrono::milliseconds>
@@ -143,5 +143,8 @@ int main(int argc, char * argv[]) {
 		return 1;
 	}
 	
+	std::cout << "Total runtime " << std::chrono::duration_cast<std::chrono::milliseconds>
+			(std::chrono::steady_clock::now() - runtime).count() << " ms." << std::endl;
+
 	return 0;
 }

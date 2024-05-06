@@ -35,7 +35,8 @@ public:
 	 * Enumeration for choosing which algorithm should be used.
 	 */
 	enum class InvariantAlgorithm {
-    	PIPE
+		// Farkas,
+    		PIPE
 	};
 	
 private:	
@@ -475,10 +476,10 @@ public:
 		size_t i = 0;
 		size_t j = 0;
 		while (i < ta.size() || j < tb.size()) {
-			size_t ki = i == ta.size() ? std::numeric_limits<int>::max() : ta.keyAt(i);
-			size_t kj = j == tb.size() ? std::numeric_limits<int>::max() : tb.keyAt(j);
+			unsigned int ki = i == ta.size() ? std::numeric_limits<unsigned int>::max() : ta.keyAt(i);
+			unsigned int kj = j == tb.size() ? std::numeric_limits<unsigned int>::max() : tb.keyAt(j);
 			if (ki == kj) {
-				int val =  addExact( multiplyExact(alpha, ta.valueAt(i)) , multiplyExact(beta, tb.valueAt(j)));
+				int val = addExact( multiplyExact(alpha, ta.valueAt(i)) , multiplyExact(beta, tb.valueAt(j)));
 				if (val != 0) {
 					flow.append(ki, val);
 				}

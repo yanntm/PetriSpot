@@ -7,6 +7,7 @@
 
 #include "PTNetLoader.h"
 #include "PTNetHandler.h"
+#include "InvariantMiddle.h"
 #include <cstdio>
 #include <expat.h>
 
@@ -18,6 +19,11 @@ SparsePetriNet * loadXML(std::string filename) {
 	PTNetHandler handler;
 
 	FILE * in = fopen(filename.c_str(),"r");
+
+	std::string logMessage = "Parsing pnml file : ";
+	logMessage += filename;
+
+	InvariantMiddle::writeToLog(logMessage);
 
 	XML_SetUserData(parser, &handler);
 	XML_SetElementHandler(parser, &PTNetHandler::startElement, &PTNetHandler::endElement);
