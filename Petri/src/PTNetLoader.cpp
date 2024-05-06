@@ -17,12 +17,11 @@ SparsePetriNet * loadXML(std::string filename) {
 	XML_Parser parser = XML_ParserCreate(NULL);
 	int done;
 	PTNetHandler handler;
+	auto time = std::chrono::steady_clock::now();
 
 	FILE * in = fopen(filename.c_str(),"r");
 
-	std::string logMessage = "Parsing pnml file : ";
-	logMessage += filename;
-
+	std::string logMessage = "Parsing pnml file : " + filename;
 	InvariantMiddle::writeToLog(logMessage);
 
 	XML_SetUserData(parser, &handler);
@@ -41,7 +40,17 @@ SparsePetriNet * loadXML(std::string filename) {
 	} while (! done);
 	XML_ParserFree(parser);
 	fclose(in);
+	
+	logMessage = "Parsed PT model containing " + std::to_string(handler.getParseResult()->getPlaceCount())
+			+ " places and " + std::to_string(handler.getParseResult()->getTransitionCount())
+			+ " transitions and " + std::to_string(handler.getParseResult()->getArcCount())
+			+ " arcs in " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
+			(std::chrono::steady_clock::now() - time).count()) + " ms.";
+	InvariantMiddle::writeToLog(logMessage);
+
 	return handler.getParseResult();
 }
+
+
 
 
