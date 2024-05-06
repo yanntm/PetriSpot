@@ -21,13 +21,11 @@ const string QUIET="-q";
 
 int main(int argc, char * argv[]) {
 	std::string logMessage = "Running PetriSpot with arguments : [";
-	int i;
+	int i=0;
 	for (i = 1; i < argc-1; ++i) {
-        	logMessage += argv[i];
-        	logMessage += ", ";
+        	logMessage += std::string(argv[i]) + ", ";
     	}
-	logMessage += argv[i];
-	logMessage += "]";
+	logMessage += (argc == 1 ? "Empty" : std::string(argv[i])) + "]";
 	InvariantMiddle::writeToLog(logMessage);
 	auto runtime = std::chrono::steady_clock::now();
 	std::string modelPath;
