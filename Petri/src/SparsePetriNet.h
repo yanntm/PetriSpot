@@ -65,6 +65,17 @@ public :
 		return pnames.size();
 	}
 
+	int getArcCount() const {
+		int sum = 0;
+		for (size_t i=0; i<flowTP.getColumnCount(); i++) {
+			sum += flowTP.getColumn(i).size();
+		}
+		for (size_t i=0; i<flowTP.getColumnCount(); i++) {
+			sum += flowPT.getColumn(i).size();
+		}
+		return sum;
+	}
+
 	void setMarking (int pid, int val) {
 		marks[pid]=val;
 	}
