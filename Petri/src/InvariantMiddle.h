@@ -152,13 +152,8 @@ public:
         	auto future = promise.get_future();
 
         	std::thread thread([&]() {
-            		try {
-            			std::unordered_set<SparseIntArray> result = computePInvariants(pn, onlyPositive); 
-            			promise.set_value(result);
-        		} catch (const std::exception& e) {
-            			std::cerr << "Exception caught: " << e.what() << std::endl;
-            			promise.set_exception(std::current_exception());
-        		}
+            		std::unordered_set<SparseIntArray> result = computePInvariants(pn, onlyPositive); 
+            		promise.set_value(result);
         	});
 		
         	auto status = future.wait_for(std::chrono::seconds(timeout));
@@ -258,7 +253,7 @@ public:
         				std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
         						(std::chrono::steady_clock::now() - startTime).count()) + " ms";
 			writeToLog(logMessage);
-    		} catch (std::exception& e) {
+    		} catch (std::overflow_error& e) {
         		invar.clear();
 			std::string logMessage = "Invariants computation overflowed in " +
         				std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
