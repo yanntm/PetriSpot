@@ -111,8 +111,10 @@ public :
 	 * @param source an object that is invalidated by this operation.
 	 */
 	void move (SparseIntArray& source) {
+		delete [] mKeys;
 		mKeys = source.mKeys;
 		source.mKeys = nullptr;
+		delete [] mValues;
 		mValues = source.mValues;
 		source.mValues = nullptr;
 		mSize = source.mSize;
