@@ -245,9 +245,9 @@ public :
 					delete arc;
 				} else {
 					std::string  err = "Problem when linking arc : source or target node not found <" + accsrc->first + "," + acctgt->first + ">";
+					delete arc;
 					throw err.c_str();
 				}
-				delete arc;
 			}
 			tthis->topatch.clear();
 		} else {
