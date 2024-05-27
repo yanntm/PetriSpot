@@ -63,7 +63,13 @@ public :
 //		if (doNupn) {
 //			nupnHandler.startElement(uri, localName, baliseName, attributes);
 //		} else
-		PTNetHandler * tthis = (PTNetHandler *) userData;
+		 PTNetHandler * tthis = (PTNetHandler *) userData;
+		 if (tthis->inOpaqueToolSpecific) {
+			 // Skip any further processing if within a toolspecific section
+			 return;
+		 }
+
+
 		std::string baliseName (name);
 		if ("net" == baliseName) { //$NON-NLS-1$
 
@@ -133,7 +139,7 @@ public :
 			acc->second = {false,tid};
 			tthis->stack.push((void*)tid);
 		} else if ("arc"==baliseName) {
-			SparsePetriNet * pn = (SparsePetriNet *) tthis->stack.top();
+			// SparsePetriNet * pn = (SparsePetriNet *) tthis->stack.top();
 
 			std::string source;
 			std::string target;
