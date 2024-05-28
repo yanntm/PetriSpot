@@ -69,24 +69,25 @@ public :
 		mValues = new T[mCap];
 		mSize = 0;
 	}
-	/**
-	 * Convert a classic vector<T> to a sparse representation.
-	 * NB : T should be comparable by != to 0 and copy assignable.
-	 * @param marks
-	 */
-	SparseArray(const std::vector<T> & marks) {
-		// compute and set correct capacity
-		mCap = count_if (marks.begin(), marks.end(), [](const int &e) { return e != 0; });
-		mKeys = new  unsigned int[mCap];
-		mValues = new T[mCap];
-		mSize = 0;
-		for (size_t  i = 0, e = marks.size() ; i < e ; i++) {
-			int v = marks.at(i);
-			if (v != 0) {
-				append(i, v);
-			}
-		}
-	}
+    /**
+     * Convert a classic vector<U> to a sparse representation.
+     * NB : U should be comparable by != to 0 and copy assignable to T.
+     * @param marks Vector of type U elements.
+     */
+    template <typename U>
+    SparseArray(const std::vector<U>& marks) {
+        // Compute and set the correct capacity based on non-zero elements
+        mCap = std::count_if(marks.begin(), marks.end(), [](const U& e) { return e != 0; });
+        mKeys = new unsigned int[mCap];
+        mValues = new T[mCap];
+        mSize = 0;
+        for (size_t i = 0, e = marks.size(); i < e; ++i) {
+            U v = marks.at(i);
+            if (v != 0) {
+                append(i, static_cast<T>(v));
+            }
+        }
+    }
 
 	~SparseArray () {
 		delete [] mKeys;
@@ -143,7 +144,7 @@ private :
 		a.mKeys = new unsigned int[a.mCap];
 		a.mValues = new T[a.mCap];;
 
-		memcpy(a.mKeys, o.mKeys, a.mSize * sizeof(T));
+		memcpy(a.mKeys, o.mKeys, a.mSize * sizeof(unsigned int));
 		memcpy(a.mValues, o.mValues, a.mSize * sizeof(T));
 	}
 
@@ -578,11 +579,11 @@ private :
 	    }
 
 
-	static int hashCode(const unsigned int * const a, const int * const b, size_t sz) {
+	static size_t hashCode(const unsigned int * const a, const T * const b, size_t sz) {
 		if (a == nullptr || b==nullptr)
 			return 0;
 
-		int result = 1;
+		size_t result = 1;
 		for (size_t i=0; i < sz ; i++) {
 			result = 31 * result + a[i];
 			result = 31 * result + b[i];
