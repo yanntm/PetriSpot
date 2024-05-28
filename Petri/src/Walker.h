@@ -12,28 +12,31 @@
 #include <thread>
 
 #include "MatrixCol.h"
+#include "SparseArray.h"
 #include "SparsePetriNet.h"
 #include <unordered_map>
+
+template<typename T>
 class Walker {
-	const SparsePetriNet * sr;
-	MatrixCol combFlow;
-	MatrixCol tFlowPT;
+	const SparsePetriNet<T> * sr;
+	MatrixCol<T> combFlow;
+	MatrixCol<T> tFlowPT;
 	int * behaviorMap;
 	int behaviorCount;
 	static const int DEBUG = 1;
 public :
-	Walker(const SparsePetriNet & ssr) : combFlow(ssr.getPnames().size(),0) {
+	Walker(const SparsePetriNet<T> & ssr) : combFlow(ssr.getPnames().size(),0) {
 		this->sr = & ssr;
-		typedef std::unordered_map<const SparseIntArray *, std::vector<int>, std::hash<SparseIntArray*>, std::equal_to<SparseIntArray*>> map_t;
+		typedef std::unordered_map<const SparseArray<T> *, std::vector<int>, std::hash<SparseArray<T>*>, std::equal_to<SparseArray<T>*>> map_t;
 		map_t effects;
 
 		for (size_t i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
-			combFlow.appendColumn(SparseIntArray::sumProd(-1, sr->getFlowPT().getColumn(i), 1, sr->getFlowTP().getColumn(i)));
+			combFlow.appendColumn(SparseArray<T>::sumProd(-1, sr->getFlowPT().getColumn(i), 1, sr->getFlowTP().getColumn(i)));
 		}
 
 		for (size_t i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
-			SparseIntArray & col = combFlow.getColumn(i);
-			map_t::iterator it = effects.find(&col);
+			SparseArray<T> & col = combFlow.getColumn(i);
+			typename map_t::iterator it = effects.find(&col);
 			if (it != effects.end()) {
 				it->second.push_back(i);
 			} else {
@@ -58,12 +61,12 @@ public :
 	}
 
 private :
-	int * computeEnabled(const SparseIntArray & state) {
+	int * computeEnabled(const SparseArray<T> & state) {
 		int * list  = new int [sr->getTnames().size()+1];
 		memset(list,0, (sr->getTnames().size()+1)* sizeof(int));
 		int li = 1;
 		for (int t = 0, e =  sr->getTnames().size(); t < e; t++) {
-			if (SparseIntArray::greaterOrEqual(state, sr->getFlowPT().getColumn(t))) {
+			if (SparseArray<T>::greaterOrEqual(state, sr->getFlowPT().getColumn(t))) {
 				list[li++] = t;
 			}
 		}
@@ -84,7 +87,7 @@ private :
 
 public :
 	// we just reached "state" by firing tfired
-	void updateEnabled (const SparseIntArray & state, int * enabled, int tfired) {
+	void updateEnabled (const SparseArray<T> & state, int * enabled, int tfired) {
 		if (combFlow.getColumn(tfired).size() == 0) {
 			return ;
 		}
@@ -100,7 +103,7 @@ public :
 				continue;
 			}
 
-			if (SparseIntArray::greaterOrEqual(state, sr->getFlowPT().getColumn(t))) {
+			if (SparseArray<T>::greaterOrEqual(state, sr->getFlowPT().getColumn(t))) {
 				seen[t] = true;
 				seenEffects[behaviorMap[t]] = true;
 				continue;
@@ -111,12 +114,12 @@ public :
 		}
 
 		// the places fed by this transition
-		SparseIntArray tp = combFlow.getColumn(tfired);
+		SparseArray<T> tp = combFlow.getColumn(tfired);
 		for (int  pi = 0, pie=tp.size() ; pi < pie ; pi++) {
 			size_t p = tp.keyAt(pi);
 			if (tp.valueAt(pi) > 0) {
 				// the set of transitions taking from this place
-				SparseIntArray col = tFlowPT.getColumn(p);
+				SparseArray<T> col = tFlowPT.getColumn(p);
 				for (size_t i = 0 ; i < col.size() ; i++) {
 					size_t t = col.keyAt(i);
 					if (seen[t] || seenEffects[behaviorMap[t]])
@@ -126,7 +129,7 @@ public :
 						continue;
 					}
 
-					if (SparseIntArray::greaterOrEqual(state, sr->getFlowPT().getColumn(t))) {
+					if (SparseArray<T>::greaterOrEqual(state, sr->getFlowPT().getColumn(t))) {
 						add(enabled, t);
 						seen[t] = true;
 						seenEffects[behaviorMap[t]] = true;
@@ -138,9 +141,9 @@ public :
 		delete [] seenEffects;
 	}
 
-	SparseIntArray fire (int t, const SparseIntArray & state) {
+	SparseArray<T> fire (int t, const SparseArray<T> & state) {
 		// NB no enabling check
-		return SparseIntArray::sumProd(1, state, 1, combFlow.getColumn(t));
+		return SparseArray<T>::sumProd(1, state, 1, combFlow.getColumn(t));
 	}
 
 
@@ -158,7 +161,7 @@ public :
 	bool runDeadlockDetection (long nbSteps, bool fullRand, size_t timeout) {
 		using std::chrono::steady_clock;
 		auto time = steady_clock::now();
-		SparseIntArray state(sr->getMarks());
+		SparseArray<T> state(sr->getMarks());
 		int * list = computeEnabled(state);
 		dropEmpty(list);
 
@@ -193,7 +196,7 @@ public :
 					//System.out.println("Dead end with self loop(s) found at step " + i);
 					nbresets ++;
 					last = -1;
-					state = SparseIntArray(sr->getMarks());
+					state = SparseArray<T>(sr->getMarks());
 					delete [] list;
 					list = computeEnabled(state);
 					dropEmpty(list);
@@ -210,14 +213,14 @@ public :
 				do {
 					state = fire ( tfired, state);
 					i++;
-				} while (SparseIntArray::greaterOrEqual(state, sr->getFlowPT().getColumn(tfired)));
+				} while (SparseArray<T>::greaterOrEqual(state, sr->getFlowPT().getColumn(tfired)));
 				updateEnabled(state, list, tfired);
 				last = -1;
 				continue;
 			}
 
 			if (list[0]==1 || fullRand || intRand(0, 100) >= 60) {
-				SparseIntArray newstate = fire ( tfired, state);
+				SparseArray<T> newstate = fire ( tfired, state);
 				// NB : discards empty events
 				updateEnabled(newstate, list, tfired);
 				last = tfired;
@@ -225,7 +228,7 @@ public :
 			} else {
 				// heuristically follow a successor with less outgoing edges
 
-				SparseIntArray * succ = new SparseIntArray[list[0]];
+				SparseArray<T> * succ = new SparseArray<T>[list[0]];
 				for (int ti = 1 ; ti-1 < list[0] ; ti++) {
 					succ[ti-1] = fire(list[ti],state);
 					i++;
@@ -263,11 +266,11 @@ public :
 		return false;
 	}
 
-	bool shouldRepeatLast(int last, const SparseIntArray & state) const {
+	bool shouldRepeatLast(int last, const SparseArray<T> & state) const {
 		bool repeat = false;
-		if (last != -1 && sr->getFlowPT().getColumn(last).size() > 0 && intRand(0, 100) < 98 && SparseIntArray::greaterOrEqual(state, sr->getFlowPT().getColumn(last))) {
+		if (last != -1 && sr->getFlowPT().getColumn(last).size() > 0 && intRand(0, 100) < 98 && SparseArray<T>::greaterOrEqual(state, sr->getFlowPT().getColumn(last))) {
 			// make sure there is no divergent behavior here
-			const SparseIntArray & combb = combFlow.getColumn(last);
+			const SparseArray<T> & combb = combFlow.getColumn(last);
 			for (int j=0, je = combb.size() ; j < je ; j++) {
 				if (combb.valueAt(j) < 0) {
 					repeat = true;
@@ -290,7 +293,7 @@ private:
 		}
 	}
 
-	void dropUnavailable (int * enabled, const SparseIntArray & parikh) {
+	void dropUnavailable (int * enabled, const SparseArray<T> & parikh) {
 		for (int i = enabled[0] ; i  >= 1  ; i--) {
 			int t = enabled [i];
 			if (parikh.get(t) <= 0) {
