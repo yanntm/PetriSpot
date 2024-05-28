@@ -18,7 +18,7 @@ class SparsePetriNet {
     MatrixCol<T> flowTP;
     std::vector<std::string> tnames;
     std::vector<std::string> pnames;
-    int maxArcValue;
+    T maxArcValue;
     static const int DEBUG = 0;
 public :
 	SparsePetriNet():name("Petri"),maxArcValue(0) {
@@ -105,7 +105,7 @@ public :
 		return maxArcValue;
 	}
 
-	const std::vector<int> & getMarks() const {
+	const std::vector<T> & getMarks() const {
 		return marks;
 	}
 };
