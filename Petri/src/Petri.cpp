@@ -18,6 +18,14 @@ const string TSEMIFLOW="--Tsemiflows";
 const string PATH="-i";
 const string QUIET="-q";
 
+#define _MY_USE_64
+
+#ifdef _MY_USE_64
+#define VAL long
+#else
+#define VAL int
+#endif
+
 
 int main(int argc, char * argv[]) {
 	std::string logMessage = "Running PetriSpot with arguments : [";
@@ -26,7 +34,7 @@ int main(int argc, char * argv[]) {
         	logMessage += std::string(argv[i]) + ", ";
     	}
 	logMessage += (argc == 1 ? "Empty" : std::string(argv[i])) + "]";
-	InvariantMiddle::writeToLog(logMessage);
+	InvariantMiddle<VAL>::writeToLog(logMessage);
 	auto runtime = std::chrono::steady_clock::now();
 	std::string modelPath;
 	bool findDeadlock=false;
@@ -68,7 +76,7 @@ int main(int argc, char * argv[]) {
 	}
 
 	try {
-		SparsePetriNet * pn = loadXML(modelPath);
+		SparsePetriNet<VAL> * pn = loadXML<VAL>(modelPath);
 
 // 		std::cout << "PN : " ;
 // 		std::cout << "\nPre : " << std::endl;
@@ -79,7 +87,7 @@ int main(int argc, char * argv[]) {
 
 		if (findDeadlock) 
 		{
-			Walker walk (*pn);
+			Walker<VAL> walk (*pn);
 
 			if (walk.runDeadlockDetection(1000000, true, 30)) {
 				std::cout << "Deadlock found !" << std::endl;
@@ -98,38 +106,38 @@ int main(int argc, char * argv[]) {
 		if (invariants) 
 		{
 			vector<int> repr;
-			MatrixCol sumMatrix = InvariantMiddle::computeReducedFlow(*pn, repr);
+			MatrixCol<VAL> sumMatrix = InvariantMiddle<VAL>::computeReducedFlow(*pn, repr);
 			if (pflows || psemiflows) {
 				auto time = std::chrono::steady_clock::now();
-				unordered_set<SparseIntArray> invar;
+				unordered_set<SparseArray<VAL>> invar;
 				if (pflows) {
-					invar = InvariantMiddle::computePInvariants(sumMatrix);
+					invar = InvariantMiddle<VAL>::computePInvariants(sumMatrix);
 				} else {
-					invar = InvariantMiddle::computePInvariants(sumMatrix, true, 120);
+					invar = InvariantMiddle<VAL>::computePInvariants(sumMatrix, true, 120);
 				}
 				std::cout << "Computed " << invar.size() << " P " << (psemiflows?"semi":"") << "flows in " 
 					<< std::chrono::duration_cast<std::chrono::milliseconds>
 						(std::chrono::steady_clock::now() - time).count() 
 							<< " ms." << std::endl;
 				if (!quiet) {
-    					InvariantMiddle::printInvariant(invar, pn->getPnames(), (*pn).getMarks());
+    					InvariantMiddle<VAL>::printInvariant(invar, pn->getPnames(), (*pn).getMarks());
 				}
 			}
 			if (tflows || tsemiflows) {
 				auto time = std::chrono::steady_clock::now();
-				unordered_set<SparseIntArray> invarT;
+				unordered_set<SparseArray<VAL>> invarT;
 				if (tflows) {
-					invarT= InvariantMiddle::computeTinvariants(*pn, sumMatrix, repr,false);	
+					invarT= InvariantMiddle<VAL>::computeTinvariants(*pn, sumMatrix, repr,false);
 				} else {
-					invarT= InvariantMiddle::computeTinvariants(*pn, sumMatrix, repr,true);	
+					invarT= InvariantMiddle<VAL>::computeTinvariants(*pn, sumMatrix, repr,true);
 				}
 				std::cout << "Computed " << invarT.size() << " T " << (tsemiflows?"semi":"") << "flows in " 
 					<< std::chrono::duration_cast<std::chrono::milliseconds>
 						(std::chrono::steady_clock::now() - time).count() 
 							<< " ms." << std::endl;
 				if (!quiet) {
-					std::vector<int> emptyVector;
-					InvariantMiddle::printInvariant(invarT, pn->getTnames(), emptyVector);
+					std::vector<VAL> emptyVector;
+					InvariantMiddle<VAL>::printInvariant(invarT, pn->getTnames(), emptyVector);
 				}
 			}
 		}
