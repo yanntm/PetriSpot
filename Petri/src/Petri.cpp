@@ -18,11 +18,8 @@ const string TSEMIFLOW="--Tsemiflows";
 const string PATH="-i";
 const string QUIET="-q";
 
-#define _MY_USE_64
-
-#ifdef _MY_USE_64
-#define VAL long
-#else
+#ifndef VAL
+// default to 32 bit
 #define VAL int
 #endif
 

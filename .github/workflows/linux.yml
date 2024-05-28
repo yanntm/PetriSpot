@@ -31,12 +31,12 @@ jobs:
 #    - name: run tests
 #      run: cd tests ; ( rc=0 ; for TEST in *.data ; do ./run_test.pl $TEST || rc=$? ; done; exit $rc) ; cd ..
     - name: prepare binaries
-      run: mkdir -p website ; cp Petri/src/petri website 
+      run: mkdir -p website ; cp Petri/src/petri32 Petri/src/petri64 Petri/src/petri128 website 
     - name: strip binaries
-      run: strip -s website/petri 
+      run: strip -s website/petri32 ; strip -s website/petri64 ; strip -s website/petri128  
     
     - name: Deploy to GitHub Pages
-      uses: JamesIves/github-pages-deploy-action@v4.5.0
+      uses: JamesIves/github-pages-deploy-action@v4
       with:
           branch: Inv-Linux # The branch the action should deploy to.
           folder: website/ # The folder the action should deploy.
