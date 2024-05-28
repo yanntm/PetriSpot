@@ -23,9 +23,12 @@
 #include <vector>
 #include <unordered_set>
 #include "FlowMatrix.h"
+#include "SparseArray.h"
 #include "MatrixCol.h"
 #include "SparseBoolArray.h"
+#include "Arithmetic.hpp"
 
+template<typename T>
 class InvariantCalculator {
 
 	static const bool DEBUG = false;
@@ -38,7 +41,7 @@ public:
 		// Farkas,
     		PIPE
 	};
-	
+
 private:	
 	/**
 	 * Hidden constructor
@@ -100,13 +103,13 @@ private:
 	 * @param matC - the matrix from which the sets should be calculated.
 	 * @return The result of the calculation
 	 */
-	static std::vector<PpPm> calcPpPm(const MatrixCol& matC) {
+	static std::vector<PpPm> calcPpPm(const MatrixCol<T>& matC) {
 		std::vector<PpPm> result;
 		for (size_t row = 0; row < matC.getRowCount(); row++) {
 			result.push_back(PpPm(row));
 		}
 		for (size_t icol = 0, cole = matC.getColumnCount(); icol < cole; icol++) {
-			const SparseIntArray& col = matC.getColumn(icol);
+			const SparseArray<T>& col = matC.getColumn(icol);
 			for (int i = 0, ie = col.size(); i < ie; i++) {
 				PpPm & toedit = result[col.keyAt(i)];
 				if (col.valueAt(i) < 0) {
@@ -185,14 +188,14 @@ private:
 	 * @return a generator set of the invariants.
 	 */
 public:	
-	static std::unordered_set<SparseIntArray> calcInvariantsPIPE(MatrixCol mat, bool onlyPositive) {
+	static std::unordered_set<SparseArray<T>> calcInvariantsPIPE(MatrixCol<T> mat, bool onlyPositive) {
 		if (mat.getColumnCount() == 0 || mat.getRowCount() == 0) {
-			return std::unordered_set<SparseIntArray>();
+			return std::unordered_set<SparseArray<T>>();
 		}
-		MatrixCol tmat = mat.transpose();
-		std::unordered_set<SparseIntArray> normed = std::unordered_set<SparseIntArray>();
+		MatrixCol<T> tmat = mat.transpose();
+		std::unordered_set<SparseArray<T>> normed = std::unordered_set<SparseArray<T>>();
 		for (size_t i = 0; i < tmat.getColumnCount(); i++) {
-			SparseIntArray& norm = tmat.getColumn(i);
+			SparseArray<T>& norm = tmat.getColumn(i);
 			normalize(norm);
 			normed.insert(norm);
 		}
@@ -200,22 +203,24 @@ public:
 			std::cout << "Normalized transition count is " << normed.size() << " out of " << tmat.getColumnCount()
 					<< " initially." << std::endl;
 		}
-		MatrixCol matnorm(tmat.getRowCount(), 0);
-		for (SparseIntArray col : normed) {
+		MatrixCol<T> matnorm(tmat.getRowCount(), 0);
+		for (const SparseArray<T> & col : normed) {
 			matnorm.appendColumn(col);
 		}
-		MatrixCol matB = phase1PIPE(matnorm.transpose());
+		matnorm.sortByColumnSize();
 
-//		const MatrixCol matB = phase1PIPE(new MatrixCol(mat));
+		MatrixCol<T> matB = phase1PIPE(matnorm.transpose());
+
+//		const MatrixCol<T> matB = phase1PIPE(new MatrixCol<T>(mat));
 		// We want to work with columns in this part of the algorithm
 		// We add and remove columns all day => we want to switch to a column based
 		// representation
 		// order of rows is really irrelevant + columns which are identical up to
 		// scaling factor are useless
 		// let's use a set of columns.
-		std::unordered_set<SparseIntArray> colsBsparse(2 * matB.getColumnCount());
+		std::unordered_set<SparseArray<T>> colsBsparse(2 * matB.getColumnCount());
 		for (size_t i = 0; i < matB.getColumnCount(); i++) {
-			SparseIntArray& col = matB.getColumn(i);
+			SparseArray<T>& col = matB.getColumn(i);
 			if (col.size() != 0) {
 				normalizeWithSign(col);
 				colsBsparse.insert(col);
@@ -226,8 +231,8 @@ public:
 			return colsBsparse;
 		}
 
-		MatrixCol colsB (tmat.getRowCount(), 0);
-		for (const SparseIntArray & cb : colsBsparse) {
+		MatrixCol<T> colsB (tmat.getRowCount(), 0);
+		for (const SparseArray<T> & cb : colsBsparse) {
 			colsB.appendColumn(cb);
 		}
 
@@ -236,7 +241,7 @@ public:
 
 		//int iter = 0;
 		SparseBoolArray treated;
-		colsBsparse = std::unordered_set<SparseIntArray>();
+		colsBsparse = std::unordered_set<SparseArray<T>>();
 		while (colsB.getColumnCount() < 20000) {
 			if (treated.size() > 0) {
 				for (int i = treated.size() - 1; i >= 0; i--) {
@@ -298,7 +303,7 @@ public:
 				if (treated.get(i)) {
 					continue;
 				}
-				SparseIntArray& col = colsB.getColumn(i);
+				SparseArray<T>& col = colsB.getColumn(i);
 				bool hasNeg = false;
 				for (int j = 0, je = col.size(); j < je; j++) {
 					if (col.valueAt(j) < 0) {
@@ -335,19 +340,19 @@ public:
 			PpPm ppm = pppms[targetRow];
 			if (ppm.pPlus.size() > 0) {
 				for (int j = 0, je = ppm.pPlus.size(); j < je; j++) {
-					SparseIntArray& colj = colsB.getColumn(ppm.pPlus.keyAt(j));
+					SparseArray<T>& colj = colsB.getColumn(ppm.pPlus.keyAt(j));
 					if (purePos != -1) {
 						colj = colsB.getColumn(purePos);
 						j = je;
 					}
 					for (int k = 0, ke = ppm.pMinus.size(); k < ke; k++) {
-						SparseIntArray& colk = colsB.getColumn(ppm.pMinus.keyAt(k));
+						SparseArray<T>& colk = colsB.getColumn(ppm.pMinus.keyAt(k));
 						// operate a linear combination on the columns of indices j and k
 						// in order to get a new column having the pair.getFirst element equal
 						// to zero
 						int a = -colk.get(targetRow);
 						int b = colj.get(targetRow);
-						SparseIntArray column = SparseIntArray::sumProd(a, colj, b, colk);
+						SparseArray<T> column = SparseArray<T>::sumProd(a, colj, b, colk);
 						// add normalization step : we don't need scalar scaling of each other
 						normalize(column);
 						// append column to matrix B
@@ -371,7 +376,7 @@ public:
 		}
 		// std::cout << "Found "<< colsB.getColumnCount() << " invariants."<< std::endl;
 
-		for (SparseIntArray l : colsB.getColumns()) {
+		for (SparseArray<T> l : colsB.getColumns()) {
 			if (l.size() > 0) {
 				colsBsparse.insert(l);
 			}
@@ -383,9 +388,9 @@ public:
 	}
 
 private:
-	static void removeNegativeValues(std::unordered_set<SparseIntArray> & colsBsparse) {
+	static void removeNegativeValues(std::unordered_set<SparseArray<T>> & colsBsparse) {
 		for (auto it = colsBsparse.begin(); it != colsBsparse.end();) {
-			const SparseIntArray& a = *it;
+			const SparseArray<T>& a = *it;
 			bool hasNegativeValue = false;
 			for (int i = 0, ie = a.size(); i < ie; i++) {
 				if (a.valueAt(i) < 0) {
@@ -401,7 +406,7 @@ private:
 		}
 	}
 
-	static std::vector<int> normalize(SparseIntArray & col, size_t size) {
+	static std::vector<int> normalize(SparseArray<T> & col, size_t size) {
 		std::vector<int> list(size);
 		bool allneg = true;
 		for (size_t i = 0; i < col.size(); i++) {
@@ -423,9 +428,9 @@ private:
 		return list;
 	}
 
-	static MatrixCol phase1PIPE(MatrixCol matC) {
+	static MatrixCol<T> phase1PIPE(MatrixCol<T> matC) {
 		// incidence matrix
-		MatrixCol matB = MatrixCol::identity(matC.getColumnCount(), matC.getColumnCount());
+		MatrixCol<T> matB = MatrixCol<T>::identity(matC.getColumnCount(), matC.getColumnCount());
 
 		std::cout << "// Phase 1: matrix " << matC.getRowCount() << " rows " << matC.getColumnCount() << " cols" << std::endl;
 		std::vector<PpPm> pppms = calcPpPm(matC);
@@ -436,7 +441,7 @@ private:
 		return matB;
 	}
 
-	static int test1b(MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms,
+	static int test1b(MatrixCol<T> & matC, MatrixCol<T> & matB, std::vector<PpPm> & pppms,
 			int startIndex) {
 		// [1.1.b] if there exists a row h in C such that |P+| == 1 or |P-| == 1
 		Check11bResult chkResult = check11b(pppms, startIndex);
@@ -450,28 +455,11 @@ private:
 	}
 
 
-	static int32_t addExact(int32_t x, int32_t y) {
-		int32_t result;
-		if (__builtin_add_overflow(x, y, &result)) {
-			throw std::overflow_error("Overflow in addition");
-		}
-		return result;
-	}
-
-	static int32_t multiplyExact(int32_t x, int32_t y) {
-		int32_t result;
-		if (__builtin_mul_overflow(x, y, &result)) {
-			throw std::overflow_error("Overflow in multiplication");
-		}
-		return result;
-	}
-
-
 
 public:
-	static SparseBoolArray sumProdInto(int alpha, SparseIntArray & ta, int beta, SparseIntArray & tb) {
+	static SparseBoolArray sumProdInto(int alpha, SparseArray<T> & ta, int beta, SparseArray<T> & tb) {
 		SparseBoolArray changed;
-		SparseIntArray flow(std::max(ta.size(), tb.size()));
+		SparseArray<T> flow(std::max(ta.size(), tb.size()));
 
 		size_t i = 0;
 		size_t j = 0;
@@ -479,7 +467,7 @@ public:
 			unsigned int ki = i == ta.size() ? std::numeric_limits<unsigned int>::max() : ta.keyAt(i);
 			unsigned int kj = j == tb.size() ? std::numeric_limits<unsigned int>::max() : tb.keyAt(j);
 			if (ki == kj) {
-				int val = addExact( multiplyExact(alpha, ta.valueAt(i)) , multiplyExact(beta, tb.valueAt(j)));
+				int val = petri::addExact( petri::multiplyExact(alpha, ta.valueAt(i)) , petri::multiplyExact(beta, tb.valueAt(j)));
 				if (val != 0) {
 					flow.append(ki, val);
 				}
@@ -489,7 +477,7 @@ public:
 				i++;
 				j++;
 			} else if (ki < kj) {
-				int val = multiplyExact(alpha, ta.valueAt(i));
+				int val = petri::multiplyExact(alpha, ta.valueAt(i));
 				if (val != 0) {
 					flow.append(ki, val);
 				}
@@ -498,7 +486,7 @@ public:
 				}
 				i++;
 			} else if (kj < ki) {
-				int val = multiplyExact(beta, tb.valueAt(j));
+				int val = petri::multiplyExact(beta, tb.valueAt(j));
 				if (val != 0) {
 					flow.append(kj, val);
 				}
@@ -517,7 +505,7 @@ private:
     	return (value > 0) - (value < 0);
 	}
 
-	static void test1b2(MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms) {
+	static void test1b2(MatrixCol<T> & matC, MatrixCol<T> & matB, std::vector<PpPm> & pppms) {
 		// [1.1.b.1] let tRow be the index of a non-zero row of C.
 		// let tCol be the index of a column such that c[trow][tcol] != 0.
 
@@ -557,7 +545,7 @@ private:
 
 		for (size_t i = 0; i < toVisit.size(); i++) {
 			size_t j = toVisit.keyAt(i);
-			SparseIntArray& colj = matC.getColumn(j);
+			SparseArray<T>& colj = matC.getColumn(j);
 
 			if (j == tCol) {
 				continue;
@@ -580,7 +568,7 @@ private:
 				for (size_t ind = 0, inde = changed.size(); ind < inde; ind++) {
 					pppms[changed.keyAt(ind)].setValue(j, colj.get(changed.keyAt(ind)));
 				}
-				SparseIntArray& coljb = matB.getColumn(j);
+				SparseArray<T>& coljb = matB.getColumn(j);
 				sumProdInto(beta, coljb, alpha, matB.getColumn(tCol));
 			}
 		}
@@ -588,9 +576,9 @@ private:
 	}
 
 public:
-	static void clearColumn(int tCol, MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms) {
+	static void clearColumn(int tCol, MatrixCol<T> & matC, MatrixCol<T> & matB, std::vector<PpPm> & pppms) {
 		// delete from the extended matrix the column of index k
-		SparseIntArray& colk = matC.getColumn(tCol);
+		SparseArray<T>& colk = matC.getColumn(tCol);
 		for (int i = 0, ie = colk.size(); i < ie; i++) {
 			pppms[colk.keyAt(i)].setValue(tCol, 0);
 		}
@@ -599,7 +587,7 @@ public:
 	}
 
 private:
-	static size_t sumAbsValues(const SparseIntArray & col) {
+	static size_t sumAbsValues(const SparseArray<T> & col) {
 		size_t tot = 0;
 		for (size_t i = 0; i < col.size(); i++) {
 			tot += std::abs(col.valueAt(i));
@@ -607,7 +595,7 @@ private:
 		return tot;
 	}
 
-	static void test1b1(MatrixCol & matC, MatrixCol & matB, std::vector<PpPm> & pppms,
+	static void test1b1(MatrixCol<T> & matC, MatrixCol<T> & matB, std::vector<PpPm> & pppms,
 			const Check11bResult & chkResult) {
 		if (DEBUG) {
 			std::cout << "Rule 1b.1 : " << chkResult.row << std::endl;
@@ -629,7 +617,7 @@ private:
 			for (int ind = 0, inde = changed.size(); ind < inde; ind++) {
 				pppms[changed.keyAt(ind)].setValue(j, matC.getColumn(j).get(changed.keyAt(ind)));
 			}
-			SparseIntArray& coljb = matB.getColumn(j);
+			SparseArray<T>& coljb = matB.getColumn(j);
 			sumProdInto(chk, coljb, chj, matB.getColumn(tCol));
 		}
 		// delete from the extended matrix the column of index k
@@ -647,7 +635,7 @@ private:
 		return gcd;
 	}
 	
-	static int gcd(SparseIntArray set) {
+	static int gcd(SparseArray<T> set) {
 		if (set.size()==0)
 			return 0;
 		int gcd = set.valueAt(0);
@@ -678,7 +666,7 @@ private:
 	}
 
 public:
-	static void normalizeWithSign(SparseIntArray & col) {
+	static void normalizeWithSign(SparseArray<T> & col) {
 		bool allneg = true;
 		for (size_t i = 0; i < col.size(); i++) {
 			if (col.valueAt(i) > 0) {
@@ -701,7 +689,7 @@ public:
 		}
 	}
 
-	static void normalize(SparseIntArray invariants) {
+	static void normalize(SparseArray<T> invariants) {
 		int gcd = InvariantCalculator::gcd(invariants);
 		if (gcd > 1) {
 			for (size_t j = 0; j < invariants.size(); ++j) {
@@ -718,7 +706,7 @@ public:
 	 * @param pn - the petri net to calculate the s-invariants from.
 	 * @return a generator set of the invariants.
 	 */
-	static std::unordered_set<SparseIntArray> calcSInvariants(FlowMatrix pn, bool onlyPositive) {
+	static std::unordered_set<SparseArray<T>> calcSInvariants(FlowMatrix<T> pn, bool onlyPositive) {
 		return calcSInvariants(pn, InvariantAlgorithm::PIPE, onlyPositive);
 	}
 
@@ -730,7 +718,7 @@ public:
 	 * @param algo - the algorithm with which the invariants should be calculated.
 	 * @return a generator set of the invariants.
 	 */
-	static std::unordered_set<SparseIntArray> calcSInvariants(FlowMatrix pn, InvariantAlgorithm algo, bool onlyPositive) {
+	static std::unordered_set<SparseArray<T>> calcSInvariants(FlowMatrix<T> pn, InvariantAlgorithm algo, bool onlyPositive) {
 		switch (algo) {
 	//	case InvariantAlgorithm::Farkas:
 	//		return calcInvariantsFarkas(pn.getIncidenceMatrix().explicit());
@@ -750,7 +738,7 @@ public:
 	 * @param algo - the algorithm with which the invariants should be calculated.
 	 * @return a generator set of the invariants.
 	 */
-	static std::unordered_set<SparseIntArray> calcTInvariants(FlowMatrix pn, InvariantAlgorithm algo) {
+	static std::unordered_set<SparseArray<T>> calcTInvariants(FlowMatrix<T> pn, InvariantAlgorithm algo) {
 		switch (algo) {
 	//	case FARKAS:
 	//		return calcInvariantsFarkas(pn.getIncidenceMatrix().explicit());
