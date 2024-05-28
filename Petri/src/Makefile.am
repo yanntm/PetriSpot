@@ -1,4 +1,4 @@
-noinst_PROGRAMS = petri
+noinst_PROGRAMS = petri32 petri64 petri128
 
 if WITH_LIBDDD_PATH
 LIBDDD_CPP=-I$(LIBDDD_ROOT)/include
@@ -27,6 +27,22 @@ AM_CXXFLAGS = -g -O2 -Wall
 
 LDADDFLAGS = $(LIBSPOT_PATH) $(LIBSPOT_LINK) $(LIBDDD_PATH)  $(LIBEXPAT_PATH) $(LIBEXPAT_LINK) 
 
-petri_SOURCES=Petri.cpp SparseIntArray.cpp SparseIntArray.h MatrixCol.h SparsePetriNet.h Walker.h PTNetHandler.h Walker.h PTNetLoader.h PTNetLoader.cpp
-petri_LDADD = $(LDADDFLAGS)
+petri_SOURCES=Arithmetic.hpp Petri.cpp SparseArray.h SparseIntArray.h MatrixCol.h SparsePetriNet.h Walker.h PTNetHandler.h PTNetLoader.h SparseBoolArray.cpp SparseBoolArray.h InvariantMiddle.h InvariantCalculator.h FlowMatrix.h
+
+# Rules for each program
+petri32_SOURCES = $(petri_SOURCES)
+petri32_CPPFLAGS = $(AM_CPPFLAGS) -DVAL=int
+petri32_CXXFLAGS = $(AM_CXXFLAGS)
+petri32_LDADD = $(LDADDFLAGS)
+
+petri64_SOURCES = $(petri_SOURCES)
+petri64_CPPFLAGS = $(AM_CPPFLAGS) -DVAL=long
+petri64_CXXFLAGS = $(AM_CXXFLAGS)
+petri64_LDADD = $(LDADDFLAGS)
+
+petri128_SOURCES = $(petri_SOURCES)
+petri128_CPPFLAGS = $(AM_CPPFLAGS) -DVAL="long long"
+petri128_CXXFLAGS = $(AM_CXXFLAGS)
+petri128_LDADD = $(LDADDFLAGS)
+
 

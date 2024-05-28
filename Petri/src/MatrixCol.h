@@ -29,17 +29,18 @@
 
 // package fr.lip6.move.gal.util;
 
-#include "SparseIntArray.h"
+#include "SparseArray.h"
 
 /**
  * A Matrix specified for the invariant module, stored by COLUMN so that deletColumn has good complexity.
  * @author Manuel Gieseking, Dennis-Michael Borde, Yann Thierry-Mieg
  */
+template<typename T>
 class MatrixCol {
 
-	int iRows;
-	int iCols;
-	std::vector<SparseIntArray> lCols;
+    size_t iRows;
+    size_t iCols;
+    std::vector<SparseArray<T>> lCols;
 public :
 	/**
 	 * Returns the identity matrix with given col and row count.
@@ -47,9 +48,9 @@ public :
 	 * @param cols - the col count of the identity matrix.
 	 * @return the identity matrix with the given col and row count.
 	 */
-	static MatrixCol identity(int rows, int cols) {
+	static MatrixCol identity(size_t rows, size_t cols) {
 		MatrixCol result(rows, cols);
-		for (int i = 0; i < rows && i < cols; ++i) {
+		for (size_t i = 0; i < rows && i < cols; ++i) {
 			result.set(i,i, 1);
 		}
 		return result;
@@ -60,12 +61,12 @@ public :
 	 * @param rows - the row count of the resulting matrix.
 	 * @param cols - the col count of the resulting matrix.
 	 */
-	 MatrixCol(int rows=0, int cols=0) {
+	 MatrixCol(size_t rows=0, size_t cols=0) {
 		this->iRows = rows;
 		this->iCols = cols;
 		this->lCols.reserve(this->iCols);
 
-		for (int col = 0 ; col < iCols ; col++) {
+		for (size_t col = 0 ; col < iCols ; col++) {
 			lCols.emplace_back();
 		}
 	}
@@ -78,31 +79,79 @@ public :
 		iRows = ori.iRows;
 		iCols = ori.iCols;
 		lCols.reserve(iCols);
-		for (SparseIntArray a : ori.lCols) {
+		for (const SparseArray<T> & a : ori.lCols) {
 			lCols.emplace_back(a);
 		}
+	}
+
+	MatrixCol & operator=(const MatrixCol & source) {
+		if (this != &source) {
+			lCols.clear();
+			iRows = source.iRows;
+			iCols = source.iCols;
+			lCols.reserve(iCols);
+			for (const SparseArray<T> & a : source.lCols) {
+			lCols.emplace_back(a);
+			}
+		}
+		return *this;
+	}
+
+	MatrixCol(MatrixCol&& other) noexcept
+	    : iRows(other.iRows), iCols(other.iCols), lCols(std::move(other.lCols)) {
+	    other.iRows = 0;
+	    other.iCols = 0;
+	}
+
+	MatrixCol& operator=(MatrixCol&& other) noexcept {
+	    if (this != &other) {
+	        iRows = other.iRows;
+	        iCols = other.iCols;
+	        lCols = std::move(other.lCols);
+	        other.iRows = 0;
+	        other.iCols = 0;
+	    }
+	    return *this;
+	}
+
+
+	bool equals(const MatrixCol & other) const {
+		if (iRows != other.iRows || iCols != other.iCols) {
+			return false;
+		}
+
+		for (size_t col = 0; col < this->iCols; col++) {
+			if (!(lCols[col] == other.lCols[col])) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
 	 * Constructor for a new Matrix with the values from the given array.
 	 * @param src - the template to create the matrix from.
 	 */
-	 MatrixCol(const int*const src, int rows, int cols) {
+	 MatrixCol(const int*const src, size_t rows, size_t cols) {
 		this->iRows = rows;
 		this->iCols = cols;
 		this->lCols.reserve(this->iCols);
 
-		for (int col = 0; col < this->iCols; ++col) {
-			lCols.push_back(SparseIntArray());
-			SparseIntArray & toadd = lCols.back();
-			for (int row = 0; row < this->iRows; ++row) {
+		for (size_t col = 0; col < this->iCols; ++col) {
+			lCols.push_back(SparseArray<T>());
+			SparseArray<T> & toadd = lCols.back();
+			for (size_t row = 0; row < this->iRows; ++row) {
 				int val = src[row + col * iRows];
 				if (val != 0) {
-					toadd.put(row,val);
+					toadd.append(row,val);
 				}
 			}
 		}
 	}
+
+	 void reserveColumns (size_t nbCol) {
+		 this->lCols.reserve(nbCol);
+	 }
 
 	/** Exchange back to explicit form if required.
 	 * @return an explicit verion of this matrix, mat[i] giving a column at index i.
@@ -110,10 +159,10 @@ public :
 	 int * toExplicit () const {
 		int  * mat = new int[iRows*iCols];
 		::memset(mat,0,iRows*iCols*sizeof(int));
-		for (int col = 0; col < this->iCols; ++col) {
-			const SparseIntArray & arr = lCols[col];
-			for (int i = 0 ; i < arr.size() ; i++) {
-				int row = arr.keyAt(i);
+		for (size_t col = 0; col < this->iCols; ++col) {
+			const SparseArray<T> & arr = lCols[col];
+			for (size_t i = 0 ; i < arr.size() ; i++) {
+				size_t row = arr.keyAt(i);
 				int val = arr.valueAt(i);
 				mat [row + col*iRows] =  val;
 			}
@@ -126,7 +175,7 @@ public :
 	 * Returns the count of rows of this matrix.
 	 * @return the count of rows of this matrix.
 	 */
-	 int getRowCount() const {
+	 size_t getRowCount() const {
 		return this->iRows;
 	}
 
@@ -141,7 +190,7 @@ public :
 	 * Returns the count of cols of this matrix.
 	 * @return the count of cols of this matrix.
 	 */
-	 int getColumnCount() const {
+	 size_t getColumnCount() const {
 		return this->iCols;
 	}
 
@@ -150,25 +199,25 @@ public :
 	 * @param i - the index of the wished column of this matrix.
 	 * @return a copy of the column with the given index of this matrix.
 	 */
-	 SparseIntArray & getColumn(int i) {
+	 SparseArray<T> & getColumn(size_t i) {
 		return lCols[i];
 	}
-	const SparseIntArray & getColumn(int i) const {
+	const SparseArray<T> & getColumn(size_t i) const {
 		return lCols[i];
 	}
 
-	 SparseIntArray & setColumn(int i, const SparseIntArray & v) {
-		return lCols[i] = v;
+	 SparseArray<T> & setColumn(size_t i, const SparseArray<T> & v) {
+		 return lCols[i] = std::move(v);
 	}
 
-	 int get (int row, int col) const {
+	 int get (size_t row, size_t col) const {
 		return lCols[col].get(row);
 	}
 
-	 void set (int row, int col, int val) {
+	 void set (size_t row, size_t col, int val) {
 		assert (! (row < 0 || col < 0 || row >= iRows || col >= iCols));
 		if (val != 0) {
-			SparseIntArray & column = lCols[col];
+			SparseArray<T> & column = lCols[col];
 			if (column.size()== 0 || column.keyAt(column.size()-1) < row) {
 				column.append(row, val);
 			} else {
@@ -186,7 +235,7 @@ public :
 	 */
 	 std::pair<int,int> getNoneZeroRow() const {
 		// optimize to prefer to return 1
-		for (int tcol = 0; tcol < getColumnCount(); tcol++) {
+		for (size_t tcol = 0; tcol < getColumnCount(); tcol++) {
 			if (lCols.at(tcol).size()==0) {
 				continue;
 			} else {
@@ -202,7 +251,7 @@ public :
 	 * Deletes the column with the given index from this matrix.
 	 * @param j - the index of the column which should be deleted.
 	 */
-	 void deleteColumn(int j) {
+	 void deleteColumn(size_t j) {
 		lCols.erase(lCols.begin()+j);
 		this->iCols -= 1;
 	}
@@ -211,7 +260,7 @@ public :
 	 * Appends a given column to this matrix. That means adding the given column from the right side to this matrix.
 	 * @param column - the column to append.
 	 */
-	 void appendColumn(const SparseIntArray & column) {
+	 void appendColumn(const SparseArray<T> & column) {
 		assert (column.size()==0 || iRows > column.keyAt(column.size()-1));
 		lCols.push_back(column);
 		this->iCols++;
@@ -222,7 +271,7 @@ public :
 	 * @return true if this matrix has just components equal to zero.
 	 */
 	 bool isZero() const {
-		for (SparseIntArray row : this->lCols) {
+		for (const SparseArray<T> & row : this->lCols) {
 			if (row.size() != 0) {
 				return false;
 			}
@@ -245,10 +294,10 @@ public :
 	 void transposeTo(MatrixCol & tr, bool clear) const {
 		if (clear)
 			tr.clear(getColumnCount(),getRowCount());
-		for (int tcol = 0; tcol < iCols; tcol++) {
-			const SparseIntArray & col = lCols[tcol];
-			for (int k =0 ; k < col.size() ; k++) {
-				int trow = col.keyAt(k);
+		for (size_t tcol = 0; tcol < iCols; tcol++) {
+			const SparseArray<T> & col = lCols[tcol];
+			for (size_t k =0 ; k < col.size() ; k++) {
+				size_t trow = col.keyAt(k);
 				int val = col.valueAt(k);
 				tr.set(tcol, trow, val);
 			}
@@ -273,33 +322,58 @@ public :
 	 * Use with care !! Basically, just consider this is readonly.
 	 * @return our very own storage !
 	 */
-	 const std::vector<SparseIntArray> & getColumns () {
+	 const std::vector<SparseArray<T>> & getColumns () const {
 		return lCols;
 	}
 
-	 void clear(int rowCount, int colCount) {
+
+	    void sortByColumnSize() {
+	        std::sort(lCols.begin(), lCols.end(), [](const SparseArray<T>& a, const SparseArray<T>& b) {
+	            int aSize = a.size();
+	            int bSize = b.size();
+
+	            // First criterion: size of the columns
+	            if (aSize != bSize) {
+	                return aSize < bSize;
+	            }
+
+	            // If sizes are equal, check if columns are empty
+	            if (aSize == 0) {
+	                return false;
+	            }
+
+	            // Second criterion: index of the first key
+	            int aFirstKey = a.keyAt(0);
+	            int bFirstKey = b.keyAt(0);
+	            return aFirstKey < bFirstKey;
+	        });
+	    }
+
+
+
+	 void clear(size_t rowCount, size_t colCount) {
 		 lCols.resize(colCount);
 		iCols = colCount;
 		iRows = rowCount;
-		for (SparseIntArray & s : lCols) {
+		for (SparseArray<T> & s : lCols) {
 			s.clear();
 		}
 	}
 
-	 void deleteRow(int row) {
-		for (SparseIntArray & col : lCols) {
+	 void deleteRow(size_t row) {
+		for (SparseArray<T> & col : lCols) {
 			col.deleteAndShift(row);
 		}
 		iRows -= 1;
 	}
 
-	 void deleteRows(std::vector<int> todel) {
+	 void deleteRows(const std::vector<unsigned int> & todel) {
 //		if (getColumnCount() >= 1000)
 //			getColumns().parallelStream().unordered().forEach(col -> col.deleteAndShift(todel));
 //		else
 //			getColumns().stream().unordered().forEach(col -> col.deleteAndShift(todel));
 
-		 for (SparseIntArray & col : lCols) {
+		for (SparseArray<T> & col : lCols) {
 			 col.deleteAndShift(todel);
 		}
 		iRows -= todel.size();
@@ -320,8 +394,8 @@ public :
 		assert (ta.getColumnCount() != tb.getColumnCount() || ta.getRowCount() != tb.getRowCount()) ;
 
 		MatrixCol mat(ta.getRowCount(), ta.getColumnCount());
-		for (int col=0,cole=ta.getColumnCount(); col < cole ; col++) {
-			mat.setColumn(col, SparseIntArray::sumProd(alpha, ta.getColumn(col), beta, tb.getColumn(col)));
+		for (size_t col=0,cole=ta.getColumnCount(); col < cole ; col++) {
+			mat.setColumn(col, SparseArray<T>::sumProd(alpha, ta.getColumn(col), beta, tb.getColumn(col)));
 		}
 		return mat;
 	}

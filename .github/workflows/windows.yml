@@ -2,9 +2,9 @@ name: windows build
 
 on:
   push:
-    branches: [ master ]
+    branches: [ invariant ]
   pull_request:
-    branches: [ master ]
+    branches: [ invariant ]
   repository_dispatch:
     types: [Windows]
 
@@ -24,7 +24,7 @@ jobs:
     - name: configure and make
       run:  C:\msys64\usr\bin\bash -lc "PATH+=:/mingw64/bin ; cd /D/a/PetriSpot/PetriSpot/Petri  ; (autoreconf -vfi && ./configure --prefix=/D/a/PetriSpot/PetriSpot/usr/local/ CPPFLAGS=-I/D/a/PetriSpot/PetriSpot/usr/local/include LDFLAGS=-L/D/a/PetriSpot/PetriSpot/usr/local/lib --enable-nolto --enable-mingw-native && make && make install) || cat config.log"
     - name: package zip
-      run:  C:\msys64\usr\bin\bash -lc "PATH+=:/mingw64/bin ; cd /D/a/PetriSpot/PetriSpot  ;  mkdir site ; strip -s Petri/src/petri.exe ; cp Petri/src/petri.exe site/; "
+      run:  C:\msys64\usr\bin\bash -lc "PATH+=:/mingw64/bin ; cd /D/a/PetriSpot/PetriSpot  ;  mkdir site ; strip -s Petri/src/petri32.exe ; strip -s Petri/src/petri64.exe ; strip -s Petri/src/petri128.exe ; cp Petri/src/petri*.exe site/; "
     - name: Upload Artifacts 🔺 # The project is then uploaded as an artifact named 'site'.
       uses: actions/upload-artifact@v4
       with:
@@ -47,11 +47,11 @@ jobs:
           name: site
 
       - name: move to website
-        run: ls -lah ; mkdir -p windows ; cp petri.exe windows ;  ls -lah windows/
+        run: ls -lah ; mkdir -p windows ; cp petri*.exe windows ;  ls -lah windows/
       - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@v4.5.0
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          branch: Windows
+          branch: Inv-Windows
           folder: windows/ # The deployment folder should match the name of the artifact. Even though our project builds into the 'build' folder the artifact name of 'site' must be placed here.
           clean: true # Automatically remove deleted files from the deploy branch
           single-commit: true 
