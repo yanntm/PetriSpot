@@ -1,7 +1,7 @@
 #ifndef INVARIANTMIDDLE_H_
 #define INVARIANTMIDDLE_H_
 
-
+#include "Arithmetic.hpp"
 #include "SparsePetriNet.h"
 #include "InvariantCalculator.h"
 #include <chrono>
@@ -22,12 +22,12 @@
  * @author ythierry
  *
  */
+template<typename T>
 class InvariantMiddle {
 private:
-	static MatrixCol last;
-	static std::mutex lock;
-	static std::unordered_set<SparseIntArray> lastInv;
-	
+	static inline MatrixCol<T> last;
+	static inline std::mutex lock;
+	static inline std::unordered_set<SparseArray<T>> lastInv;
 public:
     	static const int DEBUG = 0;
 
@@ -39,17 +39,18 @@ public:
    	  * @return a set of invariants, i.e. coeffs for each variable such that the sum
     	 *         is constant in all markings/states.
     	 */
-    	static std::unordered_set<SparseIntArray> computePInvariants(FlowMatrix pn) {
-        	std::unordered_set<SparseIntArray> invar;
+    	static std::unordered_set<SparseArray<T>> computePInvariants(FlowMatrix<T> pn) {
+        	std::unordered_set<SparseArray<T>> invar;
         	auto time = std::chrono::steady_clock::now();
 
         	try {
-            		invar = InvariantCalculator::calcSInvariants(pn, InvariantCalculator::InvariantAlgorithm::PIPE, false);
+            		invar = InvariantCalculator<T>::calcSInvariants(pn, InvariantCalculator<T>::InvariantAlgorithm::PIPE, false);
 			std::string logMessage = "Computed " + std::to_string(invar.size()) + " place invariants in " +
                              		std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
                                                 	std::chrono::steady_clock::now() - time).count()) + " ms";
 			writeToLog(logMessage);
 		} catch (std::overflow_error& e) {
+			std::cerr << e.what() << std::endl;
 			std::string logMessage = "Invariants computation overflowed in " +
                              		std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
                                                 	std::chrono::steady_clock::now() - time).count()) + " ms";
@@ -59,8 +60,8 @@ public:
         	return invar;
     	}
 
-	static void printInvariant(const std::unordered_set<SparseIntArray>& invariants, const std::vector<std::string>& pnames, 
-			const std::vector<int>& initial, std::ostream& out) {
+	static void printInvariant(const std::unordered_set<SparseArray<T>>& invariants, const std::vector<std::string>& pnames,
+			const std::vector<T>& initial, std::ostream& out) {
         	for (const auto& rv : invariants) {
             		std::stringstream sb;
             		try {
@@ -73,18 +74,18 @@ public:
         	out << "Total of " << invariants.size() << " invariants." << std::endl;
     	}
 
-	static void printInvariant(const std::unordered_set<SparseIntArray>& invariants, const std::vector<std::string>& pnames, 
-			const std::vector<int>& initial) {
+	static void printInvariant(const std::unordered_set<SparseArray<T>>& invariants, const std::vector<std::string>& pnames,
+			const std::vector<T>& initial) {
         	printInvariant(invariants, pnames, initial, std::cout);
     	}
 
-	static int printEquation(const SparseIntArray& inv, const std::vector<int>& initial, const std::vector<std::string>& pnames, 
+	static int printEquation(const SparseArray<T>& inv, const std::vector<T>& initial, const std::vector<std::string>& pnames,
 			std::stringstream& sb) {
         	bool first = true;
-        	int sum = 0;
+        	T sum = 0;
         	for (size_t i = 0; i < inv.size(); i++) {
             		unsigned int k = inv.keyAt(i);
-            		int v = inv.valueAt(i); 
+            		T v = inv.valueAt(i);
             		if (v != 0) {
                 		if (!first) {
                     			if (v < 0) {
@@ -106,29 +107,13 @@ public:
                     			sb << pnames[k];
                 		}
                 		if (!initial.empty()) {
-                    			sum = addExact(sum, (multiplyExact(v, initial[k])));	
+                    			sum = petri::addExact(sum, (petri::multiplyExact(v, initial[k])));
                 		}
             		}
         	}
 	        return sum;
     	}
 
-private:
-	static int32_t addExact(int32_t x, int32_t y) {
-		int32_t result;
-		if (__builtin_add_overflow(x, y, &result)) {
-			throw std::overflow_error("Overflow in addition");
-		}
-		return result;
-	}
-
-	static int32_t multiplyExact(int32_t x, int32_t y) {
-		int32_t result;
-		if (__builtin_mul_overflow(x, y, &result)) {
-			throw std::overflow_error("Overflow in multiplication");
-		}
-		return result;
-	}
 
 public:
 	static void writeToLog(const std::string& message) {
@@ -143,16 +128,16 @@ public:
               			<< std::setw(2) << std::setfill('0') << parts->tm_sec << "] " << "[INFO   ] " << message << std::endl;
 	}
 
-	static std::unordered_set<SparseIntArray> computePInvariants(const MatrixCol& pn) {
+	static std::unordered_set<SparseArray<T>> computePInvariants(const MatrixCol<T>& pn) {
         	return computePInvariants(pn, false, 120);
     	}
 
-    	static std::unordered_set<SparseIntArray> computePInvariants(const MatrixCol& pn, bool onlyPositive, int timeout) {
-        	std::promise<std::unordered_set<SparseIntArray>> promise;
+    	static std::unordered_set<SparseArray<T>> computePInvariants(const MatrixCol<T>& pn, bool onlyPositive, int timeout) {
+        	std::promise<std::unordered_set<SparseArray<T>>> promise;
         	auto future = promise.get_future();
 
         	std::thread thread([&]() {
-            		std::unordered_set<SparseIntArray> result = computePInvariants(pn, onlyPositive); 
+            		std::unordered_set<SparseArray<T>> result = computePInvariants(pn, onlyPositive);
             		promise.set_value(result);
         	});
 		
@@ -165,52 +150,52 @@ public:
                     		thread.detach();
                 	}
 			writeToLog("Error: Future is in invalid state.");
-            		return std::unordered_set<SparseIntArray>();
+            		return std::unordered_set<SparseArray<T>>();
         	}
     	}
 
 private:
-	static void cache(const MatrixCol& pn, const std::unordered_set<SparseIntArray>& inv) {
+	static void cache(const MatrixCol<T>& pn, const std::unordered_set<SparseArray<T>>& inv) {
 		std::lock_guard<std::mutex> guard(lock);
 		last = pn;
 		lastInv = inv;
 	}
 
-	static std::unordered_set<SparseIntArray> checkCache(const MatrixCol& pn) {
+	static std::unordered_set<SparseArray<T>> checkCache(const MatrixCol<T>& pn) {
         	std::lock_guard<std::mutex> guard(lock);
 		if (pn.equals(last)) {
 			writeToLog("Invariant cache hit.");
 			return lastInv;
 		} else {
-			return std::unordered_set<SparseIntArray>();
+			return std::unordered_set<SparseArray<T>>();
 		}
 	}
 
 public:
-	static std::unordered_set<SparseIntArray> computeTinvariants(const SparsePetriNet & sr, const MatrixCol & sumMatrix, const std::vector<int>& repr,
+	static std::unordered_set<SparseArray<T>> computeTinvariants(const SparsePetriNet<T> & sr, const MatrixCol<T> & sumMatrix, const std::vector<int>& repr,
 			bool onlyPositive) {
 
 		std::unordered_map<int, std::vector<int>> repSet = computeMap(repr);
-		std::unordered_set<SparseIntArray> invarT = computePInvariants(sumMatrix.transpose(), onlyPositive);
+		std::unordered_set<SparseArray<T>> invarT = computePInvariants(sumMatrix.transpose(), onlyPositive);
 
 		if (DEBUG >= 1 && !invarT.empty()) {
-			std::vector<int> empty(sr.getTransitionCount(), 0);
+			std::vector<T> empty(sr.getTransitionCount(), 0);
         		printInvariant(invarT, sr.getTnames(), empty);
     		}
 		// so we have T invariants, using the reduced flow matrix
-		std::unordered_set<SparseIntArray> reindexT;
+		std::unordered_set<SparseArray<T>> reindexT;
 		// reinterpret over the original indexes of transitions
 		for (const auto& inv : invarT) {
-        		std::vector<SparseIntArray> toadd = {SparseIntArray()};
+        		std::vector<SparseArray<T>> toadd = {SparseArray<T>()};
         		for (size_t i = 0; i < inv.size(); ++i) {
             			int t = inv.keyAt(i);
             			int val = inv.valueAt(i);
             			const std::vector<int>& images = repSet[t];
             			if (images.size() > 1) {
                 			for (const auto& img : images) {
-               	 				std::vector<SparseIntArray> toadd2;
+               	 				std::vector<SparseArray<T>> toadd2;
                     				for (const auto& b : toadd) {
-                        				SparseIntArray mod = b;
+                        				SparseArray<T> mod = b;
                         				mod.put(img, val);
                         				toadd2.push_back(mod);
                     				}
@@ -234,26 +219,27 @@ public:
 		return invarT;
 	}
 
-	static std::unordered_set<SparseIntArray> computeTinvariants(const SparsePetriNet & sr, MatrixCol sumMatrix,
+	static std::unordered_set<SparseArray<T>> computeTinvariants(const SparsePetriNet<T> & sr, MatrixCol<T> & sumMatrix,
 			const std::vector<int> & repr) {
 		return computeTinvariants(sr, sumMatrix, repr, true);
 	}
 
-	static std::unordered_set<SparseIntArray> computePInvariants(const MatrixCol& pn, bool onlyPositive) {
-    		std::unordered_set<SparseIntArray> invar = checkCache(pn);
+	static std::unordered_set<SparseArray<T>> computePInvariants(const MatrixCol<T>& pn, bool onlyPositive) {
+    		std::unordered_set<SparseArray<T>> invar = checkCache(pn);
     		if (!invar.empty()) {
         		return invar;
     		}
 
     		auto startTime = std::chrono::steady_clock::now();
     		try {
-        		invar = InvariantCalculator::calcInvariantsPIPE(pn.transpose(), onlyPositive);
+        		invar = InvariantCalculator<T>::calcInvariantsPIPE(pn.transpose(), onlyPositive);
         		cache(pn, invar);
 			std::string logMessage = "Computed " + std::to_string(invar.size()) + " invariants in " +
         				std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
         						(std::chrono::steady_clock::now() - startTime).count()) + " ms";
 			writeToLog(logMessage);
     		} catch (std::overflow_error& e) {
+    			std::cerr << e.what() << std::endl;
         		invar.clear();
 			std::string logMessage = "Invariants computation overflowed in " +
         				std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>
@@ -271,8 +257,8 @@ public:
 	 * @return a set of invariants, i.e. coeffs for each variable such that the sum
 	 *         is constant in all markings/states.
 	 */
-	static std::unordered_set<SparseIntArray> computePSemiFlows(FlowMatrix pn) {
-		return InvariantCalculator::calcSInvariants(pn, InvariantCalculator::InvariantAlgorithm::PIPE, true);
+	static std::unordered_set<SparseArray<T>> computePSemiFlows(FlowMatrix<T> pn) {
+		return InvariantCalculator<T>::calcSInvariants(pn, InvariantCalculator<T>::InvariantAlgorithm::PIPE, true);
 	}
 
 	/**
@@ -287,20 +273,20 @@ public:
 	 *                       representative (many to one/surjection)
 	 * @return a (reduced, less columns than usual) flow matrix
 	 */
-	static MatrixCol computeReducedFlow(const SparsePetriNet & sr, std::vector<int> & representative) {
-		MatrixCol sumMatrix (sr.getPlaceCount(), 0);
+	static MatrixCol<T> computeReducedFlow(const SparsePetriNet<T> & sr, std::vector<int> & representative) {
+		MatrixCol<T> sumMatrix (sr.getPlaceCount(), 0);
 		sumMatrix.reserveColumns(sr.getTransitionCount());
 		{
-			typedef std::unordered_map<const SparseIntArray *, int, std::hash<SparseIntArray*>, std::equal_to<SparseIntArray*>> map_t;
+			typedef std::unordered_map<const SparseArray<T> *, int, std::hash<SparseArray<T>*>, std::equal_to<SparseArray<T>*>> map_t;
 			map_t seen;
 			int discarded = 0;
 			int curr = 0;
 			
-			for (int i=0 ; i < sr.getTransitionCount() ; i++) {
+			for (size_t i=0 ; i < sr.getTransitionCount() ; i++) {
 				// effects of t
-				SparseIntArray combined = SparseIntArray::sumProd(-1, sr.getFlowPT().getColumn(i), 1, sr.getFlowTP().getColumn(i));
+				SparseArray<T> combined = SparseArray<T>::sumProd(-1, sr.getFlowPT().getColumn(i), 1, sr.getFlowTP().getColumn(i));
 				// have we seen this effect ?
-				map_t::iterator it = seen.find(&combined);
+				typename map_t::iterator it = seen.find(&combined);
 				if (it == seen.end()) {
 					// a new effect
 					sumMatrix.appendColumn(combined);
@@ -323,8 +309,8 @@ public:
 		return sumMatrix;
 	}
 
-	static SparseIntArray transformParikh(const SparseIntArray & parikhori, const std::unordered_map<int, std::vector<int>>& repr) {
-		SparseIntArray parikh;
+	static SparseArray<T> transformParikh(const SparseArray<T> & parikhori, const std::unordered_map<int, std::vector<int>>& repr) {
+		SparseArray<T> parikh;
 		for (int i = 0, e = parikhori.size(); i < e; i++) {
 			int t = parikhori.keyAt(i);
 			int k = parikhori.valueAt(i);
