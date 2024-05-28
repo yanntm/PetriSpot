@@ -11,13 +11,14 @@
  * A class to parse a PT model from an PNML file.
  * @author Yann Thierry-Mieg 2015
  */
+template<typename T>
 class PTNetHandler {
 
 	// context stack
 	std::stack<void *> stack;
 
 	// object constructed
-	SparsePetriNet * net = new SparsePetriNet();
+	SparsePetriNet<T> * net = new SparsePetriNet<T>();
 
 	// form is a pair <isPlace, index>
 	// isPlace false = it's a transition
@@ -27,7 +28,7 @@ class PTNetHandler {
 	typedef ext_hash_map<std::string, node_t > index_t;
 	index_t index;
 
-	typedef std::pair< std::pair<std::string, std::string>, int> arc_t;
+	typedef std::pair< std::pair<std::string, std::string>, T> arc_t;
 	typedef std::vector<arc_t *> arcs_t;
 	arcs_t topatch;
 	
@@ -41,10 +42,10 @@ class PTNetHandler {
 	bool doIt;
 
 public :
-	 PTNetHandler():net(new SparsePetriNet()),readtext(false),lastint(-1),readint(false),inOpaqueToolSpecific(false),doIt(false) {}
+	 PTNetHandler():net(new SparsePetriNet<T>()),readtext(false),lastint(-1),readint(false),inOpaqueToolSpecific(false),doIt(false) {}
 
 	 static void characters(void * userData, const XML_Char * chars, int length) {
-		 PTNetHandler * tthis = (PTNetHandler *) userData;
+		 PTNetHandler<T> * tthis = (PTNetHandler<T> *) userData;
 		 if (tthis->inOpaqueToolSpecific) {
 			return;
 		} else if (tthis->doIt) {
@@ -63,7 +64,7 @@ public :
 //		if (doNupn) {
 //			nupnHandler.startElement(uri, localName, baliseName, attributes);
 //		} else
-		 PTNetHandler * tthis = (PTNetHandler *) userData;
+		 PTNetHandler<T> * tthis = (PTNetHandler<T> *) userData;
 		 if (tthis->inOpaqueToolSpecific) {
 			 // Skip any further processing if within a toolspecific section
 			 return;
@@ -98,7 +99,7 @@ public :
 //			pn.getPages().add(page);
 //			stack.push(page);
 		} else if ("place"==baliseName) {
-			SparsePetriNet * pn =  tthis->net;
+			SparsePetriNet<T> * pn =  tthis->net;
 
 			std::string id;
 			for (int i=0 ; atts[i] != nullptr ; i+=2) {
@@ -121,7 +122,7 @@ public :
 			tthis->readint = true;
 			
 		} else if ("transition"==baliseName) {
-			SparsePetriNet * pn = tthis->net;
+			SparsePetriNet<T> * pn = tthis->net;
 
 			std::string id;
 			for (int i=0 ; atts[i] != nullptr ; i+=2) {
@@ -175,7 +176,7 @@ public :
 
 	/** {@inheritDoc} */
 	 static void endElement(void *userData, const XML_Char *name) {
-		 PTNetHandler * tthis = (PTNetHandler *) userData;
+		 PTNetHandler<T> * tthis = (PTNetHandler<T> *) userData;
  		std::string baliseName (name);
 		 // Balise MODEL
 		if ("toolspecific"==baliseName) {
@@ -267,7 +268,7 @@ public :
 	/**
 	 * @return the order loaded from the XML file
 	 */
-	 SparsePetriNet * getParseResult() {
+	 SparsePetriNet<T> * getParseResult() {
 		return net;
 	}
 };
