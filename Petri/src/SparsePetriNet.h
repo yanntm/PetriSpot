@@ -10,16 +10,16 @@
 
 #include "MatrixCol.h"
 
+template<typename T>
 class SparsePetriNet {
-	std::string name;
-	std::vector<int> marks;
-	MatrixCol flowPT;
-	MatrixCol flowTP;
-	std::vector<std::string> tnames;
-	std::vector<std::string> pnames;
-	int maxArcValue;
-	static const int DEBUG = 0;
-
+    std::string name;
+    std::vector<T> marks;
+    MatrixCol<T> flowPT;
+    MatrixCol<T> flowTP;
+    std::vector<std::string> tnames;
+    std::vector<std::string> pnames;
+    T maxArcValue;
+    static const int DEBUG = 0;
 public :
 	SparsePetriNet():name("Petri"),maxArcValue(0) {
 	}
@@ -33,13 +33,13 @@ public :
 	}
 
 	int addTransition (const std::string & tname) {
-		flowPT.appendColumn(SparseIntArray());
-		flowTP.appendColumn(SparseIntArray());
+		flowPT.appendColumn(SparseArray<T>());
+		flowTP.appendColumn(SparseArray<T>());
 		tnames.emplace_back(tname);
 		return tnames.size()-1;
 	}
 
-	int addPlace (const std::string & pname, int init) {
+	int addPlace (const std::string & pname, T init) {
 		flowPT.addRow();
 		flowTP.addRow();
 		pnames.emplace_back(pname);
@@ -47,25 +47,36 @@ public :
 		return pnames.size()-1;
 	}
 
-	void addPreArc (int p, int t, int val) {
+	void addPreArc (int p, int t, T val) {
 		flowPT.getColumn(t).put(p,val);
 		maxArcValue = std::max(maxArcValue, val);
 	}
 
-	void addPostArc (int p, int t, int val) {
+	void addPostArc (int p, int t, T val) {
 		flowTP.getColumn(t).put(p,val);
 		maxArcValue = std::max(maxArcValue, val);
 	}
 
-	int getTransitionCount() const {
+	size_t getTransitionCount() const {
 		return tnames.size();
 	}
 
-	int getPlaceCount() const {
+	size_t getPlaceCount() const {
 		return pnames.size();
 	}
 
-	void setMarking (int pid, int val) {
+	int getArcCount() const {
+		int sum = 0;
+		for (size_t i=0; i<flowTP.getColumnCount(); i++) {
+			sum += flowTP.getColumn(i).size();
+		}
+		for (size_t i=0; i<flowTP.getColumnCount(); i++) {
+			sum += flowPT.getColumn(i).size();
+		}
+		return sum;
+	}
+
+	void setMarking (int pid, T val) {
 		marks[pid]=val;
 	}
 
@@ -77,16 +88,16 @@ public :
 		return pnames;
 	}
 
-	MatrixCol & getFlowPT() {
+	MatrixCol<T> & getFlowPT() {
 		return flowPT;
 	}
-	MatrixCol & getFlowTP() {
+	MatrixCol<T> & getFlowTP() {
 		return flowTP;
 	}
-	const MatrixCol & getFlowPT() const {
+	const MatrixCol<T> & getFlowPT() const {
 		return flowPT;
 	}
-	const MatrixCol & getFlowTP() const {
+	const MatrixCol<T> & getFlowTP() const {
 		return flowTP;
 	}
 
@@ -94,7 +105,7 @@ public :
 		return maxArcValue;
 	}
 
-	const std::vector<int> & getMarks() const {
+	const std::vector<T> & getMarks() const {
 		return marks;
 	}
 };

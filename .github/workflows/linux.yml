@@ -1,0 +1,44 @@
+name: Linux Build
+
+on:
+  push:
+    branches: [ invariant ]
+  pull_request:
+    branches: [ invariant ]
+  repository_dispatch:
+    types: [Linux]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    - name: libGMP
+      run: wget --progress=dot:mega https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz ; tar xf gmp-6.3.0.tar.xz ; cd gmp-6.3.0 ; ./configure --enable-cxx --enable-fat --prefix=$(pwd)/../usr/local  --build=westmere-pc-linux-gnu ; make -j ; make install ; cd .. ;    
+    - name: libExpat
+      run: wget --progress=dot:mega https://github.com/libexpat/libexpat/archive/R_2_2_4.tar.gz ; tar xzf R_2_2_4.tar.gz ; cd libexpat-R_2_2_4/expat/ ; ./buildconf.sh ; ./configure --prefix=$(pwd)/../../usr/local --without-xmlwf ; make -j ; make install ; cd ../.. ;     
+    - name: Grab libDDD artefacts
+      run: wget --progress=dot:mega https://github.com/lip6/libDDD/raw/gh-pages/linux.tgz ; tar xzf linux.tgz ; rm linux.tgz 
+    - name: LTL start Grab Spot artefacts
+      run: wget --progress=dot:mega https://yanntm.github.io/Spot-BinaryBuilds/spot_linux.tar.gz ; tar xzf spot_linux.tar.gz ; 
+    - name: autoreconf
+      run: cd Petri ; autoreconf -vfi
+    - name: configure
+      run: cd Petri ; ./configure --prefix=$PWD/../usr/local/  --with-libexpat=$PWD/../usr/local/ --with-libspot=$(pwd)/../usr/local/ --with-libddd=$PWD/../usr/local/ --with-gmp=$PWD/../usr/local/ --with-antlrc=$PWD/../usr/local/   CPPFLAGS="-I$(pwd)/../usr/local/include -DNDEBUG" LDFLAGS="-L$(pwd)/../usr/local/lib" || cat config.log ; 
+    - name: make 
+      run: cd Petri ; make -j 4
+#    - name: run tests
+#      run: cd tests ; ( rc=0 ; for TEST in *.data ; do ./run_test.pl $TEST || rc=$? ; done; exit $rc) ; cd ..
+    - name: prepare binaries
+      run: mkdir -p website ; cp Petri/src/petri32 Petri/src/petri64 Petri/src/petri128 website 
+    - name: strip binaries
+      run: strip -s website/petri32 ; strip -s website/petri64 ; strip -s website/petri128  
+    
+    - name: Deploy to GitHub Pages
+      uses: JamesIves/github-pages-deploy-action@v4
+      with:
+          branch: Inv-Linux # The branch the action should deploy to.
+          folder: website/ # The folder the action should deploy.
+          clean: true # Automatically remove deleted files from the deploy branch 
+          single-commit: true
