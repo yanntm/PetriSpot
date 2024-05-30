@@ -4,7 +4,7 @@
 
 PetriSpot is a standalone command-line utility for analyzing Petri nets in PNML format (ISO/IEC 15909-2). It computes a generative basis of P and/or T flows and semi-flows using efficient algorithms based on sparse data structures. This tool is a modern C++ reimplementation of the [algorithm](https://hal.science/hal-04142675) from [ITS-Tools](https://github.com/lip6/ITSTools).
 
-PetriSpot represents the state-of-the-art (SoTa) in invariant computation, as indicated by extensive comparisons on the models of the [Model Checking Contest](https://mcc.lip6.fr).
+PetriSpot represents the state-of-the-art in invariant computation, as indicated by [extensive comparisons](https://github.com/yanntm/InvariantPerformance) on the models of the [Model Checking Contest](https://mcc.lip6.fr).
 
 ## Installation
 
