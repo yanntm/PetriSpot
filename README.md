@@ -60,15 +60,7 @@ To use PetriSpot, run the following command:
 
 ### Example 1: Petri Net with One Transition Semi-Flow and One Generalized Place Flow
 
-![Net1](Petri/examples/net1.png)
-
-- **Places**: \(P_0, P_1\)
-- **Transitions**: \(t_0, t_1\)
-- **Arcs**:
-  - From \(P_0\) to \(t_0\)
-  - From \(t_0\) to \(P_1\)
-  - From \(P_1\) to \(t_1\)
-  - From \(t_1\) to \(P_0\)
+<img src="Petri/examples/net1.png" alt="Net1" width="400">
 
 #### Command
 
@@ -98,7 +90,7 @@ Total runtime 0 ms.
 
 ### Example 2: Petri Net with One Transition Semi-Flow and One Place Semi-Flow
 
-![Net2](Petri/examples/net2.png)
+<img src="Petri/examples/net2.png" alt="Net2" width="400">
 
 
 #### Command
