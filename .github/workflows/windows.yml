@@ -2,9 +2,7 @@ name: windows build
 
 on:
   push:
-    branches: [ invariant ]
-  pull_request:
-    branches: [ invariant ]
+    branches: [ master ]
   repository_dispatch:
     types: [Windows]
 

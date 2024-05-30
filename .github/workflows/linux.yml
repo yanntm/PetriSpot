@@ -2,9 +2,7 @@ name: Linux Build
 
 on:
   push:
-    branches: [ invariant ]
-  pull_request:
-    branches: [ invariant ]
+    branches: [ master ]
   repository_dispatch:
     types: [Linux]
 
