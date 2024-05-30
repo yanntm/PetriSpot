@@ -467,7 +467,7 @@ public:
 			unsigned int ki = i == ta.size() ? std::numeric_limits<unsigned int>::max() : ta.keyAt(i);
 			unsigned int kj = j == tb.size() ? std::numeric_limits<unsigned int>::max() : tb.keyAt(j);
 			if (ki == kj) {
-				int val = petri::addExact( petri::multiplyExact(alpha, ta.valueAt(i)) , petri::multiplyExact(beta, tb.valueAt(j)));
+				T val = petri::addExact( petri::multiplyExact(alpha, ta.valueAt(i)) , petri::multiplyExact(beta, tb.valueAt(j)));
 				if (val != 0) {
 					flow.append(ki, val);
 				}
@@ -477,7 +477,7 @@ public:
 				i++;
 				j++;
 			} else if (ki < kj) {
-				int val = petri::multiplyExact(alpha, ta.valueAt(i));
+				T val = petri::multiplyExact(alpha, ta.valueAt(i));
 				if (val != 0) {
 					flow.append(ki, val);
 				}
@@ -486,7 +486,7 @@ public:
 				}
 				i++;
 			} else if (kj < ki) {
-				int val = petri::multiplyExact(beta, tb.valueAt(j));
+				T val = petri::multiplyExact(beta, tb.valueAt(j));
 				if (val != 0) {
 					flow.append(kj, val);
 				}
@@ -551,18 +551,18 @@ private:
 				continue;
 			}
 
-			int cHj = colj.get(tRow);
+			T cHj = colj.get(tRow);
 			if (cHj != 0) {
 				// substitute to the column of index j the linear combination
 				// of the columns of indices tCol and j with coefficients
 				// alpha and beta defined as follows:
-				int alpha = ((signum(cHj) * signum(cHk)) < 0) ? std::abs(cHj) : -std::abs(cHj);
+				T alpha = ((signum(cHj) * signum(cHk)) < 0) ? std::abs(cHj) : -std::abs(cHj);
 				if (alpha == 0 && bbeta == 1) {
 					continue;
 				}
-				int gcd = InvariantCalculator::gcd(alpha, bbeta);
+				T gcd = std::gcd(alpha, bbeta);
 				alpha /= gcd;
-				int beta = bbeta / gcd;
+				T beta = bbeta / gcd;
 
 				SparseBoolArray changed = sumProdInto(beta, colj, alpha, matC.getColumn(tCol));
 				for (size_t ind = 0, inde = changed.size(); ind < inde; ind++) {
