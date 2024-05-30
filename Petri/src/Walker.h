@@ -22,12 +22,12 @@ class Walker {
 	MatrixCol<T> combFlow;
 	MatrixCol<T> tFlowPT;
 	int * behaviorMap;
-	int behaviorCount;
+	size_t behaviorCount;
 	static const int DEBUG = 1;
 public :
 	Walker(const SparsePetriNet<T> & ssr) : combFlow(ssr.getPnames().size(),0) {
 		this->sr = & ssr;
-		typedef std::unordered_map<const SparseArray<T> *, std::vector<int>, std::hash<SparseArray<T>*>, std::equal_to<SparseArray<T>*>> map_t;
+		typedef std::unordered_map<const SparseArray<T> *, std::vector<size_t>, std::hash<SparseArray<T>*>, std::equal_to<SparseArray<T>*>> map_t;
 		map_t effects;
 
 		for (size_t i = 0 ;  i < sr->getFlowPT().getColumnCount() ; i ++) {
@@ -40,7 +40,7 @@ public :
 			if (it != effects.end()) {
 				it->second.push_back(i);
 			} else {
-				std::vector<int> r;
+				std::vector<size_t> r;
 				r.push_back(i);
 				effects.insert(std::make_pair(&col, r));
 			}
@@ -48,7 +48,7 @@ public :
 		behaviorMap = new int [sr->getTnames().size()];
 		int i=0;
 		for (const auto & ent : effects) {
-			for (int t : ent.second) {
+			for (const auto & t : ent.second) {
 				behaviorMap[t]=i;
 			}
 			i++;
