@@ -210,7 +210,7 @@ public :
 		 return lCols[i] = std::move(v);
 	}
 
-	 int get (size_t row, size_t col) const {
+	T get (size_t row, size_t col) const {
 		return lCols[col].get(row);
 	}
 
@@ -329,8 +329,8 @@ public :
 
 	    void sortByColumnSize() {
 	        std::sort(lCols.begin(), lCols.end(), [](const SparseArray<T>& a, const SparseArray<T>& b) {
-	            int aSize = a.size();
-	            int bSize = b.size();
+	            size_t aSize = a.size();
+	            size_t bSize = b.size();
 
 	            // First criterion: size of the columns
 	            if (aSize != bSize) {
