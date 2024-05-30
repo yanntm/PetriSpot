@@ -317,7 +317,7 @@ public :
 		if (mSize==0 || i > mKeys[mSize-1]) {
 			return;
 		}
-		size_t k;
+		ssize_t k;
 		for (k= mSize-1 ; k>=0 && mKeys[k]>i ; k--) {
 			mKeys[k]--;			
 		}
