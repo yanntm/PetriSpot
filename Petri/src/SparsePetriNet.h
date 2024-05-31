@@ -37,7 +37,7 @@ template<typename T>
       this->name = n;
     }
 
-    int addTransition (const std::string &tname)
+    size_t addTransition (const std::string &tname)
     {
       flowPT.appendColumn (SparseArray<T> ());
       flowTP.appendColumn (SparseArray<T> ());
@@ -45,7 +45,7 @@ template<typename T>
       return tnames.size () - 1;
     }
 
-    int addPlace (const std::string &pname, T init)
+    size_t addPlace (const std::string &pname, T init)
     {
       flowPT.addRow ();
       flowTP.addRow ();
@@ -76,9 +76,9 @@ template<typename T>
       return pnames.size ();
     }
 
-    int getArcCount () const
+    size_t getArcCount () const
     {
-      int sum = 0;
+      size_t sum = 0;
       for (size_t i = 0; i < flowTP.getColumnCount (); i++) {
         sum += flowTP.getColumn (i).size ();
       }
