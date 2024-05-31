@@ -230,7 +230,7 @@ template<typename T>
       return lCols[col].get (row);
     }
 
-    void set (size_t row, size_t col, int val)
+    void set (size_t row, size_t col, T val)
     {
       assert (!(row < 0 || col < 0 || row >= iRows || col >= iCols));
       if (val != 0) {
@@ -308,6 +308,22 @@ template<typename T>
       return tr;
     }
 
+    T maxVal () const
+    {
+      if (lCols.empty ()) {
+        return 0;
+      } else {
+        T max = 0;
+        for (const SparseArray<T> &col : lCols) {
+          auto mv = col.maxVal ();
+          if (std::abs (mv) > std::abs (max)) {
+            max = mv;
+          }
+        }
+        return max;
+      }
+    }
+
     void transposeTo (MatrixCol &tr) const
     {
       transposeTo (tr, true);
@@ -319,7 +335,7 @@ template<typename T>
         const SparseArray<T> &col = lCols[tcol];
         for (size_t k = 0; k < col.size (); k++) {
           size_t trow = col.keyAt (k);
-          int val = col.valueAt (k);
+          T val = col.valueAt (k);
           tr.set (tcol, trow, val);
         }
       }
@@ -335,6 +351,10 @@ template<typename T>
         col.print (os);
       }
       os << '}';
+    }
+    friend std::ostream & operator<< (std::ostream & os, const MatrixCol & m) {
+      m.print(os);
+      return os;
     }
 
     /**
@@ -364,8 +384,8 @@ template<typename T>
                      }
 
                      // Second criterion: index of the first key
-                     int aFirstKey = a.keyAt(0);
-                     int bFirstKey = b.keyAt(0);
+                     size_t aFirstKey = a.keyAt(0);
+                     size_t bFirstKey = b.keyAt(0);
                      return aFirstKey < bFirstKey;
                    });
     }
