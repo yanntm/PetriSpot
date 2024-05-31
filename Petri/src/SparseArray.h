@@ -52,7 +52,7 @@
 template<typename T>
   class SparseArray
   {
-    unsigned int *mKeys;
+    size_t *mKeys;
     T *mValues;
     size_t mSize;
     size_t mCap;
@@ -67,7 +67,7 @@ template<typename T>
     SparseArray (size_t initialCapacity = 8)
     {
       mCap = initialCapacity;
-      mKeys = new unsigned int[mCap];
+      mKeys = new size_t[mCap];
       mValues = new T[mCap];
       mSize = 0;
     }
@@ -82,7 +82,7 @@ template<typename T>
         // Compute and set the correct capacity based on non-zero elements
         mCap = std::count_if (marks.begin (), marks.end (),
                               [] (const U &e) {return e != 0;});
-        mKeys = new unsigned int[mCap];
+        mKeys = new size_t[mCap];
         mValues = new T[mCap];
         mSize = 0;
         for (size_t i = 0, e = marks.size (); i < e; ++i) {
@@ -148,11 +148,11 @@ template<typename T>
     {
       a.mCap = o.mCap;
       a.mSize = o.mSize;
-      a.mKeys = new unsigned int[a.mCap];
+      a.mKeys = new size_t[a.mCap];
       a.mValues = new T[a.mCap];
       ;
 
-      memcpy (a.mKeys, o.mKeys, a.mSize * sizeof(unsigned int));
+      memcpy (a.mKeys, o.mKeys, a.mSize * sizeof(size_t));
       memcpy (a.mValues, o.mValues, a.mSize * sizeof(T));
     }
 
@@ -165,7 +165,7 @@ template<typename T>
      * Gets the value mapped from the specified key, or <code>0</code>
      * if no such mapping has been made.
      */
-    T get (unsigned int key) const
+    T get (size_t key) const
     {
       return get (key, 0);
     }
@@ -173,9 +173,9 @@ template<typename T>
      * Gets the value mapped from the specified key, or the specified value
      * if no such mapping has been made.
      */
-    T get (unsigned int key, T valueIfKeyNotFound) const
+    T get (size_t key, T valueIfKeyNotFound) const
     {
-      int i = binarySearch (mKeys, mSize, key);
+      ssize_t i = binarySearch (mKeys, mSize, key);
       if (i < 0) {
         return valueIfKeyNotFound;
       } else {
@@ -185,9 +185,9 @@ template<typename T>
     /**
      * Removes the mapping from the specified key, if there was any.
      */
-    int del (unsigned int key)
+    ssize_t del (size_t key)
     {
-      int i = binarySearch (mKeys, mSize, key);
+      ssize_t i = binarySearch (mKeys, mSize, key);
       if (i >= 0) {
         removeAt (i);
       }
@@ -207,9 +207,9 @@ template<typename T>
      * replacing the previous mapping from the specified key if there
      * was one.
      */
-    void put (unsigned int key, T value)
+    void put (size_t key, T value)
     {
-      int i = binarySearch (mKeys, mSize, key);
+      ssize_t i = binarySearch (mKeys, mSize, key);
       if (value == 0) {
         if (i >= 0) {
           removeAt (i);
@@ -245,7 +245,7 @@ template<typename T>
      * smallest key and <code>keyAt(size()-1)</code> will return the largest
      * key.</p>
      */
-    unsigned int keyAt (size_t index) const
+    size_t keyAt (size_t index) const
     {
       return mKeys[index];
     }
@@ -277,7 +277,7 @@ template<typename T>
      * specified key, or a negative number if the specified
      * key is not mapped.
      */
-    int indexOfKey (unsigned int key) const
+    ssize_t indexOfKey (size_t key) const
     {
       return binarySearch (mKeys, mSize, key);
     }
@@ -306,7 +306,7 @@ template<typename T>
      * Puts a key/value pair into the array, optimizing for the case where
      * the key is greater than all existing keys in the array.
      */
-    void append (unsigned int key, T value)
+    void append (size_t key, T value)
     {
       if (value == 0) return;
       if (mSize != 0 && key <= mKeys[mSize - 1]) {
@@ -336,6 +336,16 @@ template<typename T>
       if (!equalsRange (mKeys, other.mKeys, mSize)) return false;
       if (!equalsRange (mValues, other.mValues, mSize)) return false;
       return true;
+    }
+
+    T maxVal () const {
+      if (size () == 0) return 0;
+      T max = mValues[0];
+      for (size_t i = 1; i < mSize; i++) {
+        if (std::abs(mValues[i]) > std::abs(max))
+          max = mValues[i];
+      }
+      return max;
     }
 
     /**
@@ -451,8 +461,8 @@ template<typename T>
 
       for (size_t j = 0, i = 0, ss1 = s1.size (), ss2 = s2.size ();
           i < ss1 && j < ss2;) {
-        int sk1 = s1.keyAt (i);
-        int sk2 = s2.keyAt (j);
+        size_t sk1 = s1.keyAt (i);
+        size_t sk2 = s2.keyAt (j);
         if (sk1 == sk2) {
           if (s1.valueAt (i) < s2.valueAt (j)) {
             return false;
@@ -466,7 +476,7 @@ template<typename T>
         } else {
           // sk1 < sk2 : we must progress in s1
           // use a binary search for that
-          int ii = binarySearch (s1.mKeys, sk2, i + 1, s1.mSize - 1);
+          ssize_t ii = binarySearch (s1.mKeys, sk2, i + 1, s1.mSize - 1);
           if (ii < 0) {
             return false;
           }
@@ -511,7 +521,7 @@ template<typename T>
      * Delete an element at index and shift elements to the right by one.
      * @param i
      */
-    void deleteAndShift (unsigned int i)
+    void deleteAndShift (size_t i)
     {
       if (mSize == 0 || i > mKeys[mSize - 1]) {
         return;
@@ -529,7 +539,7 @@ template<typename T>
      * More efficient one pass version for removing many at once.
      * @param todel a list of decreasing sorted indexes.
      */
-    void deleteAndShift (const std::vector<unsigned int> &todel)
+    void deleteAndShift (const std::vector<size_t> &todel)
     {
       if (mSize == 0 || todel.empty () || todel.back () > mKeys[mSize - 1]) {
         return;
@@ -537,7 +547,7 @@ template<typename T>
       // start from rightmost key
       int k = mSize - 1;
       for (size_t cur = 0, e = todel.size (); cur < e; cur++) {
-        unsigned int val = todel.at (cur);
+        size_t val = todel.at (cur);
         for (; k >= 0 && mKeys[k] > val; k--) {
           mKeys[k] -= todel.size () - cur;
         }
@@ -549,21 +559,21 @@ template<typename T>
     }
 
   private:
-    static int binarySearch (const unsigned int *const array, size_t sz,
-                             unsigned int value)
+    static ssize_t binarySearch (const size_t *const array, size_t sz,
+                             size_t value)
     {
-      int lo = 0;
-      int hi = sz - 1;
+      ssize_t lo = 0;
+      ssize_t hi = sz - 1;
 
       return binarySearch (array, value, lo, hi);
     }
     // This is Arrays.binarySearch(), but doesn't do any argument validation.
-    static int binarySearch (const unsigned int *const array,
-                             unsigned int value, int lo, int hi)
+    static ssize_t binarySearch (const size_t *const array,
+                             size_t value, ssize_t lo, ssize_t hi)
     {
       while (lo <= hi) {
-        int mid = (lo + hi) >> 1;
-        unsigned int midVal = array[mid];
+        ssize_t mid = (lo + hi) >> 1;
+        size_t midVal = array[mid];
         if (midVal < value) {
           lo = mid + 1;
         } else if (midVal > value) {
@@ -629,7 +639,7 @@ template<typename T>
         return std::equal (a, a + s, b);
       }
 
-    static size_t hashCode (const unsigned int *const a, const T *const b,
+    static size_t hashCode (const size_t *const a, const T *const b,
                             size_t sz)
     {
       if (a == nullptr || b == nullptr) return 0;
