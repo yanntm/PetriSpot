@@ -256,7 +256,7 @@ template<typename T>
             succ[ti - 1] = fire (list[ti], state);
             i++;
           }
-          int minSucc = sr->getTnames ().size () + 1;
+          size_t minSucc = sr->getTnames ().size () + 1;
           int mini = -1;
           int *minList = nullptr;
           for (int ti = 0; ti < list[0]; ti++) {
