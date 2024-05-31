@@ -32,7 +32,7 @@ template<typename T>
   class InvariantCalculator
   {
 
-    static const bool DEBUG = false;
+    static inline const bool DEBUG = false;
 
   public:
     /**
@@ -228,7 +228,6 @@ template<typename T>
       for (const SparseArray<T> &col : normed) {
         matnorm.appendColumn (col);
       }
-      matnorm.sortByColumnSize ();
 
       MatrixCol<T> matB = phase1PIPE (matnorm.transpose ());
 
@@ -468,6 +467,10 @@ template<typename T>
       int startIndex = 0;
       while (!matC.isZero ()) {
         startIndex = test1b (matC, matB, pppms, startIndex);
+        if (DEBUG) {
+                std::cout << "Mat max : " << matC.maxVal() << std::endl;
+                std::cout << "B max : " << matB.maxVal() << std::endl;
+              }
       }
       return matB;
     }
@@ -488,7 +491,7 @@ template<typename T>
 
   public:
     static SparseBoolArray sumProdInto (int alpha, SparseArray<T> &ta, int beta,
-                                        SparseArray<T> &tb)
+                                        const SparseArray<T> &tb)
     {
       SparseBoolArray changed;
       SparseArray<T> flow (std::max (ta.size (), tb.size ()));
@@ -533,12 +536,12 @@ template<typename T>
           j++;
         }
       }
-      ta.move (flow);
+      ta = std::move(flow);
       return changed;
     }
 
   private:
-    static int signum (int value)
+    static int signum (T value)
     {
       return (value > 0) - (value < 0);
     }
@@ -549,9 +552,9 @@ template<typename T>
       // [1.1.b.1] let tRow be the index of a non-zero row of C.
       // let tCol be the index of a column such that c[trow][tcol] != 0.
 
-      int candidate = -1;
-      size_t szcand = std::numeric_limits<int>::max ();
-      size_t totalcand = std::numeric_limits<int>::max ();
+      ssize_t candidate = -1;
+      size_t szcand = std::numeric_limits<T>::max ();
+      size_t totalcand = std::numeric_limits<T>::max ();
       for (size_t col = 0; col < matC.getColumnCount (); col++) {
         size_t size = matC.getColumn (col).size ();
         if (size == 0) {
@@ -566,21 +569,21 @@ template<typename T>
         }
       }
       // int [] pair = matC.getNoneZeroRow();
-      size_t tRow;
-      size_t tCol;
-      if (candidate > 0) {
-        tRow = matC.getColumn ((size_t) candidate).keyAt (0);
-        tCol = (size_t) candidate;
-      }
+      size_t tRow = matC.getColumn (candidate).keyAt (0);
+      size_t tCol = candidate;
 
-      int cHk = matC.get (tRow, tCol);
-      int bbeta = std::abs (cHk);
+      T cHk = matC.get (tRow, tCol);
+      T bbeta = std::abs (cHk);
 
       if (DEBUG) {
         std::cout << "Rule 1b2 : " << tCol << std::endl;
       }
       // for all cols j with j != tCol and c[tRow][j] != 0
-      PpPm rowppm = pppms[tRow];
+      PpPm & rowppm = pppms[tRow];
+      if (DEBUG) {
+        std::cout << "tCol : " << tCol <<  " tRow " << tRow <<  std::endl;
+        std::cout << "rowppm : " << rowppm << std::endl;
+      }
       SparseBoolArray toVisit = SparseBoolArray::unionOperation (rowppm.pMinus,
                                                                  rowppm.pPlus);
 
@@ -607,6 +610,12 @@ template<typename T>
           alpha /= gcd;
           T beta = bbeta / gcd;
 
+          if (DEBUG) {
+            std::cout << "rule 1. b 2 : " << alpha << "*" << tCol << " + " << beta << " * " << j << std::endl;
+            std::cout << "tCol : " << matC.getColumn (tCol) << std::endl;
+            std::cout << "colj : " << colj << std::endl;
+          }
+
           SparseBoolArray changed = sumProdInto (beta, colj, alpha,
                                                  matC.getColumn (tCol));
           for (size_t ind = 0, inde = changed.size (); ind < inde; ind++) {
@@ -614,7 +623,18 @@ template<typename T>
                 j, colj.get (changed.keyAt (ind)));
           }
           SparseArray<T> &coljb = matB.getColumn (j);
+          if (DEBUG) {
+            std::cout << "colj(after) : " << colj << std::endl;
+            std::cout << "B[colj] : " << coljb << std::endl;
+          }
+
           sumProdInto (beta, coljb, alpha, matB.getColumn (tCol));
+
+          if (DEBUG)
+          if (DEBUG) {
+            std::cout << "B[tCol] : " << matB.getColumn (tCol) << std::endl;
+            std::cout << " after B[colj] : " << coljb << std::endl;
+          }
         }
       }
       clearColumn (tCol, matC, matB, pppms);
@@ -657,9 +677,9 @@ template<typename T>
         // substitute to the column of index j the linear combination of
         // the columns indexed by k and j with the coefficients
         // |chj| and |chk| respectively.
-        int chk = std::abs (matC.get (chkResult.row, tCol));
-        int chj = std::abs (matC.get (chkResult.row, j));
-        int gcd = InvariantCalculator::gcd (chk, chj);
+        T chk = std::abs (matC.get (chkResult.row, tCol));
+        T chj = std::abs (matC.get (chkResult.row, j));
+        T gcd = std::gcd (chk, chj);
         chk /= gcd;
         chj /= gcd;
 
@@ -676,10 +696,10 @@ template<typename T>
       clearColumn (chkResult.col, matC, matB, pppms);
     }
 
-    static int gcd (std::vector<int> set)
+    static T gcd (std::vector<T> set)
     {
       if (set.size () == 0) return 0;
-      int gcd = set[0];
+      T gcd = set[0];
       for (size_t i = 1; i < set.size (); i++) {
         gcd = InvariantCalculator::gcd (gcd, set[i]);
         if (gcd == 1) return 1;
@@ -687,33 +707,23 @@ template<typename T>
       return gcd;
     }
 
-    static int gcd (SparseArray<T> set)
+    static T gcd (SparseArray<T> set)
     {
       if (set.size () == 0) return 0;
-      int gcd = set.valueAt (0);
+      T gcd = set.valueAt (0);
       for (size_t i = 1; i < set.size (); i++) {
-        gcd = InvariantCalculator::gcd (gcd, set.valueAt (i));
+        gcd = std::gcd (gcd, set.valueAt (i));
         if (gcd == 1) return 1;
       }
       return gcd;
     }
 
-    static int gcd (int a, int b)
-    {
-      while (b != 0) {
-        int temp = b;
-        b = a % b;
-        a = temp;
-      }
-      return a;
-    }
-
-    static void normalize (std::vector<int> invariants)
+    static void normalize (std::vector<T> invariants)
     {
       int gcd = InvariantCalculator::gcd (invariants);
       if (gcd > 1) {
         for (size_t j = 0; j < invariants.size (); ++j) {
-          int norm = invariants[j] / gcd;
+          T norm = invariants[j] / gcd;
           invariants[j] = norm;
         }
       }
@@ -735,10 +745,10 @@ template<typename T>
         }
       }
 
-      int gcd = InvariantCalculator::gcd (col);
+      T gcd = InvariantCalculator::gcd (col);
       if (gcd > 1) {
         for (size_t j = 0; j < col.size (); ++j) {
-          int norm = col.valueAt (j) / gcd;
+          T norm = col.valueAt (j) / gcd;
           col.setValueAt (j, norm);
         }
       }
@@ -746,10 +756,10 @@ template<typename T>
 
     static void normalize (SparseArray<T> invariants)
     {
-      int gcd = InvariantCalculator::gcd (invariants);
+      T gcd = InvariantCalculator::gcd (invariants);
       if (gcd > 1) {
         for (size_t j = 0; j < invariants.size (); ++j) {
-          int norm = invariants.valueAt (j) / gcd;
+          T norm = invariants.valueAt (j) / gcd;
           invariants.setValueAt (j, norm);
         }
       }
