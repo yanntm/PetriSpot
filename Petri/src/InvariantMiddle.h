@@ -40,34 +40,16 @@ template<typename T>
      * @return a set of invariants, i.e. coeffs for each variable such that the sum
      *         is constant in all markings/states.
      */
-    static std::unordered_set<SparseArray<T>> computePInvariants (
-        FlowMatrix<T> pn)
-    {
-      std::unordered_set<SparseArray<T>> invar;
-      auto time = std::chrono::steady_clock::now ();
 
-      try {
-        invar = InvariantCalculator<T>::calcSInvariants (
-            pn, InvariantCalculator<T>::InvariantAlgorithm::PIPE, false);
-        std::string logMessage = "Computed " + std::to_string (invar.size ())
-            + " place invariants in "
-            + std::to_string (
-                std::chrono::duration_cast < std::chrono::milliseconds
-                    > (std::chrono::steady_clock::now () - time).count ())
-            + " ms";
-        writeToLog (logMessage);
-      } catch (std::overflow_error &e) {
-        std::cerr << e.what () << std::endl;
-        std::string logMessage = "Invariants computation overflowed in "
-            + std::to_string (
-                std::chrono::duration_cast < std::chrono::milliseconds
-                    > (std::chrono::steady_clock::now () - time).count ())
-            + " ms";
-        writeToLog (logMessage);
-      }
+    /**
+     * Worst case exponential (time and memory), returns semi-flows (with positive
+     * coefficients only) which are reputed easier to interpret.
+     *
+     * @param pn representing the Petri net approximation
+     * @return a set of invariants, i.e. coeffs for each variable such that the sum
+     *         is constant in all markings/states.
+     */
 
-      return invar;
-    }
 
     static void printInvariant (
         const std::unordered_set<SparseArray<T>> &invariants,
@@ -294,20 +276,7 @@ template<typename T>
       return invar;
     }
 
-    /**
-     * Worst case exponential (time and memory), returns semi-flows (with positive
-     * coefficients only) which are reputed easier to interpret.
-     *
-     * @param pn representing the Petri net approximation
-     * @return a set of invariants, i.e. coeffs for each variable such that the sum
-     *         is constant in all markings/states.
-     */
-    static std::unordered_set<SparseArray<T>> computePSemiFlows (
-        FlowMatrix<T> pn)
-    {
-      return InvariantCalculator<T>::calcSInvariants (
-          pn, InvariantCalculator<T>::InvariantAlgorithm::PIPE, true);
-    }
+
 
     /**
      * Computes a combined flow matrix, stored with column = transition, while

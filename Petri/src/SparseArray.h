@@ -115,6 +115,18 @@ template<typename T>
       return res;
     }
 
+    void scalarProduct (T factor) {
+      for (size_t i = 1; i < mSize; i++) {
+           mValues[i]*= factor;
+      }
+    }
+
+    void scalarDiv (T factor) {
+      for (size_t i = 1; i < mSize; i++) {
+           mValues[i] /= factor;
+      }
+    }
+
     /**
      * Acts like an std::move in c++ : steal the content of the argument.
      * This method updates the content of "this".
