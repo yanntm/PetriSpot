@@ -22,7 +22,6 @@
 #include <iostream>
 #include <vector>
 #include <unordered_set>
-#include "FlowMatrix.h"
 #include "SparseArray.h"
 #include "MatrixCol.h"
 #include "SparseBoolArray.h"
@@ -606,9 +605,9 @@ template<typename T>
           if (alpha == 0 && bbeta == 1) {
             continue;
           }
-          T gcd = std::gcd (alpha, bbeta);
-          alpha /= gcd;
-          T beta = bbeta / gcd;
+          T gcdt = std::gcd (alpha, bbeta);
+          alpha /= gcdt;
+          T beta = bbeta / gcdt;
 
           if (DEBUG) {
             std::cout << "rule 1. b 2 : " << alpha << "*" << tCol << " + " << beta << " * " << j << std::endl;
@@ -630,7 +629,19 @@ template<typename T>
 
           sumProdInto (beta, coljb, alpha, matB.getColumn (tCol));
 
-          if (DEBUG)
+          T gcdm = gcd(matC.getColumn (j));
+          if (gcdm != 1) {
+            T gcdb = gcd(matB.getColumn (j));
+            if (gcdb != 1) {
+              T ggcd = std::gcd(gcdm,gcdb);
+              if (ggcd != 1) {
+                matC.getColumn(j).scalarDiv(ggcd);
+                matB.getColumn (j).scalarDiv(ggcd);
+                //std::cout << "1b1 reduce by " << ggcd << std::endl;
+              }
+            }
+          }
+
           if (DEBUG) {
             std::cout << "B[tCol] : " << matB.getColumn (tCol) << std::endl;
             std::cout << " after B[colj] : " << coljb << std::endl;
@@ -679,9 +690,9 @@ template<typename T>
         // |chj| and |chk| respectively.
         T chk = std::abs (matC.get (chkResult.row, tCol));
         T chj = std::abs (matC.get (chkResult.row, j));
-        T gcd = std::gcd (chk, chj);
-        chk /= gcd;
-        chj /= gcd;
+        T gcdt = std::gcd (chk, chj);
+        chk /= gcdt;
+        chj /= gcdt;
 
         SparseBoolArray changed = sumProdInto (chk, matC.getColumn (j), chj,
                                                matC.getColumn (tCol));
@@ -691,12 +702,25 @@ template<typename T>
         }
         SparseArray<T> &coljb = matB.getColumn (j);
         sumProdInto (chk, coljb, chj, matB.getColumn (tCol));
+
+        T gcdm = gcd(matC.getColumn (j));
+        if (gcdm != 1) {
+          T gcdb = gcd(matB.getColumn (j));
+          if (gcdb != 1) {
+            T ggcd = std::gcd(gcdm,gcdb);
+            if (ggcd != 1) {
+              matC.getColumn(j).scalarDiv(ggcd);
+              matB.getColumn (j).scalarDiv(ggcd);
+              //std::cout << "reduce by " << ggcd << std::endl;
+            }
+          }
+        }
       }
       // delete from the extended matrix the column of index k
       clearColumn (chkResult.col, matC, matB, pppms);
     }
 
-    static T gcd (std::vector<T> set)
+    static T gcd (const std::vector<T> & set)
     {
       if (set.size () == 0) return 0;
       T gcd = set[0];
@@ -707,7 +731,7 @@ template<typename T>
       return gcd;
     }
 
-    static T gcd (SparseArray<T> set)
+    static T gcd (const SparseArray<T> & set)
     {
       if (set.size () == 0) return 0;
       T gcd = set.valueAt (0);
@@ -718,13 +742,12 @@ template<typename T>
       return gcd;
     }
 
-    static void normalize (std::vector<T> invariants)
+    static void normalize (std::vector<T> & invariants)
     {
       int gcd = InvariantCalculator::gcd (invariants);
       if (gcd > 1) {
         for (size_t j = 0; j < invariants.size (); ++j) {
-          T norm = invariants[j] / gcd;
-          invariants[j] = norm;
+          invariants[j] /= gcd;
         }
       }
     }
@@ -751,10 +774,12 @@ template<typename T>
           T norm = col.valueAt (j) / gcd;
           col.setValueAt (j, norm);
         }
+        if (DEBUG)
+          std::cout << "Applied gcd to invariant with gcd =" << gcd << std::endl;
       }
     }
 
-    static void normalize (SparseArray<T> invariants)
+    static void normalize (SparseArray<T> & invariants)
     {
       T gcd = InvariantCalculator::gcd (invariants);
       if (gcd > 1) {
@@ -765,66 +790,6 @@ template<typename T>
       }
     }
 
-    /**
-     * Calculates the s-invariants of the the given petri net with the pipe
-     * algorithm.
-     *
-     * @param pn - the petri net to calculate the s-invariants from.
-     * @return a generator set of the invariants.
-     */
-    static std::unordered_set<SparseArray<T>> calcSInvariants (
-        FlowMatrix<T> pn, bool onlyPositive)
-    {
-      return calcSInvariants (pn, InvariantAlgorithm::PIPE, onlyPositive);
-    }
-
-    /**
-     * Calculates the s-invariants of the the given petri net with the given
-     * algorithm.
-     *
-     * @param pn   - the petri net to calculate the s-invariants from.
-     * @param algo - the algorithm with which the invariants should be calculated.
-     * @return a generator set of the invariants.
-     */
-    static std::unordered_set<SparseArray<T>> calcSInvariants (
-        FlowMatrix<T> pn, InvariantAlgorithm algo, bool onlyPositive)
-    {
-      switch (algo)
-        {
-        //	case InvariantAlgorithm::Farkas:
-        //		return calcInvariantsFarkas(pn.getIncidenceMatrix().explicit());
-        case InvariantAlgorithm::PIPE:
-          return calcInvariantsPIPE (pn.getIncidenceMatrix ().transpose (),
-                                     onlyPositive);
-        default:
-          return calcInvariantsPIPE (pn.getIncidenceMatrix ().transpose (),
-                                     onlyPositive);
-          //		return calcInvariantsFarkas(pn.getIncidenceMatrix().explicit());
-        }
-    }
-
-    /**
-     * Calculates the t-invariants of the the given petri net with the given
-     * algorithm.
-     *
-     * @param pn   - the petri net to calculate the t-invariants from.
-     * @param algo - the algorithm with which the invariants should be calculated.
-     * @return a generator set of the invariants.
-     */
-    static std::unordered_set<SparseArray<T>> calcTInvariants (
-        FlowMatrix<T> pn, InvariantAlgorithm algo)
-    {
-      switch (algo)
-        {
-        //	case FARKAS:
-        //		return calcInvariantsFarkas(pn.getIncidenceMatrix().explicit());
-        case InvariantAlgorithm::PIPE:
-          return calcInvariantsPIPE (pn.getIncidenceMatrix (), true);
-        default:
-          return calcInvariantsPIPE (pn.getIncidenceMatrix (), true);
-          //		return calcInvariantsFarkas(pn.getIncidenceMatrix().transpose().explicit());
-        }
-    }
 
   };
 
