@@ -77,7 +77,7 @@ template<typename T>
       for (const auto &rv : invariants) {
         std::stringstream sb;
         try {
-          int sum = printEquation (rv, initial, pnames, sb);
+          auto sum = printEquation (rv, initial, pnames, sb);
           out << "inv : " << sb.str () << " = " << sum << std::endl;
         } catch (std::overflow_error &e) {
           std::cerr
@@ -95,7 +95,7 @@ template<typename T>
       printInvariant (invariants, pnames, initial, std::cout);
     }
 
-    static int printEquation (const SparseArray<T> &inv,
+    static T printEquation (const SparseArray<T> &inv,
                               const std::vector<T> &initial,
                               const std::vector<std::string> &pnames,
                               std::stringstream &sb)
@@ -106,6 +106,9 @@ template<typename T>
         unsigned int k = inv.keyAt (i);
         T v = inv.valueAt (i);
         if (v != 0) {
+          if (!initial.empty ()) {
+             sum = petri::addExact (sum, (petri::multiplyExact (v, initial[k])));
+          }
           if (!first) {
             if (v < 0) {
               sb << " - ";
@@ -124,9 +127,6 @@ template<typename T>
             sb << v << "*" << pnames[k];
           } else {
             sb << pnames[k];
-          }
-          if (!initial.empty ()) {
-            sum = petri::addExact (sum, (petri::multiplyExact (v, initial[k])));
           }
         }
       }
