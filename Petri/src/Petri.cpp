@@ -16,6 +16,9 @@ const string TFLOW = "--Tflows";
 const string TSEMIFLOW = "--Tsemiflows";
 const string PATH = "-i";
 const string QUIET = "-q";
+const string TIMEOUT = "-t";
+
+#define DEFAULT_TIMEOUT 120
 
 #ifndef VAL
 // default to 32 bit
@@ -40,6 +43,7 @@ int main (int argc, char *argv[])
   bool tsemiflows = false;
   bool invariants = false;
   bool quiet = false;
+  int timeout = DEFAULT_TIMEOUT;
 
   if (argc == 1 || argc > 6) {
     cerr << "usage: petri -i model.pnml [options]\n";
@@ -49,6 +53,8 @@ int main (int argc, char *argv[])
   for (int i = 1; i < argc; i++) {
     if (argv[i] == PATH) {
       modelPath = argv[++i];
+    } else if (argv[i] == TIMEOUT) {
+       timeout = atoi(argv[++i]);
     } else if (argv[i] == QUIET) {
       quiet = true;
     } else if (argv[i] == FINDDEADLOCK) {
@@ -71,6 +77,17 @@ int main (int argc, char *argv[])
     }
   }
 
+  if (pflows && psemiflows) {
+    std::cout << "Cannot compute P flows and P semi-flows at the same time."
+        << std::endl;
+    return 1;
+  }
+  if (tflows && tsemiflows) {
+    std::cout << "Cannot compute T flows and T semi-flows at the same time."
+        << std::endl;
+    return 1;
+  }
+
   try {
     SparsePetriNet<VAL> *pn = loadXML<VAL> (modelPath);
 
@@ -84,14 +101,14 @@ int main (int argc, char *argv[])
     if (findDeadlock) {
       Walker<VAL> walk (*pn);
 
-      if (walk.runDeadlockDetection (1000000, true, 30)) {
+      if (walk.runDeadlockDetection (1000000, true, timeout)) {
         std::cout << "Deadlock found !" << std::endl;
         delete pn;
         return 0;
       } else {
         std::cout << "No deadlock found !" << std::endl;
       }
-      if (walk.runDeadlockDetection (1000000, false, 30)) {
+      if (walk.runDeadlockDetection (1000000, false, timeout)) {
         std::cout << "Deadlock found !" << std::endl;
       } else {
         std::cout << "No deadlock found !" << std::endl;
@@ -100,17 +117,11 @@ int main (int argc, char *argv[])
 
     if (invariants) {
       vector<int> repr;
-      MatrixCol<VAL> sumMatrix = InvariantMiddle<VAL>::computeReducedFlow (
-          *pn, repr);
       if (pflows || psemiflows) {
         auto time = std::chrono::steady_clock::now ();
-        unordered_set<SparseArray<VAL>> invar;
-        if (pflows) {
-          invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix);
-        } else {
-          invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix, true,
-                                                            120);
-        }
+        MatrixCol<VAL> sumMatrix =  MatrixCol<VAL>::sumProd(-1, pn->getFlowPT(), 1, pn->getFlowTP());
+        unordered_set<SparseArray<VAL>> invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix, psemiflows , timeout);
+
         std::cout << "Computed " << invar.size () << " P "
             << (psemiflows ? "semi" : "") << "flows in "
             << std::chrono::duration_cast < std::chrono::milliseconds
@@ -123,14 +134,11 @@ int main (int argc, char *argv[])
       }
       if (tflows || tsemiflows) {
         auto time = std::chrono::steady_clock::now ();
-        unordered_set<SparseArray<VAL>> invarT;
-        if (tflows) {
-          invarT = InvariantMiddle<VAL>::computeTinvariants (*pn, sumMatrix,
-                                                             repr, false);
-        } else {
-          invarT = InvariantMiddle<VAL>::computeTinvariants (*pn, sumMatrix,
-                                                             repr, true);
-        }
+
+        MatrixCol<VAL> sumMatrix =  MatrixCol<VAL>::sumProd(-1, pn->getFlowPT(), 1, pn->getFlowTP()).transpose();
+
+        unordered_set<SparseArray<VAL>> invarT = InvariantMiddle<VAL>::computePInvariants (sumMatrix, tsemiflows, timeout);
+
         std::cout << "Computed " << invarT.size () << " T "
             << (tsemiflows ? "semi" : "") << "flows in "
             << std::chrono::duration_cast < std::chrono::milliseconds
