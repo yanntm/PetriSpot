@@ -121,7 +121,7 @@ template<typename T>
       for (size_t icol = 0, cole = matC.getColumnCount (); icol < cole;
           icol++) {
         const SparseArray<T> &col = matC.getColumn (icol);
-        for (int i = 0, ie = col.size (); i < ie; i++) {
+        for (size_t i = 0, ie = col.size (); i < ie; i++) {
           PpPm &toedit = result[col.keyAt (i)];
           if (col.valueAt (i) < 0) {
             toedit.pMinus.append (icol, true);
@@ -265,7 +265,7 @@ template<typename T>
       colsBsparse = std::unordered_set<SparseArray<T>> ();
       while (colsB.getColumnCount () < 20000) {
         if (treated.size () > 0) {
-          for (int i = treated.size () - 1; i >= 0; i--) {
+          for (ssize_t i = treated.size () - 1; i >= 0; i--) {
             colsBsparse.insert (colsB.getColumn (treated.keyAt (i)));
             colsB.deleteColumn (treated.keyAt (i));
           }
@@ -277,7 +277,7 @@ template<typename T>
 
         int minRow = -1;
         int minRowWeight = -1;
-        for (int row = 0, rowe = pppms.size (); row < rowe; row++) {
+        for (size_t row = 0, rowe = pppms.size (); row < rowe; row++) {
           PpPm pp = pppms[row];
           int pps = pp.pPlus.size ();
           int ppm = pp.pMinus.size ();
@@ -296,10 +296,10 @@ template<typename T>
             }
             if (minRow == -1 || minRowWeight > weight) {
               int refinedweight = 0;
-              for (int i = 0, ie = pp.pPlus.size (); i < ie; i++) {
+              for (size_t i = 0, ie = pp.pPlus.size (); i < ie; i++) {
                 refinedweight += colsB.getColumn (pp.pPlus.keyAt (i)).size ();
               }
-              for (int i = 0, ie = pp.pMinus.size (); i < ie; i++) {
+              for (size_t i = 0, ie = pp.pMinus.size (); i < ie; i++) {
                 refinedweight += colsB.getColumn (pp.pMinus.keyAt (i)).size ();
               }
               if (minRow == -1 || minRowWeight > refinedweight) {
@@ -312,7 +312,7 @@ template<typename T>
 
         if (negRows.size () > 0) {
           // cleanup
-          for (int j = negRows.size () - 1; j >= 0; j--) {
+          for (ssize_t j = negRows.size () - 1; j >= 0; j--) {
             colsB.deleteColumn (negRows.keyAt (j));
           }
           continue;
@@ -320,13 +320,13 @@ template<typename T>
         // check for a pure positive column
         int purePos = -1;
 
-        for (int i = 0, ie = colsB.getColumnCount (); i < ie; i++) {
+        for (size_t i = 0, ie = colsB.getColumnCount (); i < ie; i++) {
           if (treated.get (i)) {
             continue;
           }
           SparseArray<T> &col = colsB.getColumn (i);
           bool hasNeg = false;
-          for (int j = 0, je = col.size (); j < je; j++) {
+          for (size_t j = 0, je = col.size (); j < je; j++) {
             if (col.valueAt (j) < 0) {
               hasNeg = true;
               break;
@@ -335,7 +335,7 @@ template<typename T>
           if (!hasNeg) {
             // check intersection
             bool needed = false;
-            for (int j = 0, je = col.size (); j < je; j++) {
+            for (size_t j = 0, je = col.size (); j < je; j++) {
               int row = col.keyAt (j);
               PpPm ppm = pppms[row];
               if (ppm.pMinus.size () > 0) {
@@ -360,13 +360,15 @@ template<typename T>
         }
         PpPm ppm = pppms[targetRow];
         if (ppm.pPlus.size () > 0) {
-          for (int j = 0, je = ppm.pPlus.size (); j < je; j++) {
-            SparseArray<T> &colj = colsB.getColumn (ppm.pPlus.keyAt (j));
+          for (size_t j = 0, je = ppm.pPlus.size (); j < je; j++) {
+            auto jindex = ppm.pPlus.keyAt (j);
             if (purePos != -1) {
-              colj = colsB.getColumn (purePos);
+              jindex = purePos;
               j = je;
             }
-            for (int k = 0, ke = ppm.pMinus.size (); k < ke; k++) {
+            for (size_t k = 0, ke = ppm.pMinus.size (); k < ke; k++) {
+              // might have moved due to reallocations
+              SparseArray<T> &colj = colsB.getColumn (jindex);
               SparseArray<T> &colk = colsB.getColumn (ppm.pMinus.keyAt (k));
               // operate a linear combination on the columns of indices j and k
               // in order to get a new column having the pair.getFirst element equal
@@ -386,7 +388,7 @@ template<typename T>
           }
           // Delete from B all the columns of index k \in P-
           // cleanup
-          for (int j = ppm.pMinus.size () - 1; j >= 0; j--) {
+          for (ssize_t j = ppm.pMinus.size () - 1; j >= 0; j--) {
             colsB.deleteColumn (ppm.pMinus.keyAt (j));
             treated.deleteAndShift (ppm.pMinus.keyAt (j));
           }
@@ -417,7 +419,7 @@ template<typename T>
       for (auto it = colsBsparse.begin (); it != colsBsparse.end ();) {
         const SparseArray<T> &a = *it;
         bool hasNegativeValue = false;
-        for (int i = 0, ie = a.size (); i < ie; i++) {
+        for (size_t i = 0, ie = a.size (); i < ie; i++) {
           if (a.valueAt (i) < 0) {
             hasNegativeValue = true;
             break;
@@ -567,7 +569,6 @@ template<typename T>
           }
         }
       }
-      // int [] pair = matC.getNoneZeroRow();
       size_t tRow = matC.getColumn (candidate).keyAt (0);
       size_t tCol = candidate;
 
@@ -657,7 +658,7 @@ template<typename T>
     {
       // delete from the extended matrix the column of index k
       SparseArray<T> &colk = matC.getColumn (tCol);
-      for (int i = 0, ie = colk.size (); i < ie; i++) {
+      for (size_t i = 0, ie = colk.size (); i < ie; i++) {
         pppms[colk.keyAt (i)].setValue (tCol, 0);
       }
       colk.clear ();
@@ -696,7 +697,7 @@ template<typename T>
 
         SparseBoolArray changed = sumProdInto (chk, matC.getColumn (j), chj,
                                                matC.getColumn (tCol));
-        for (int ind = 0, inde = changed.size (); ind < inde; ind++) {
+        for (size_t ind = 0, inde = changed.size (); ind < inde; ind++) {
           pppms[changed.keyAt (ind)].setValue (
               j, matC.getColumn (j).get (changed.keyAt (ind)));
         }
