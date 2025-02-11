@@ -26,6 +26,7 @@
 #include <iostream>
 #include <cmath>
 #include <limits>
+#include <concepts>
 
 /**
  * @brief SparseArray maps integers to values of type T. Unlike a normal array,
@@ -49,7 +50,7 @@
  *
  * @tparam T The type of the values to be stored in the array.
  */
-template<typename T>
+template<std::integral T>
   class SparseArray
   {
     size_t *mKeys;
@@ -218,9 +219,9 @@ template<typename T>
      * Gets the value mapped from the specified key, or the specified value
      * if no such mapping has been made.
      */
-    T get (size_t key, T valueIfKeyNotFound) const
+    T get (size_t key, const T & valueIfKeyNotFound) const
     {
-      ssize_t i = binarySearch (mKeys, mSize, key);
+      std::ptrdiff_t i = binarySearch (mKeys, mSize, key);
       if (i < 0) {
         return valueIfKeyNotFound;
       } else {
@@ -230,9 +231,9 @@ template<typename T>
     /**
      * Removes the mapping from the specified key, if there was any.
      */
-    ssize_t del (size_t key)
+    std::ptrdiff_t del (size_t key)
     {
-      ssize_t i = binarySearch (mKeys, mSize, key);
+      std::ptrdiff_t i = binarySearch (mKeys, mSize, key);
       if (i >= 0) {
         removeAt (i);
       }
@@ -254,7 +255,7 @@ template<typename T>
      */
     void put (size_t key, T value)
     {
-      ssize_t i = binarySearch (mKeys, mSize, key);
+      std::ptrdiff_t i = binarySearch (mKeys, mSize, key);
       if (value == 0) {
         if (i >= 0) {
           removeAt (i);
@@ -322,7 +323,7 @@ template<typename T>
      * specified key, or a negative number if the specified
      * key is not mapped.
      */
-    ssize_t indexOfKey (size_t key) const
+    std::ptrdiff_t indexOfKey (size_t key) const
     {
       return binarySearch (mKeys, mSize, key);
     }
@@ -374,12 +375,17 @@ template<typename T>
       result = prime * result + mSize;
       return result;
     }
-    bool operator== (const SparseArray &other) const
-    {
+    bool operator== (const SparseArray &other) const {
       if (mSize != other.mSize) return false;
 
-      if (!equalsRange (mKeys, other.mKeys, mSize)) return false;
-      if (!equalsRange (mValues, other.mValues, mSize)) return false;
+      // Compare keys
+      if (memcmp(mKeys, other.mKeys, mSize * sizeof(size_t)) != 0) {
+        return false;
+      }
+      // Compare values
+      if (memcmp(mValues, other.mValues, mSize * sizeof(T)) != 0) {
+        return false;
+      }
       return true;
     }
 
@@ -521,7 +527,7 @@ template<typename T>
         } else {
           // sk1 < sk2 : we must progress in s1
           // use a binary search for that
-          ssize_t ii = binarySearch (s1.mKeys, sk2, i + 1, s1.mSize - 1);
+          std::ptrdiff_t ii = binarySearch (s1.mKeys, sk2, i + 1, s1.mSize - 1);
           if (ii < 0) {
             return false;
           }
@@ -571,7 +577,7 @@ template<typename T>
       if (mSize == 0 || i > mKeys[mSize - 1]) {
         return;
       }
-      ssize_t k = static_cast<ssize_t>(mSize) - 1;
+      std::ptrdiff_t k = static_cast<std::ptrdiff_t>(mSize) - 1;
       for (; k >= 0 && mKeys[k] > i; k--) {
         mKeys[k]--;
       }
@@ -588,7 +594,7 @@ template<typename T>
         if (mSize == 0 || todel.empty() || todel.back() > mKeys[mSize - 1]) {
             return;
         }
-        ssize_t k = static_cast<ssize_t>(mSize) - 1;
+        std::ptrdiff_t k = static_cast<std::ptrdiff_t>(mSize) - 1;
         for (size_t cur = 0, e = todel.size(); cur < e; cur++) {
             size_t val = todel[cur];
             for (; k >= 0 && mKeys[k] > val; k--) {
@@ -603,20 +609,20 @@ template<typename T>
 
 
   private:
-    static ssize_t binarySearch (const size_t *const array, size_t sz,
+    static std::ptrdiff_t binarySearch (const size_t *const array, size_t sz,
                              size_t value)
     {
-      ssize_t lo = 0;
-      ssize_t hi = sz - 1;
+      std::ptrdiff_t lo = 0;
+      std::ptrdiff_t hi = sz - 1;
 
       return binarySearch (array, value, lo, hi);
     }
     // This is Arrays.binarySearch(), but doesn't do any argument validation.
-    static ssize_t binarySearch (const size_t *const array,
-                             size_t value, ssize_t lo, ssize_t hi)
+    static std::ptrdiff_t binarySearch (const size_t *const array,
+                             size_t value, std::ptrdiff_t lo, std::ptrdiff_t hi)
     {
       while (lo <= hi) {
-        ssize_t mid = (lo + hi) >> 1;
+        std::ptrdiff_t mid = (lo + hi) >> 1;
         size_t midVal = array[mid];
         if (midVal < value) {
           lo = mid + 1;
@@ -675,12 +681,6 @@ template<typename T>
                 (aCap - index) * sizeof(U));
         delete[] array;
         return {newArray, nCap};
-      }
-
-    template<typename U>
-      static bool equalsRange (const U *const a, const U *const b, size_t s)
-      {
-        return std::equal (a, a + s, b);
       }
 
     static size_t hashCode (const size_t *const a, const T *const b,
