@@ -93,6 +93,39 @@ template<typename T>
         }
       }
 
+    SparseArray(SparseArray&& other) noexcept
+        : mKeys(nullptr), mValues(nullptr), mSize(0), mCap(0)
+    {
+        mKeys = other.mKeys;
+        mValues = other.mValues;
+        mSize = other.mSize;
+        mCap = other.mCap;
+
+        other.mKeys = nullptr;
+        other.mValues = nullptr;
+        other.mSize = 0;
+        other.mCap = 0;
+    }
+
+    // [PATCH] Added standard move assignment
+    SparseArray& operator=(SparseArray&& other) noexcept {
+        if (this != &other) {
+            delete[] mKeys;
+            delete[] mValues;
+
+            mKeys = other.mKeys;
+            mValues = other.mValues;
+            mSize = other.mSize;
+            mCap = other.mCap;
+
+            other.mKeys = nullptr;
+            other.mValues = nullptr;
+            other.mSize = 0;
+            other.mCap = 0;
+        }
+        return *this;
+    }
+
     ~SparseArray ()
     {
       delete[] mKeys;
@@ -377,7 +410,7 @@ template<typename T>
         if (i > 0) {
           os << (", ");
         }
-        int key = keyAt (i);
+        size_t key = keyAt (i);
         os << key << "=" << valueAt (i);
       }
       os << '}';
@@ -408,9 +441,9 @@ template<typename T>
       size_t j = 0;
       while (i < ta.size () || j < tb.size ()) {
         size_t ki =
-            i == ta.size () ? std::numeric_limits<int>::max () : ta.keyAt (i);
+            i == ta.size () ? std::numeric_limits<size_t>::max () : ta.keyAt (i);
         size_t kj =
-            j == tb.size () ? std::numeric_limits<int>::max () : tb.keyAt (j);
+            j == tb.size () ? std::numeric_limits<size_t>::max () : tb.keyAt (j);
         if (ki == kj) {
           T val = alpha * ta.valueAt (i) + beta * tb.valueAt (j);
           if (val != 0 && (except > 0 ? ki != (size_t) except : 1)) {
@@ -442,8 +475,8 @@ template<typename T>
 
       for (size_t j = 0, i = 0, ss1 = s1.size (), ss2 = s2.size ();
           i < ss1 && j < ss2;) {
-        int sk1 = s1.keyAt (i);
-        int sk2 = s2.keyAt (j);
+        size_t sk1 = s1.keyAt (i);
+        size_t sk2 = s2.keyAt (j);
         if (sk1 == sk2) {
           return true;
         } else if (sk1 > sk2) {
@@ -509,10 +542,10 @@ template<typename T>
       size_t i = 0;
       size_t j = 0;
       while (i < ta.size () || j < tb.size ()) {
-        int ki =
-            i == ta.size () ? std::numeric_limits<int>::max () : ta.keyAt (i);
-        int kj =
-            j == tb.size () ? std::numeric_limits<int>::max () : tb.keyAt (j);
+        size_t ki =
+            i == ta.size () ? std::numeric_limits<size_t>::max () : ta.keyAt (i);
+        size_t kj =
+            j == tb.size () ? std::numeric_limits<size_t>::max () : tb.keyAt (j);
         if (ki == kj) {
           dist += abs (ta.valueAt (i) - tb.valueAt (j));
           i++;
