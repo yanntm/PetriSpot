@@ -538,12 +538,12 @@ template<typename T>
       if (mSize == 0 || i > mKeys[mSize - 1]) {
         return;
       }
-      size_t k;
-      for (k = mSize - 1; k >= 0 && mKeys[k] > i; k--) {
+      ssize_t k = static_cast<ssize_t>(mSize) - 1;
+      for (; k >= 0 && mKeys[k] > i; k--) {
         mKeys[k]--;
       }
       if (k >= 0 && mKeys[k] == i) {
-        removeAt (k);
+        removeAt(static_cast<size_t>(k));
       }
     }
 
@@ -551,24 +551,23 @@ template<typename T>
      * More efficient one pass version for removing many at once.
      * @param todel a list of decreasing sorted indexes.
      */
-    void deleteAndShift (const std::vector<size_t> &todel)
-    {
-      if (mSize == 0 || todel.empty () || todel.back () > mKeys[mSize - 1]) {
-        return;
-      }
-      // start from rightmost key
-      int k = mSize - 1;
-      for (size_t cur = 0, e = todel.size (); cur < e; cur++) {
-        size_t val = todel.at (cur);
-        for (; k >= 0 && mKeys[k] > val; k--) {
-          mKeys[k] -= todel.size () - cur;
+    void deleteAndShift(const std::vector<size_t> &todel) {
+        if (mSize == 0 || todel.empty() || todel.back() > mKeys[mSize - 1]) {
+            return;
         }
-        if (k >= 0 && mKeys[k] == val) {
-          removeAt (k);
-          --k;
+        ssize_t k = static_cast<ssize_t>(mSize) - 1;
+        for (size_t cur = 0, e = todel.size(); cur < e; cur++) {
+            size_t val = todel[cur];
+            for (; k >= 0 && mKeys[k] > val; k--) {
+                mKeys[k] -= (todel.size() - cur);
+            }
+            if (k >= 0 && mKeys[k] == val) {
+                removeAt(static_cast<size_t>(k));
+                --k;
+            }
         }
-      }
     }
+
 
   private:
     static ssize_t binarySearch (const size_t *const array, size_t sz,
