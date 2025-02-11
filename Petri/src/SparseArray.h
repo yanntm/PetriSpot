@@ -116,13 +116,13 @@ template<typename T>
     }
 
     void scalarProduct (T factor) {
-      for (size_t i = 1; i < mSize; i++) {
+      for (size_t i = 0; i < mSize; i++) {
            mValues[i]*= factor;
       }
     }
 
     void scalarDiv (T factor) {
-      for (size_t i = 1; i < mSize; i++) {
+      for (size_t i = 0; i < mSize; i++) {
            mValues[i] /= factor;
       }
     }
