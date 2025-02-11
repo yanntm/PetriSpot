@@ -121,20 +121,6 @@ template<typename T>
       return *this;
     }
 
-    bool equals (const MatrixCol &other) const
-    {
-      if (iRows != other.iRows || iCols != other.iCols) {
-        return false;
-      }
-
-      for (size_t col = 0; col < this->iCols; col++) {
-        if (!(lCols[col] == other.lCols[col])) {
-          return false;
-        }
-      }
-      return true;
-    }
-
     /**
      * Constructor for a new Matrix with the values from the given array.
      * @param src - the template to create the matrix from.
@@ -232,7 +218,7 @@ template<typename T>
 
     void set (size_t row, size_t col, T val)
     {
-      assert (!(row < 0 || col < 0 || row >= iRows || col >= iCols));
+      assert (row < iRows && col < iCols);
       if (val != 0) {
         SparseArray<T> &column = lCols[col];
         if (column.size () == 0 || column.keyAt (column.size () - 1) < row) {
@@ -243,24 +229,6 @@ template<typename T>
       } else {
         lCols[col].del (row);
       }
-    }
-
-    /**
-     * Returns a row which has at least one component different from zero. It also returns the index of the column
-     * where a component not equal to zero was found. If such a row does not exists, then -1,-1.
-     * @return the index of the column with a none zero component and the addicted row or null if not existent.
-     */
-    std::pair<int, int> getNoneZeroRow () const
-    {
-      // optimize to prefer to return 1
-      for (size_t tcol = 0; tcol < getColumnCount (); tcol++) {
-        if (lCols.at (tcol).size () == 0) {
-          continue;
-        } else {
-          return {lCols[tcol].keyAt(0) , tcol};
-        }
-      }
-      return {-1,-1};
     }
 
     /**
@@ -421,7 +389,7 @@ template<typename T>
       iRows -= todel.size ();
     }
 
-    bool operator== (const MatrixCol &other)
+    bool operator== (const MatrixCol &other) const
     {
       if (this == &other) return true;
       if (iCols != other.iCols) return false;
@@ -432,10 +400,9 @@ template<typename T>
     static MatrixCol sumProd (int alpha, const MatrixCol &ta, int beta,
                               const MatrixCol &tb)
     {
-      //			throw new IllegalArgumentException("Matrices should be homogeneous dimensions for sum-product operation.");
-      assert (
-          ta.getColumnCount () != tb.getColumnCount ()
-              || ta.getRowCount () != tb.getRowCount ());
+      // Matrices should be homogeneous dimensions for sum-product operation."
+      assert( ta.getColumnCount () == tb.getColumnCount ()
+              && ta.getRowCount () == tb.getRowCount ());
 
       MatrixCol mat (ta.getRowCount (), ta.getColumnCount ());
       for (size_t col = 0, cole = ta.getColumnCount (); col < cole; col++) {
