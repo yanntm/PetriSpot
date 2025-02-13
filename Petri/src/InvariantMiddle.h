@@ -175,7 +175,7 @@ template<typename T>
         const MatrixCol<T> &pn)
     {
       std::lock_guard < std::mutex > guard (lock);
-      if (pn.equals (last)) {
+      if (pn == last) {
         writeToLog ("Invariant cache hit.");
         return lastInv;
       } else {
