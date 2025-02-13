@@ -117,6 +117,7 @@ _LT_SET_OPTION([LT_INIT],[dlopen])
 m4_warn([obsolete],[AC_LIBTOOL_DLOPEN: Remove this warning and the call to _LT_SET_OPTION when you
 put the 'dlopen' option into LT_INIT's first parameter.])
 
+AC_SUBST([STATICFLAGS], ["-all-static -static-libgcc -static-libstdc++"])
 
 
 # we compile C++

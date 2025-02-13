@@ -22,6 +22,7 @@ else
 LIBEXPAT_LINK=-lexpat
 endif
 
+AM_LDFLAGS = $(STATICFLAGS)
 AM_CPPFLAGS = $(LIBSPOT_CPP) $(LIBDDD_CPP)  -g -O2 -Wnarrowing -Wextra -Wall $(LIBEXPAT_CPP)
 AM_CXXFLAGS = -g -O2 -Wall -Wconversion -Wnarrowing -Wextra 
 
