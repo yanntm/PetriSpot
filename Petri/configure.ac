@@ -68,7 +68,7 @@ fi
 
 
 
-AC_CHECK_LIB(dl, dlopen, ,AC_MSG_WARN(No operational dynamic link libdl found. This is a real problem.))
+# AC_CHECK_LIB(dl, dlopen, ,AC_MSG_WARN(No operational dynamic link libdl found. This is a real problem.))
 
 #Options for disabling google hash
 stdhash=false
@@ -89,7 +89,7 @@ if test "x$stdhash" = "xtrue"; then
 fi
 
 CPPFLAGS="-Wno-unused-local-typedefs $CPPFLAGS"
-LDFLAGS="-all-static -static-libgcc -static-libstdc++ $LDFLAGS"
+AC_SUBST([STATICFLAGS], ["-all-static -static-libgcc -static-libstdc++"])
 
 AC_ARG_ENABLE([mingw-native],
 				[AS_HELP_STRING([--enable-mingw-native],[build native win32 binaries for redistribution])],
@@ -113,12 +113,15 @@ AC_PROG_RANLIB
 # we make shared libs (use libtool)
 LT_INIT([disable-shared])
 
+# no dynamic libs unless --enable-shared is passed to configure
+AC_DISABLE_SHARED
+# build static libs by default
+AC_ENABLE_STATIC
+
+
 _LT_SET_OPTION([LT_INIT],[dlopen])
 m4_warn([obsolete],[AC_LIBTOOL_DLOPEN: Remove this warning and the call to _LT_SET_OPTION when you
 put the 'dlopen' option into LT_INIT's first parameter.])
-
-AC_SUBST([STATICFLAGS], ["-all-static -static-libgcc -static-libstdc++"])
-
 
 # we compile C++
 # set Cxx compilation flags to either the value passed in
