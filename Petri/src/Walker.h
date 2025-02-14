@@ -73,15 +73,16 @@ template<typename T>
       int *list = new int[sr->getTnames ().size () + 1];
       memset (list, 0, (sr->getTnames ().size () + 1) * sizeof(int));
       int li = 1;
-      for (int t = 0, e = sr->getTnames ().size (); t < e; t++) {
+      for (size_t t = 0, e = sr->getTnames ().size (); t < e; t++) {
         if (SparseArray<T>::greaterOrEqual (state,
                                             sr->getFlowPT ().getColumn (t))) {
-          list[li++] = t;
+          list[li++] = static_cast<int> (t);
         }
       }
       list[0] = li - 1;
       return list;
     }
+
 
     void dropAt (int *enabled, int index)
     {
@@ -128,13 +129,13 @@ template<typename T>
 
       // the places fed by this transition
       SparseArray<T> tp = combFlow.getColumn (tfired);
-      for (int pi = 0, pie = tp.size (); pi < pie; pi++) {
+      for (int pi = 0, pie = static_cast<int>(tp.size ()); pi < pie; pi++) {
         size_t p = tp.keyAt (pi);
         if (tp.valueAt (pi) > 0) {
           // the set of transitions taking from this place
           SparseArray<T> col = tFlowPT.getColumn (p);
           for (size_t i = 0; i < col.size (); i++) {
-            size_t t = col.keyAt (i);
+            int t = static_cast<int>(col.keyAt (i));
             if (seen[t] || seenEffects[behaviorMap[t]]) continue;
 
             if (combFlow.getColumn (t).size () == 0) {
@@ -256,7 +257,7 @@ template<typename T>
             succ[ti - 1] = fire (list[ti], state);
             i++;
           }
-          size_t minSucc = sr->getTnames ().size () + 1;
+          int minSucc = static_cast<int>(sr->getTnames ().size () + 1);
           int mini = -1;
           int *minList = nullptr;
           for (int ti = 0; ti < list[0]; ti++) {
@@ -303,7 +304,7 @@ template<typename T>
               state, sr->getFlowPT ().getColumn (last))) {
         // make sure there is no divergent behavior here
         const SparseArray<T> &combb = combFlow.getColumn (last);
-        for (int j = 0, je = combb.size (); j < je; j++) {
+        for (int j = 0, je = static_cast<int> (combb.size ()); j < je; j++) {
           if (combb.valueAt (j) < 0) {
             repeat = true;
             break;
