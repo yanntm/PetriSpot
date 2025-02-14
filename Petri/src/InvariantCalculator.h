@@ -76,7 +76,7 @@ template<typename T>
       {
       }
 
-      void setValue (size_t j, int val)
+      void setValue (size_t j, T val)
       {
         if (val == 0) {
           pMinus.clear (j);
