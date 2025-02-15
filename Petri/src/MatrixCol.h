@@ -143,6 +143,13 @@ template<typename T>
       }
     }
 
+    // Set columns using an rvalue reference.
+     void setColumns(std::vector<SparseArray<T>>&& newCols) {
+         lCols = std::move(newCols);
+         iCols = lCols.size();
+     }
+
+
     void reserveColumns (size_t nbCol)
     {
       this->lCols.reserve (nbCol);
