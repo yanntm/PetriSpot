@@ -4,6 +4,7 @@
 #include "PTNetLoader.h"
 #include "InvariantMiddle.h"
 #include <vector>
+#include <fstream>
 #include <unordered_set>
 #include <chrono>
 
@@ -87,6 +88,18 @@ int main (int argc, char *argv[])
         << std::endl;
     return 1;
   }
+
+  if(modelPath.empty()){
+      std::cerr << "Error: no model file specified." << std::endl;
+      return 1;
+  }
+
+  std::ifstream file(modelPath);
+  if (!file.good()) {
+      std::cerr << "Error: file not found: " << modelPath << std::endl;
+      return 1;
+  }
+
 
   try {
     SparsePetriNet<VAL> *pn = loadXML<VAL> (modelPath);
