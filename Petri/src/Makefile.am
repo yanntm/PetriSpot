@@ -29,7 +29,7 @@ AM_CXXFLAGS = -g -O2 -Wall -Wconversion -Wnarrowing -Wextra
 
 LDADDFLAGS = $(LIBSPOT_PATH) $(LIBSPOT_LINK) $(LIBDDD_PATH)  $(LIBEXPAT_PATH) $(LIBEXPAT_LINK)
 
-petri_SOURCES=Arithmetic.hpp Petri.cpp SparseArray.h MatrixCol.h SparsePetriNet.h Walker.h PTNetHandler.h PTNetLoader.h SparseBoolArray.h InvariantMiddle.h InvariantCalculator.h InvariantHelper.h
+petri_SOURCES=Arithmetic.hpp Petri.cpp SparseArray.h MatrixCol.h SparsePetriNet.h Walker.h PTNetHandler.h PTNetLoader.h SparseBoolArray.h InvariantMiddle.h InvariantCalculator.h InvariantHelper.h RowSigns.h
 
 # Rules for each program
 petri32_SOURCES = $(petri_SOURCES)

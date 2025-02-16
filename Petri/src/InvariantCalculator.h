@@ -27,7 +27,7 @@
 #include "SparseBoolArray.h"
 #include "Arithmetic.hpp"
 #include "InvariantHelpers.h"
-
+#include "RowSigns.h"
 
 namespace petri {
 
@@ -55,126 +55,6 @@ template<typename T>
     {
     }
 
-    class RowSign
-    {
-
-    public:
-      // The row
-      const size_t row;
-      // P+ set
-      SparseBoolArray pPlus;
-      // P- set
-      SparseBoolArray pMinus;
-
-      /**
-       * initially empty.
-       *
-       * @param row
-       */
-      RowSign (size_t row)
-          : row (row), pPlus (), pMinus ()
-      {
-      }
-
-      void setValue (size_t j, T val)
-      {
-        if (val == 0) {
-          pMinus.clear (j);
-          pPlus.clear (j);
-        } else if (val < 0) {
-          pMinus.set (j);
-          pPlus.clear (j);
-        } else {
-          pMinus.clear (j);
-          pPlus.set (j);
-        }
-      }
-
-      void print (std::ostream &os) const
-      {
-        os << "RowSign [row=" << row << ", pPlus=" << pPlus << ", pMinus="
-            << pMinus << "]";
-        return;
-      }
-
-      friend std::ostream& operator<< (std::ostream &os, const RowSign &obj)
-      {
-        obj.print (os);
-        return os;
-      }
-
-    };
-
-    class RowSigns
-    {
-    public:
-      // Nested class to hold sign information for a given row.
-      /**
-       * A class for holding the sets P+ = {j | c_hj &gt; 0} and P- = {j | c_hj less
-       * 0} for a given row.
-       */
-
-      RowSigns (const MatrixCol<T> &matC)
-      {
-        size_t rowCount = matC.getRowCount ();
-        // Preallocate one RowSign per row.
-        rows.reserve (rowCount);
-        for (size_t row = 0; row < rowCount; ++row) {
-          rows.push_back (RowSign (row));
-        }
-        // For each column in matC, update the corresponding row.
-        for (size_t icol = 0, cole = matC.getColumnCount (); icol < cole;
-            ++icol) {
-          const SparseArray<T> &col = matC.getColumn (icol);
-          for (size_t i = 0, ie = col.size (); i < ie; ++i) {
-            size_t row = col.keyAt (i);
-            // Update row 'row' with the sign information from column icol.
-            if (col.valueAt (i) < 0) {
-              rows[row].pMinus.append (icol, true);
-            } else {
-              rows[row].pPlus.append (icol, true);
-            }
-          }
-        }
-      }
-      // updateValue forces all modifications to go through RowSigns.
-      // This way, any extra bookkeeping we need later is performed here.
-      void setValue (size_t row, size_t col, T newVal)
-      {
-        // For now, simply delegate to the underlying RowSign.
-        rows[row].setValue (col, newVal);
-        // (Additional bookkeeping could be added here later.)
-      }
-
-      const RowSign& get (size_t row) const
-      {
-        return rows[row];
-      }
-
-      size_t size () const
-      {
-        return rows.size ();
-      }
-
-      ssize_t findSingleSignRow (size_t startIndex) const
-      {
-        size_t sz = rows.size ();
-        // First, scan from startIndex to end.
-        for (size_t i = startIndex; i < sz; ++i) {
-          if (rows[i].pMinus.size () == 1 || rows[i].pPlus.size () == 1) return static_cast<ssize_t> (i);
-        }
-        // Then, scan from beginning up to startIndex.
-        for (size_t i = 0; i < static_cast<size_t> (startIndex); ++i) {
-          if (rows[i].pMinus.size () == 1 || rows[i].pPlus.size () == 1) return static_cast<ssize_t> (i);
-        }
-        return -1;
-      }
-
-    private:
-      // The underlying container for row sign data.
-      std::vector<RowSign> rows;
-
-    };
 
     /**
      * Calculates the invariants with the algorithm based on
@@ -254,13 +134,13 @@ template<typename T>
           treated.clear ();
         }
 
-        RowSigns rowSigns (colsB);
+        RowSigns<T> rowSigns (colsB);
         SparseBoolArray negRows;
 
         int minRow = -1;
         int minRowWeight = -1;
         for (size_t row = 0, rowe = rowSigns.size (); row < rowe; row++) {
-          RowSign pp = rowSigns.get (row);
+          const auto & pp = rowSigns.get (row);
           int pps = pp.pPlus.size ();
           int ppm = pp.pMinus.size ();
           int weight = pps + ppm;
@@ -567,7 +447,7 @@ template<typename T>
       return matB;
     }
 
-    static int applyRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB, RowSigns &rowSigns,
+    static int applyRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB, RowSigns<T> &rowSigns,
                        int startIndex)
     {
       // Find the candidate row with a single sign entry.
@@ -585,7 +465,7 @@ template<typename T>
   private:
 
     static void applyGeneralRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
-                         RowSigns &rowSigns)
+                         RowSigns<T> &rowSigns)
     {
       // [1.1.b.1] let tRow be the index of a non-zero row of C.
       // let tCol be the index of a column such that c[trow][tcol] != 0.
@@ -616,7 +496,7 @@ template<typename T>
         std::cout << "Rule 1b2 : " << tCol << std::endl;
       }
       // for all cols j with j != tCol and c[tRow][j] != 0
-      const RowSign &rowppm = rowSigns.get (tRow);
+      const auto &rowppm = rowSigns.get (tRow);
       if (DEBUG) {
         std::cout << "tCol : " << tCol << " tRow " << tRow << std::endl;
         std::cout << "rowppm : " << rowppm << std::endl;
@@ -692,7 +572,7 @@ template<typename T>
 
   public:
     static void clearColumn (int tCol, MatrixCol<T> &matC, MatrixCol<T> &matB,
-                             RowSigns &rowSigns)
+                             RowSigns<T> &rowSigns)
     {
       // delete from the extended matrix the column of index k
       SparseArray<T> &colk = matC.getColumn (tCol);
@@ -706,13 +586,13 @@ template<typename T>
   private:
 
     static void applySingleSignRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
-                         RowSigns &rowSigns, size_t candidateRow)
+                         RowSigns<T> &rowSigns, size_t candidateRow)
     {
       if (DEBUG) {
         std::cout << "Rule 1b.1 : " << candidateRow << std::endl;
       }
       // Get the candidate row data freshly.
-      const RowSign &rowData = rowSigns.get (candidateRow);
+      const auto &rowData = rowSigns.get (candidateRow);
       // In our construction, exactly one of pPlus or pMinus must have size 1.
       assert(rowData.pPlus.size() == 1 || rowData.pMinus.size() == 1);
 
@@ -725,7 +605,7 @@ template<typename T>
       // Loop while the complementary set (re-read fresh each iteration) is non-empty.
       while (true) {
         // Re-read the candidate row to get the latest state.
-        const RowSign &currentRow = rowSigns.get (candidateRow);
+        const auto &currentRow = rowSigns.get (candidateRow);
         const SparseBoolArray &currentComplement =
             isPos ? currentRow.pMinus : currentRow.pPlus;
         if (currentComplement.size () == 0) {
