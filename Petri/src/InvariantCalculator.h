@@ -140,33 +140,32 @@ template<typename T>
 
         int minRow = -1;
         int minRowWeight = -1;
-        for (size_t row = 0, rowe = rowSigns.size (); row < rowe; row++) {
-          const auto & pp = rowSigns.get (row);
-          int pps = pp.pPlus.size ();
-          int ppm = pp.pMinus.size ();
+        for (const auto &rs : rowSigns) {
+          int pps = rs.pPlus.size();
+          int ppm = rs.pMinus.size();
           int weight = pps + ppm;
 
           if (pps == 0) {
             for (int i = 0; i < ppm; i++) {
-              negRows.set (pp.pMinus.keyAt (i));
+              negRows.set(rs.pMinus.keyAt(i));
             }
           }
           if (pps > 0 && ppm > 0) {
             if (pps == 1 || ppm == 1) {
-              // can't grow the size
-              minRow = row;
+              // can't grow the size; use the stored row index
+              minRow = rs.row;
               break;
             }
             if (minRow == -1 || minRowWeight > weight) {
               int refinedweight = 0;
-              for (size_t i = 0, ie = pp.pPlus.size (); i < ie; i++) {
-                refinedweight += colsB.getColumn (pp.pPlus.keyAt (i)).size ();
+              for (size_t i = 0, ie = rs.pPlus.size(); i < ie; i++) {
+                refinedweight += colsB.getColumn(rs.pPlus.keyAt(i)).size();
               }
-              for (size_t i = 0, ie = pp.pMinus.size (); i < ie; i++) {
-                refinedweight += colsB.getColumn (pp.pMinus.keyAt (i)).size ();
+              for (size_t i = 0, ie = rs.pMinus.size(); i < ie; i++) {
+                refinedweight += colsB.getColumn(rs.pMinus.keyAt(i)).size();
               }
               if (minRow == -1 || minRowWeight > refinedweight) {
-                minRow = row;
+                minRow = rs.row;
                 minRowWeight = refinedweight;
               }
             }
@@ -314,11 +313,10 @@ template<typename T>
                        int startIndex)
     {
       // Find the candidate row with a single sign entry.
-      ssize_t candidateRow = rowSigns.findSingleSignRow (startIndex);
+      ssize_t candidateRow = rowSigns.findSingleSignRow ();
       if (candidateRow != -1) {
         // Use candidateRow (cast to int if necessary) in test1b1.
         applySingleSignRowElimination (matC, matB, rowSigns, static_cast<size_t> (candidateRow));
-        startIndex = candidateRow;
       } else {
         applyGeneralRowElimination (matC, matB, rowSigns);
       }

@@ -96,18 +96,14 @@ public:
 
   /// Scans from startIndex (wrapping around) to find the first row where either
   /// pPlus or pMinus has exactly one element. Returns the row index or -1 if none found.
-  ssize_t findSingleSignRow(size_t startIndex) const {
-    size_t sz = rows.size();
-    for (size_t i = startIndex; i < sz; ++i) {
-      if (rows[i].pMinus.size() == 1 || rows[i].pPlus.size() == 1)
-        return static_cast<ssize_t>(i);
+    ssize_t findSingleSignRow () const
+    {
+      // Iterate only over stored (nonempty) row signs.
+      for (const auto &rs : *this) { // assuming RowSigns supports begin() and end()
+        if (rs.pPlus.size () == 1 || rs.pMinus.size () == 1) return static_cast<ssize_t> (rs.row);
+      }
+      return -1;
     }
-    for (size_t i = 0; i < startIndex; ++i) {
-      if (rows[i].pMinus.size() == 1 || rows[i].pPlus.size() == 1)
-        return static_cast<ssize_t>(i);
-    }
-    return -1;
-  }
 };
 
 } // namespace petri
