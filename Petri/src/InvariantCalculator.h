@@ -142,7 +142,7 @@ template<typename T>
         // (Additional bookkeeping could be added here later.)
       }
 
-      PpPm& get (size_t row)
+      const PpPm& get (size_t row) const
       {
         return rows[row];
       }
@@ -152,67 +152,24 @@ template<typename T>
         return rows.size ();
       }
 
-      class Check11bResult
+      ssize_t findSingleSignRow (size_t startIndex) const
       {
-
-      public:
-        // The first columnindex where c_hj < 0 respectivly c_hj > 0
-        const int col;
-        // The whole row
-        const int row;
-        // The set P+ respectivly P-
-        SparseBoolArray *p;
-
-        /**
-         * Constructor to save the data.
-         *
-         * @paramk - the first column index where a component is less respectively
-         *         greater than zero.
-         * @param h     - the whole row.
-         * @param pPlus - the set P+ respectively P-.
-         */
-        Check11bResult (int k, int row, SparseBoolArray *pPlus)
-            : col (k), row (row), p (pPlus)
-        {
+        size_t sz = rows.size ();
+        // First, scan from startIndex to end.
+        for (size_t i = startIndex; i < sz; ++i) {
+          if (rows[i].pMinus.size () == 1 || rows[i].pPlus.size () == 1) return static_cast<ssize_t> (i);
         }
-      };
-
-      // check11b replicates the original check11b behavior,
-      // scanning first from startIndex to the end and then wrapping.
-      /**
-       * Checks if there exists a row in the given matrix such that |P+| == 1 or |P-|
-       * == 1 and returns the row or null if such a row do not exists.
-       *
-       * @param pppms      the list of all rows with P+ and P- sets.
-       * @param startIndex
-       * @return the row which satisfy |P+| == 1 or |P-| == 1 or null if not existent.
-       */
-      Check11bResult check11b (int startIndex)
-      {
-        for (size_t i = startIndex, sz = rows.size (); i < sz; ++i) {
-          Check11bResult res = check11bPppm (rows[i]);
-          if (res.col != -1) return res;
-        }
+        // Then, scan from beginning up to startIndex.
         for (size_t i = 0; i < static_cast<size_t> (startIndex); ++i) {
-          Check11bResult res = check11bPppm (rows[i]);
-          if (res.col != -1) return res;
+          if (rows[i].pMinus.size () == 1 || rows[i].pPlus.size () == 1) return static_cast<ssize_t> (i);
         }
-        return Check11bResult (-1, -1, nullptr);
+        return -1;
       }
 
     private:
       // The underlying container for row sign data.
       std::vector<PpPm> rows;
 
-      // Helper function replicating the original check11bPppm.
-      static Check11bResult check11bPppm (PpPm &pppm)
-      {
-        if (pppm.pMinus.size () == 1) return Check11bResult (
-            pppm.pMinus.keyAt (0), pppm.row, &pppm.pPlus);
-        else if (pppm.pPlus.size () == 1) return Check11bResult (
-            pppm.pPlus.keyAt (0), pppm.row, &pppm.pMinus);
-        return Check11bResult (-1, -1, nullptr);
-      }
     };
 
     /**
@@ -632,11 +589,12 @@ template<typename T>
     static int test1b (MatrixCol<T> &matC, MatrixCol<T> &matB, RowSigns &pppms,
                        int startIndex)
     {
-      // [1.1.b] if there exists a row h in C such that |P+| == 1 or |P-| == 1
-      typename RowSigns::Check11bResult chkResult = pppms.check11b (startIndex);
-      if (chkResult.col != -1) {
-        test1b1 (matC, matB, pppms, chkResult);
-        startIndex = chkResult.row;
+      // Find the candidate row with a single sign entry.
+      ssize_t candidateRow = pppms.findSingleSignRow (startIndex);
+      if (candidateRow != -1) {
+        // Use candidateRow (cast to int if necessary) in test1b1.
+        test1b1 (matC, matB, pppms, static_cast<size_t> (candidateRow));
+        startIndex = candidateRow;
       } else {
         test1b2 (matC, matB, pppms);
       }
@@ -732,7 +690,7 @@ template<typename T>
         std::cout << "Rule 1b2 : " << tCol << std::endl;
       }
       // for all cols j with j != tCol and c[tRow][j] != 0
-      PpPm &rowppm = pppms.get (tRow);
+      const PpPm &rowppm = pppms.get (tRow);
       if (DEBUG) {
         std::cout << "tCol : " << tCol << " tRow " << tRow << std::endl;
         std::cout << "rowppm : " << rowppm << std::endl;
@@ -830,34 +788,55 @@ template<typename T>
     }
 
     static void test1b1 (MatrixCol<T> &matC, MatrixCol<T> &matB,
-                         RowSigns &pppms,
-                         const RowSigns::Check11bResult &chkResult)
+                         RowSigns &pppms, size_t candidateRow)
     {
       if (DEBUG) {
-        std::cout << "Rule 1b.1 : " << chkResult.row << std::endl;
+        std::cout << "Rule 1b.1 : " << candidateRow << std::endl;
       }
-      int tCol = chkResult.col;
-      // [1.1.b.1] let k be the unique index of column belonging to P+ (resp. to P-)
-      while (chkResult.p->size () > 0) {
-        int j = chkResult.p->keyAt (0);
-        // substitute to the column of index j the linear combination of
-        // the columns indexed by k and j with the coefficients
-        // |chj| and |chk| respectively.
-        T chk = std::abs (matC.get (chkResult.row, tCol));
-        T chj = std::abs (matC.get (chkResult.row, j));
+      // Get the candidate row data freshly.
+      const PpPm &rowData = pppms.get (candidateRow);
+      // In our construction, exactly one of pPlus or pMinus must have size 1.
+      assert(rowData.pPlus.size() == 1 || rowData.pMinus.size() == 1);
+
+      // Determine which set is unique.
+      // If pPlus is unique then tCol is the unique key and the complementary set is pMinus;
+      // otherwise, tCol is from pMinus and the complementary set is pPlus.
+      bool isPos = (rowData.pPlus.size () == 1);
+      int tCol = isPos ? rowData.pPlus.keyAt (0) : rowData.pMinus.keyAt (0);
+
+      // Loop while the complementary set (re-read fresh each iteration) is non-empty.
+      while (true) {
+        // Re-read the candidate row to get the latest state.
+        const PpPm &currentRow = pppms.get (candidateRow);
+        const SparseBoolArray &currentComplement =
+            isPos ? currentRow.pMinus : currentRow.pPlus;
+        if (currentComplement.size () == 0) {
+          break;
+        }
+        int j = currentComplement.keyAt (0);
+
+        // Retrieve the coefficients from the candidate row.
+        T chk = std::abs (matC.get (candidateRow, tCol));
+        T chj = std::abs (matC.get (candidateRow, j));
         T gcdt = std::gcd (chk, chj);
         chk /= gcdt;
         chj /= gcdt;
 
+        // Update matC: combine columns j and tCol.
         SparseBoolArray changed = sumProdInto (chk, matC.getColumn (j), chj,
                                                matC.getColumn (tCol));
-        for (size_t ind = 0, inde = changed.size (); ind < inde; ind++) {
-          pppms.setValue (changed.keyAt (ind), j,
-                          matC.getColumn (j).get (changed.keyAt (ind)));
+        // For each change, update the row-sign bookkeeping.
+        // (We re-read each row via pppms.setValue to avoid caching any references.)
+        for (size_t ind = 0, inde = changed.size (); ind < inde; ++ind) {
+          size_t key = changed.keyAt (ind);
+          pppms.setValue (key, j, matC.getColumn (j).get (key));
         }
+
+        // Update matB with the same linear combination.
         SparseArray<T> &coljb = matB.getColumn (j);
         sumProdInto (chk, coljb, chj, matB.getColumn (tCol));
 
+        // Optionally perform a GCD reduction on column j.
         T gcdm = gcd (matC.getColumn (j));
         if (gcdm != 1) {
           T gcdb = gcd (matB.getColumn (j));
@@ -866,13 +845,13 @@ template<typename T>
             if (ggcd != 1) {
               matC.getColumn (j).scalarDiv (ggcd);
               matB.getColumn (j).scalarDiv (ggcd);
-              //std::cout << "reduce by " << ggcd << std::endl;
             }
           }
         }
+        // Loop condition re-evaluated by re-reading pppms.get(candidateRow)
       }
-      // delete from the extended matrix the column of index k
-      clearColumn (chkResult.col, matC, matB, pppms);
+      // Finally, clear the candidate column from both matrices.
+      clearColumn (tCol, matC, matB, pppms);
     }
 
     static T gcd (const std::vector<T> &set)
