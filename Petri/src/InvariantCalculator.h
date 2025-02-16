@@ -51,171 +51,169 @@ template<typename T>
     {
     }
 
-
     class PpPm
-        {
+    {
 
-        public:
-          // The row
-          const size_t row;
-          // P+ set
-          SparseBoolArray pPlus;
-          // P- set
-          SparseBoolArray pMinus;
+    public:
+      // The row
+      const size_t row;
+      // P+ set
+      SparseBoolArray pPlus;
+      // P- set
+      SparseBoolArray pMinus;
 
-          /**
-           * initially empty.
-           *
-           * @param row
-           */
-          PpPm (size_t row)
-              : row (row), pPlus (), pMinus ()
-          {
-          }
+      /**
+       * initially empty.
+       *
+       * @param row
+       */
+      PpPm (size_t row)
+          : row (row), pPlus (), pMinus ()
+      {
+      }
 
-          void setValue (size_t j, T val)
-          {
-            if (val == 0) {
-              pMinus.clear (j);
-              pPlus.clear (j);
-            } else if (val < 0) {
-              pMinus.set (j);
-              pPlus.clear (j);
-            } else {
-              pMinus.clear (j);
-              pPlus.set (j);
-            }
-          }
+      void setValue (size_t j, T val)
+      {
+        if (val == 0) {
+          pMinus.clear (j);
+          pPlus.clear (j);
+        } else if (val < 0) {
+          pMinus.set (j);
+          pPlus.clear (j);
+        } else {
+          pMinus.clear (j);
+          pPlus.set (j);
+        }
+      }
 
-          void print (std::ostream &os) const
-          {
-            os << "PpPm [row=" << row << ", pPlus=" << pPlus << ", pMinus="
-                << pMinus << "]";
-            return;
-          }
+      void print (std::ostream &os) const
+      {
+        os << "PpPm [row=" << row << ", pPlus=" << pPlus << ", pMinus="
+            << pMinus << "]";
+        return;
+      }
 
-          friend std::ostream& operator<< (std::ostream &os, const PpPm &obj)
-          {
-            obj.print (os);
-            return os;
-          }
+      friend std::ostream& operator<< (std::ostream &os, const PpPm &obj)
+      {
+        obj.print (os);
+        return os;
+      }
 
-        };
+    };
 
-    class RowSigns {
+    class RowSigns
+    {
     public:
       // Nested class to hold sign information for a given row.
-    /**
-     * A class for holding the sets P+ = {j | c_hj &gt; 0} and P- = {j | c_hj less
-     * 0} for a given row.
-     */
+      /**
+       * A class for holding the sets P+ = {j | c_hj &gt; 0} and P- = {j | c_hj less
+       * 0} for a given row.
+       */
 
+      RowSigns (const MatrixCol<T> &matC)
+      {
+        size_t rowCount = matC.getRowCount ();
+        // Preallocate one PpPm per row.
+        rows.reserve (rowCount);
+        for (size_t row = 0; row < rowCount; ++row) {
+          rows.push_back (PpPm (row));
+        }
+        // For each column in matC, update the corresponding row.
+        for (size_t icol = 0, cole = matC.getColumnCount (); icol < cole;
+            ++icol) {
+          const SparseArray<T> &col = matC.getColumn (icol);
+          for (size_t i = 0, ie = col.size (); i < ie; ++i) {
+            size_t row = col.keyAt (i);
+            // Update row 'row' with the sign information from column icol.
+            if (col.valueAt (i) < 0) {
+              rows[row].pMinus.append (icol, true);
+            } else {
+              rows[row].pPlus.append (icol, true);
+            }
+          }
+        }
+      }
+      // updateValue forces all modifications to go through RowSigns.
+      // This way, any extra bookkeeping we need later is performed here.
+      void setValue (size_t row, size_t col, T newVal)
+      {
+        // For now, simply delegate to the underlying PpPm.
+        rows[row].setValue (col, newVal);
+        // (Additional bookkeeping could be added here later.)
+      }
 
-    RowSigns(const MatrixCol<T>& matC) {
-       size_t rowCount = matC.getRowCount();
-       // Preallocate one PpPm per row.
-       rows.reserve(rowCount);
-       for (size_t row = 0; row < rowCount; ++row) {
-         rows.push_back(PpPm(row));
-       }
-       // For each column in matC, update the corresponding row.
-       for (size_t icol = 0, cole = matC.getColumnCount(); icol < cole; ++icol) {
-         const SparseArray<T>& col = matC.getColumn(icol);
-         for (size_t i = 0, ie = col.size(); i < ie; ++i) {
-           size_t row = col.keyAt(i);
-           // Update row 'row' with the sign information from column icol.
-           if (col.valueAt(i) < 0) {
-             rows[row].pMinus.append(icol, true);
-           } else {
-             rows[row].pPlus.append(icol, true);
-           }
-         }
-       }
-     }
-    // updateValue forces all modifications to go through RowSigns.
-    // This way, any extra bookkeeping we need later is performed here.
-    void setValue(size_t row, size_t col, T newVal) {
-      // For now, simply delegate to the underlying PpPm.
-      rows[row].setValue(col, newVal);
-      // (Additional bookkeeping could be added here later.)
-    }
-
-    PpPm& get(size_t row) {
-       return rows[row];
-    }
+      PpPm& get (size_t row)
+      {
+        return rows[row];
+      }
 
       size_t size () const
       {
         return rows.size ();
       }
 
-    class Check11bResult
-    {
-
-    public:
-      // The first columnindex where c_hj < 0 respectivly c_hj > 0
-      const int col;
-      // The whole row
-      const int row;
-      // The set P+ respectivly P-
-      SparseBoolArray *p;
-
-      /**
-       * Constructor to save the data.
-       *
-       * @paramk - the first column index where a component is less respectively
-       *         greater than zero.
-       * @param h     - the whole row.
-       * @param pPlus - the set P+ respectively P-.
-       */
-      Check11bResult (int k, int row, SparseBoolArray *pPlus)
-          : col (k), row (row), p (pPlus)
+      class Check11bResult
       {
+
+      public:
+        // The first columnindex where c_hj < 0 respectivly c_hj > 0
+        const int col;
+        // The whole row
+        const int row;
+        // The set P+ respectivly P-
+        SparseBoolArray *p;
+
+        /**
+         * Constructor to save the data.
+         *
+         * @paramk - the first column index where a component is less respectively
+         *         greater than zero.
+         * @param h     - the whole row.
+         * @param pPlus - the set P+ respectively P-.
+         */
+        Check11bResult (int k, int row, SparseBoolArray *pPlus)
+            : col (k), row (row), p (pPlus)
+        {
+        }
+      };
+
+      // check11b replicates the original check11b behavior,
+      // scanning first from startIndex to the end and then wrapping.
+      /**
+       * Checks if there exists a row in the given matrix such that |P+| == 1 or |P-|
+       * == 1 and returns the row or null if such a row do not exists.
+       *
+       * @param pppms      the list of all rows with P+ and P- sets.
+       * @param startIndex
+       * @return the row which satisfy |P+| == 1 or |P-| == 1 or null if not existent.
+       */
+      Check11bResult check11b (int startIndex)
+      {
+        for (size_t i = startIndex, sz = rows.size (); i < sz; ++i) {
+          Check11bResult res = check11bPppm (rows[i]);
+          if (res.col != -1) return res;
+        }
+        for (size_t i = 0; i < static_cast<size_t> (startIndex); ++i) {
+          Check11bResult res = check11bPppm (rows[i]);
+          if (res.col != -1) return res;
+        }
+        return Check11bResult (-1, -1, nullptr);
       }
-    };
-
-
-    // check11b replicates the original check11b behavior,
-    // scanning first from startIndex to the end and then wrapping.
-    /**
-     * Checks if there exists a row in the given matrix such that |P+| == 1 or |P-|
-     * == 1 and returns the row or null if such a row do not exists.
-     *
-     * @param pppms      the list of all rows with P+ and P- sets.
-     * @param startIndex
-     * @return the row which satisfy |P+| == 1 or |P-| == 1 or null if not existent.
-     */
-    Check11bResult check11b(int startIndex) {
-      for (size_t i = startIndex, sz = rows.size(); i < sz; ++i) {
-        Check11bResult res = check11bPppm(rows[i]);
-        if (res.col != -1)
-          return res;
-      }
-      for (size_t i = 0; i < static_cast<size_t>(startIndex); ++i) {
-        Check11bResult res = check11bPppm(rows[i]);
-        if (res.col != -1)
-          return res;
-      }
-      return Check11bResult(-1, -1, nullptr);
-    }
-
-
 
     private:
       // The underlying container for row sign data.
       std::vector<PpPm> rows;
 
       // Helper function replicating the original check11bPppm.
-      static Check11bResult check11bPppm(PpPm &pppm) {
-        if (pppm.pMinus.size() == 1)
-          return Check11bResult(pppm.pMinus.keyAt(0), pppm.row, &pppm.pPlus);
-        else if (pppm.pPlus.size() == 1)
-          return Check11bResult(pppm.pPlus.keyAt(0), pppm.row, &pppm.pMinus);
-        return Check11bResult(-1, -1, nullptr);
+      static Check11bResult check11bPppm (PpPm &pppm)
+      {
+        if (pppm.pMinus.size () == 1) return Check11bResult (
+            pppm.pMinus.keyAt (0), pppm.row, &pppm.pPlus);
+        else if (pppm.pPlus.size () == 1) return Check11bResult (
+            pppm.pPlus.keyAt (0), pppm.row, &pppm.pMinus);
+        return Check11bResult (-1, -1, nullptr);
       }
     };
-
-
 
     /**
      * Calculates the invariants with the algorithm based on
@@ -301,7 +299,7 @@ template<typename T>
         int minRow = -1;
         int minRowWeight = -1;
         for (size_t row = 0, rowe = pppms.size (); row < rowe; row++) {
-          PpPm pp = pppms.get(row);
+          PpPm pp = pppms.get (row);
           int pps = pp.pPlus.size ();
           int ppm = pp.pMinus.size ();
           int weight = pps + ppm;
@@ -360,7 +358,7 @@ template<typename T>
             bool needed = false;
             for (size_t j = 0, je = col.size (); j < je; j++) {
               int row = col.keyAt (j);
-              PpPm ppm = pppms.get(row);
+              PpPm ppm = pppms.get (row);
               if (ppm.pMinus.size () > 0) {
                 needed = true;
                 purePos = i;
@@ -381,7 +379,7 @@ template<typename T>
           // no more negative rows to treat
           break;
         }
-        PpPm ppm = pppms.get(targetRow);
+        PpPm ppm = pppms.get (targetRow);
         if (ppm.pPlus.size () > 0) {
           for (size_t j = 0, je = ppm.pPlus.size (); j < je; j++) {
             auto jindex = ppm.pPlus.keyAt (j);
@@ -479,7 +477,6 @@ template<typename T>
       return list;
     }
 
-
     /**
      * Efficiently removes trivial columns (i.e. empty columns in matC) from both
      * matC and matB. For each trivial column, its corresponding invariant from
@@ -489,50 +486,49 @@ template<typename T>
      * @param matB       The transformation matrix.
      * @param trivialInv Vector accumulating trivial invariants.
      */
-    static void cullConstantColumns(MatrixCol<T>& matC,
-                                    MatrixCol<T>& matB,
-                                    std::vector<SparseArray<T>>& trivialInv)
+    static void cullConstantColumns (MatrixCol<T> &matC, MatrixCol<T> &matB,
+                                     std::vector<SparseArray<T>> &trivialInv)
     {
-        std::vector<size_t> trivialIndexes;
-        size_t colCount = matC.getColumnCount();
+      std::vector<size_t> trivialIndexes;
+      size_t colCount = matC.getColumnCount ();
 
-        // First pass: accumulate indexes of trivial columns.
+      // First pass: accumulate indexes of trivial columns.
+      for (size_t col = 0; col < colCount; ++col) {
+        if (matC.getColumn (col).size () == 0) {
+          trivialIndexes.push_back (col);
+        }
+      }
+
+      // Only rebuild if we found any trivial columns.
+      if (!trivialIndexes.empty ()) {
+        std::cout << "Culling trivial invariants: removed "
+            << trivialIndexes.size () << " columns." << std::endl;
+
+        // Prepare new vectors for non-trivial columns.
+        std::vector<SparseArray<T>> newColsC;
+        std::vector<SparseArray<T>> newColsB;
+        newColsC.reserve (colCount - trivialIndexes.size ());
+        newColsB.reserve (colCount - trivialIndexes.size ());
+
+        size_t trivialPos = 0; // Pointer into trivialIndexes (sorted in increasing order)
         for (size_t col = 0; col < colCount; ++col) {
-            if (matC.getColumn(col).size() == 0) {
-                trivialIndexes.push_back(col);
-            }
+          if (trivialPos < trivialIndexes.size ()
+              && col == trivialIndexes[trivialPos]) {
+            // Found a trivial column: move its corresponding invariant from matB.
+            trivialInv.push_back (std::move (matB.getColumn (col)));
+            ++trivialPos;
+            // Skip this column from matC.
+          } else {
+            // Non-trivial column: move from both matrices.
+            newColsC.push_back (std::move (matC.getColumn (col)));
+            newColsB.push_back (std::move (matB.getColumn (col)));
+          }
         }
-
-        // Only rebuild if we found any trivial columns.
-        if (!trivialIndexes.empty()) {
-            std::cout << "Culling trivial invariants: removed "
-                      << trivialIndexes.size() << " columns." << std::endl;
-
-            // Prepare new vectors for non-trivial columns.
-            std::vector<SparseArray<T>> newColsC;
-            std::vector<SparseArray<T>> newColsB;
-            newColsC.reserve(colCount - trivialIndexes.size());
-            newColsB.reserve(colCount - trivialIndexes.size());
-
-            size_t trivialPos = 0;  // Pointer into trivialIndexes (sorted in increasing order)
-            for (size_t col = 0; col < colCount; ++col) {
-                if (trivialPos < trivialIndexes.size() && col == trivialIndexes[trivialPos]) {
-                    // Found a trivial column: move its corresponding invariant from matB.
-                    trivialInv.push_back(std::move(matB.getColumn(col)));
-                    ++trivialPos;
-                    // Skip this column from matC.
-                } else {
-                    // Non-trivial column: move from both matrices.
-                    newColsC.push_back(std::move(matC.getColumn(col)));
-                    newColsB.push_back(std::move(matB.getColumn(col)));
-                }
-            }
-            // Replace the old columns with the new (culled) ones.
-            matC.setColumns(std::move(newColsC));
-            matB.setColumns(std::move(newColsB));
-        }
+        // Replace the old columns with the new (culled) ones.
+        matC.setColumns (std::move (newColsC));
+        matB.setColumns (std::move (newColsB));
+      }
     }
-
 
     /**
      * Efficiently removes duplicate columns in matC.
@@ -549,92 +545,92 @@ template<typename T>
      * @param matB          The transformation matrix.
      * @param trivialInv    Vector accumulating trivial invariants.
      */
-    static void cullDuplicateColumns(MatrixCol<T>& matC,
-                                     MatrixCol<T>& matB,
-                                     std::vector<SparseArray<T>>& trivialInv)
+    static void cullDuplicateColumns (MatrixCol<T> &matC, MatrixCol<T> &matB,
+                                      std::vector<SparseArray<T>> &trivialInv)
     {
-        size_t colCount = matC.getColumnCount();
-        std::vector<size_t> duplicateIndexes;  // collect duplicate column indices
-        std::unordered_map<SparseArray<T>, size_t> repMap;
+      size_t colCount = matC.getColumnCount ();
+      std::vector<size_t> duplicateIndexes;  // collect duplicate column indices
+      std::unordered_map<SparseArray<T>, size_t> repMap;
 
-        // First pass: detect duplicates.
+      // First pass: detect duplicates.
+      for (size_t col = 0; col < colCount; ++col) {
+        const SparseArray<T> &columnC = matC.getColumn (col);
+        auto it = repMap.find (columnC);
+        if (it == repMap.end ()) {
+          repMap.insert (
+            { columnC, col });
+        } else {
+          // Duplicate column found: record its index.
+          duplicateIndexes.push_back (col);
+          // Compute diff = matB(col) - matB(rep) using sumProd.
+          SparseArray<T> diff = SparseArray<T>::sumProd (
+              1, matB.getColumn (col), -1, matB.getColumn (it->second));
+          trivialInv.push_back (std::move (diff));
+        }
+      }
+
+      // Only rebuild if we found duplicates.
+      if (!duplicateIndexes.empty ()) {
+        std::cout << "Culling duplicate invariants: removed "
+            << duplicateIndexes.size () << " columns." << std::endl;
+
+        // duplicateIndexes are produced in increasing order since col increases.
+        std::vector<SparseArray<T>> newColsC;
+        std::vector<SparseArray<T>> newColsB;
+        newColsC.reserve (colCount - duplicateIndexes.size ());
+        newColsB.reserve (colCount - duplicateIndexes.size ());
+
+        size_t dupPos = 0; // pointer into duplicateIndexes
         for (size_t col = 0; col < colCount; ++col) {
-            const SparseArray<T>& columnC = matC.getColumn(col);
-            auto it = repMap.find(columnC);
-            if (it == repMap.end()) {
-                repMap.insert({columnC, col});
-            } else {
-                // Duplicate column found: record its index.
-                duplicateIndexes.push_back(col);
-                // Compute diff = matB(col) - matB(rep) using sumProd.
-                SparseArray<T> diff = SparseArray<T>::sumProd(1, matB.getColumn(col),
-                                                              -1, matB.getColumn(it->second));
-                trivialInv.push_back(std::move(diff));
-            }
+          if (dupPos < duplicateIndexes.size ()
+              && duplicateIndexes[dupPos] == col) {
+            ++dupPos; // skip this duplicate column
+          } else {
+            newColsC.push_back (std::move (matC.getColumn (col)));
+            newColsB.push_back (std::move (matB.getColumn (col)));
+          }
         }
 
-        // Only rebuild if we found duplicates.
-        if (!duplicateIndexes.empty()) {
-            std::cout << "Culling duplicate invariants: removed "
-                      << duplicateIndexes.size() << " columns." << std::endl;
-
-            // duplicateIndexes are produced in increasing order since col increases.
-            std::vector<SparseArray<T>> newColsC;
-            std::vector<SparseArray<T>> newColsB;
-            newColsC.reserve(colCount - duplicateIndexes.size());
-            newColsB.reserve(colCount - duplicateIndexes.size());
-
-            size_t dupPos = 0; // pointer into duplicateIndexes
-            for (size_t col = 0; col < colCount; ++col) {
-                if (dupPos < duplicateIndexes.size() && duplicateIndexes[dupPos] == col) {
-                    ++dupPos; // skip this duplicate column
-                } else {
-                    newColsC.push_back(std::move(matC.getColumn(col)));
-                    newColsB.push_back(std::move(matB.getColumn(col)));
-                }
-            }
-
-            // Replace the old columns with the new (culled) ones.
-            matC.setColumns(std::move(newColsC));
-            matB.setColumns(std::move(newColsB));
-        }
+        // Replace the old columns with the new (culled) ones.
+        matC.setColumns (std::move (newColsC));
+        matB.setColumns (std::move (newColsB));
+      }
     }
-
 
     static MatrixCol<T> phase1PIPE (MatrixCol<T> matC)
     {
-        // Build the initial transformation matrix.
-        MatrixCol<T> matB = MatrixCol<T>::identity(matC.getColumnCount(),
-                                                   matC.getColumnCount());
+      // Build the initial transformation matrix.
+      MatrixCol<T> matB = MatrixCol<T>::identity (matC.getColumnCount (),
+                                                  matC.getColumnCount ());
 
-        // Vector to hold trivial invariants.
-        std::vector<SparseArray<T>> trivialInv;
-        // Remove trivial invariants (empty columns in matC) early.
-        cullConstantColumns(matC, matB, trivialInv);
-        // Remove duplicate columns
-        cullDuplicateColumns(matC, matB, trivialInv);
-        std::cout << "// Phase 1: matrix " << matC.getRowCount() << " rows "
-                  << matC.getColumnCount() << " cols" << std::endl;
-        RowSigns pppms (matC);
-        int startIndex = 0;
-        while (!matC.isZero()) {
-            startIndex = test1b(matC, matB, pppms, startIndex);
-            if (DEBUG) {
-                std::cout << "Mat max : " << matC.maxVal() << std::endl;
-                std::cout << "B max : " << matB.maxVal() << std::endl;
-            }
+      // Vector to hold trivial invariants.
+      std::vector<SparseArray<T>> trivialInv;
+      // Remove trivial invariants (empty columns in matC) early.
+      cullConstantColumns (matC, matB, trivialInv);
+      // Remove duplicate columns
+      cullDuplicateColumns (matC, matB, trivialInv);
+      std::cout << "// Phase 1: matrix " << matC.getRowCount () << " rows "
+          << matC.getColumnCount () << " cols" << std::endl;
+      RowSigns pppms (matC);
+      int startIndex = 0;
+      while (!matC.isZero ()) {
+        startIndex = test1b (matC, matB, pppms, startIndex);
+        if (DEBUG) {
+          std::cout << "Mat max : " << matC.maxVal () << std::endl;
+          std::cout << "B max : " << matB.maxVal () << std::endl;
         }
+      }
 
-        // Re-add the trivial invariants back into matB.
-        for (const auto &inv : trivialInv) {
-            matB.appendColumn(inv);
-        }
+      // Re-add the trivial invariants back into matB.
+      for (const auto &inv : trivialInv) {
+        matB.appendColumn (inv);
+      }
 
-        return matB;
+      return matB;
     }
 
-    static int test1b (MatrixCol<T> &matC, MatrixCol<T> &matB,
-                       RowSigns &pppms, int startIndex)
+    static int test1b (MatrixCol<T> &matC, MatrixCol<T> &matB, RowSigns &pppms,
+                       int startIndex)
     {
       // [1.1.b] if there exists a row h in C such that |P+| == 1 or |P-| == 1
       typename RowSigns::Check11bResult chkResult = pppms.check11b (startIndex);
@@ -694,7 +690,7 @@ template<typename T>
           j++;
         }
       }
-      ta = std::move(flow);
+      ta = std::move (flow);
       return changed;
     }
 
@@ -736,9 +732,9 @@ template<typename T>
         std::cout << "Rule 1b2 : " << tCol << std::endl;
       }
       // for all cols j with j != tCol and c[tRow][j] != 0
-      PpPm & rowppm = pppms.get(tRow);
+      PpPm &rowppm = pppms.get (tRow);
       if (DEBUG) {
-        std::cout << "tCol : " << tCol <<  " tRow " << tRow <<  std::endl;
+        std::cout << "tCol : " << tCol << " tRow " << tRow << std::endl;
         std::cout << "rowppm : " << rowppm << std::endl;
       }
       SparseBoolArray toVisit = SparseBoolArray::unionOperation (rowppm.pMinus,
@@ -768,7 +764,8 @@ template<typename T>
           T beta = bbeta / gcdt;
 
           if (DEBUG) {
-            std::cout << "rule 1. b 2 : " << alpha << "*" << tCol << " + " << beta << " * " << j << std::endl;
+            std::cout << "rule 1. b 2 : " << alpha << "*" << tCol << " + "
+                << beta << " * " << j << std::endl;
             std::cout << "tCol : " << matC.getColumn (tCol) << std::endl;
             std::cout << "colj : " << colj << std::endl;
           }
@@ -776,8 +773,8 @@ template<typename T>
           SparseBoolArray changed = sumProdInto (beta, colj, alpha,
                                                  matC.getColumn (tCol));
           for (size_t ind = 0, inde = changed.size (); ind < inde; ind++) {
-            pppms.setValue (changed.keyAt (ind),
-                j, colj.get (changed.keyAt (ind)));
+            pppms.setValue (changed.keyAt (ind), j,
+                            colj.get (changed.keyAt (ind)));
           }
           SparseArray<T> &coljb = matB.getColumn (j);
           if (DEBUG) {
@@ -787,14 +784,14 @@ template<typename T>
 
           sumProdInto (beta, coljb, alpha, matB.getColumn (tCol));
 
-          T gcdm = gcd(matC.getColumn (j));
+          T gcdm = gcd (matC.getColumn (j));
           if (gcdm != 1) {
-            T gcdb = gcd(matB.getColumn (j));
+            T gcdb = gcd (matB.getColumn (j));
             if (gcdb != 1) {
-              T ggcd = std::gcd(gcdm,gcdb);
+              T ggcd = std::gcd (gcdm, gcdb);
               if (ggcd != 1) {
-                matC.getColumn(j).scalarDiv(ggcd);
-                matB.getColumn (j).scalarDiv(ggcd);
+                matC.getColumn (j).scalarDiv (ggcd);
+                matB.getColumn (j).scalarDiv (ggcd);
                 //std::cout << "1b1 reduce by " << ggcd << std::endl;
               }
             }
@@ -816,7 +813,7 @@ template<typename T>
       // delete from the extended matrix the column of index k
       SparseArray<T> &colk = matC.getColumn (tCol);
       for (size_t i = 0, ie = colk.size (); i < ie; i++) {
-        pppms.setValue (colk.keyAt(i), tCol, 0);
+        pppms.setValue (colk.keyAt (i), tCol, 0);
       }
       colk.clear ();
       matB.getColumn (tCol).clear ();
@@ -855,20 +852,20 @@ template<typename T>
         SparseBoolArray changed = sumProdInto (chk, matC.getColumn (j), chj,
                                                matC.getColumn (tCol));
         for (size_t ind = 0, inde = changed.size (); ind < inde; ind++) {
-          pppms.setValue (changed.keyAt (ind),
-              j, matC.getColumn (j).get (changed.keyAt (ind)));
+          pppms.setValue (changed.keyAt (ind), j,
+                          matC.getColumn (j).get (changed.keyAt (ind)));
         }
         SparseArray<T> &coljb = matB.getColumn (j);
         sumProdInto (chk, coljb, chj, matB.getColumn (tCol));
 
-        T gcdm = gcd(matC.getColumn (j));
+        T gcdm = gcd (matC.getColumn (j));
         if (gcdm != 1) {
-          T gcdb = gcd(matB.getColumn (j));
+          T gcdb = gcd (matB.getColumn (j));
           if (gcdb != 1) {
-            T ggcd = std::gcd(gcdm,gcdb);
+            T ggcd = std::gcd (gcdm, gcdb);
             if (ggcd != 1) {
-              matC.getColumn(j).scalarDiv(ggcd);
-              matB.getColumn (j).scalarDiv(ggcd);
+              matC.getColumn (j).scalarDiv (ggcd);
+              matB.getColumn (j).scalarDiv (ggcd);
               //std::cout << "reduce by " << ggcd << std::endl;
             }
           }
@@ -878,7 +875,7 @@ template<typename T>
       clearColumn (chkResult.col, matC, matB, pppms);
     }
 
-    static T gcd (const std::vector<T> & set)
+    static T gcd (const std::vector<T> &set)
     {
       if (set.size () == 0) return 0;
       T gcd = set[0];
@@ -889,7 +886,7 @@ template<typename T>
       return gcd;
     }
 
-    static T gcd (const SparseArray<T> & set)
+    static T gcd (const SparseArray<T> &set)
     {
       if (set.size () == 0) return 0;
       T gcd = set.valueAt (0);
@@ -900,7 +897,7 @@ template<typename T>
       return gcd;
     }
 
-    static void normalize (std::vector<T> & invariants)
+    static void normalize (std::vector<T> &invariants)
     {
       int gcd = InvariantCalculator::gcd (invariants);
       if (gcd > 1) {
@@ -932,12 +929,12 @@ template<typename T>
           T norm = col.valueAt (j) / gcd;
           col.setValueAt (j, norm);
         }
-        if (DEBUG)
-          std::cout << "Applied gcd to invariant with gcd =" << gcd << std::endl;
+        if (DEBUG) std::cout << "Applied gcd to invariant with gcd =" << gcd
+            << std::endl;
       }
     }
 
-    static void normalize (SparseArray<T> & invariants)
+    static void normalize (SparseArray<T> &invariants)
     {
       T gcd = InvariantCalculator::gcd (invariants);
       if (gcd > 1) {
@@ -947,7 +944,6 @@ template<typename T>
         }
       }
     }
-
 
   };
 
