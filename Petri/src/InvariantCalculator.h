@@ -26,6 +26,10 @@
 #include "MatrixCol.h"
 #include "SparseBoolArray.h"
 #include "Arithmetic.hpp"
+#include "InvariantHelpers.h"
+
+
+namespace petri {
 
 template<typename T>
   class InvariantCalculator
@@ -411,29 +415,6 @@ template<typename T>
       }
     }
 
-    static std::vector<int> normalize (SparseArray<T> &col, size_t size)
-    {
-      std::vector<int> list (size);
-      bool allneg = true;
-      for (size_t i = 0; i < col.size (); i++) {
-        if (col.valueAt (i) > 0) {
-          allneg = false;
-          break;
-        }
-      }
-      if (allneg) {
-        for (size_t i = 0; i < col.size (); i++) {
-          col.setValueAt (i, -col.valueAt (i));
-        }
-      }
-
-      for (size_t i = 0; i < size; i++) {
-        list.push_back (col.get (i, 0));
-      }
-      normalize (list);
-      return list;
-    }
-
     /**
      * Efficiently removes trivial columns (i.e. empty columns in matC) from both
      * matC and matB. For each trivial column, its corresponding invariant from
@@ -601,62 +582,7 @@ template<typename T>
       return startIndex;
     }
 
-  public:
-    static SparseBoolArray sumProdInto (int alpha, SparseArray<T> &ta, int beta,
-                                        const SparseArray<T> &tb)
-    {
-      SparseBoolArray changed;
-      SparseArray<T> flow (std::max (ta.size (), tb.size ()));
-
-      size_t i = 0;
-      size_t j = 0;
-      while (i < ta.size () || j < tb.size ()) {
-        unsigned int ki =
-            i == ta.size () ?
-                std::numeric_limits<unsigned int>::max () : ta.keyAt (i);
-        unsigned int kj =
-            j == tb.size () ?
-                std::numeric_limits<unsigned int>::max () : tb.keyAt (j);
-        if (ki == kj) {
-          T val = petri::addExact (petri::multiplyExact (alpha, ta.valueAt (i)),
-                                   petri::multiplyExact (beta, tb.valueAt (j)));
-          if (val != 0) {
-            flow.append (ki, val);
-          }
-          if (val != ta.valueAt (i)) {
-            changed.set (ki);
-          }
-          i++;
-          j++;
-        } else if (ki < kj) {
-          T val = petri::multiplyExact (alpha, ta.valueAt (i));
-          if (val != 0) {
-            flow.append (ki, val);
-          }
-          if (val != ta.valueAt (i)) {
-            changed.set (ki);
-          }
-          i++;
-        } else if (kj < ki) {
-          T val = petri::multiplyExact (beta, tb.valueAt (j));
-          if (val != 0) {
-            flow.append (kj, val);
-          }
-          if (val != 0) {
-            changed.set (kj);
-          }
-          j++;
-        }
-      }
-      ta = std::move (flow);
-      return changed;
-    }
-
   private:
-    static int signum (T value)
-    {
-      return (value > 0) - (value < 0);
-    }
 
     static void applyGeneralRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
                          RowSigns &rowSigns)
@@ -778,14 +704,6 @@ template<typename T>
     }
 
   private:
-    static size_t sumAbsValues (const SparseArray<T> &col)
-    {
-      size_t tot = 0;
-      for (size_t i = 0; i < col.size (); i++) {
-        tot += std::abs (col.valueAt (i));
-      }
-      return tot;
-    }
 
     static void applySingleSignRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
                          RowSigns &rowSigns, size_t candidateRow)
@@ -854,76 +772,9 @@ template<typename T>
       clearColumn (tCol, matC, matB, rowSigns);
     }
 
-    static T gcd (const std::vector<T> &set)
-    {
-      if (set.size () == 0) return 0;
-      T gcd = set[0];
-      for (size_t i = 1; i < set.size (); i++) {
-        gcd = InvariantCalculator::gcd (gcd, set[i]);
-        if (gcd == 1) return 1;
-      }
-      return gcd;
-    }
-
-    static T gcd (const SparseArray<T> &set)
-    {
-      if (set.size () == 0) return 0;
-      T gcd = set.valueAt (0);
-      for (size_t i = 1; i < set.size (); i++) {
-        gcd = std::gcd (gcd, set.valueAt (i));
-        if (gcd == 1) return 1;
-      }
-      return gcd;
-    }
-
-    static void normalize (std::vector<T> &invariants)
-    {
-      int gcd = InvariantCalculator::gcd (invariants);
-      if (gcd > 1) {
-        for (size_t j = 0; j < invariants.size (); ++j) {
-          invariants[j] /= gcd;
-        }
-      }
-    }
-
-  public:
-    static void normalizeWithSign (SparseArray<T> &col)
-    {
-      bool allneg = true;
-      for (size_t i = 0; i < col.size (); i++) {
-        if (col.valueAt (i) > 0) {
-          allneg = false;
-          break;
-        }
-      }
-      if (allneg) {
-        for (size_t i = 0; i < col.size (); i++) {
-          col.setValueAt (i, -col.valueAt (i));
-        }
-      }
-
-      T gcd = InvariantCalculator::gcd (col);
-      if (gcd > 1) {
-        for (size_t j = 0; j < col.size (); ++j) {
-          T norm = col.valueAt (j) / gcd;
-          col.setValueAt (j, norm);
-        }
-        if (DEBUG) std::cout << "Applied gcd to invariant with gcd =" << gcd
-            << std::endl;
-      }
-    }
-
-    static void normalize (SparseArray<T> &invariants)
-    {
-      T gcd = InvariantCalculator::gcd (invariants);
-      if (gcd > 1) {
-        for (size_t j = 0; j < invariants.size (); ++j) {
-          T norm = invariants.valueAt (j) / gcd;
-          invariants.setValueAt (j, norm);
-        }
-      }
-    }
 
   };
+
+}
 
 #endif /* INVARIANTCALCULATOR_H_ */

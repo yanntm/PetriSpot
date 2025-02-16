@@ -253,7 +253,7 @@ template<typename T>
 
       auto startTime = std::chrono::steady_clock::now ();
       try {
-        invar = InvariantCalculator<T>::calcInvariantsPIPE (pn.transpose (),
+        invar = petri::InvariantCalculator<T>::calcInvariantsPIPE (pn.transpose (),
                                                             onlyPositive);
         cache (pn, invar);
         std::string logMessage = "Computed " + std::to_string (invar.size ())
