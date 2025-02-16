@@ -51,7 +51,7 @@ template<typename T>
     {
     }
 
-    class PpPm
+    class RowSign
     {
 
     public:
@@ -67,7 +67,7 @@ template<typename T>
        *
        * @param row
        */
-      PpPm (size_t row)
+      RowSign (size_t row)
           : row (row), pPlus (), pMinus ()
       {
       }
@@ -88,12 +88,12 @@ template<typename T>
 
       void print (std::ostream &os) const
       {
-        os << "PpPm [row=" << row << ", pPlus=" << pPlus << ", pMinus="
+        os << "RowSign [row=" << row << ", pPlus=" << pPlus << ", pMinus="
             << pMinus << "]";
         return;
       }
 
-      friend std::ostream& operator<< (std::ostream &os, const PpPm &obj)
+      friend std::ostream& operator<< (std::ostream &os, const RowSign &obj)
       {
         obj.print (os);
         return os;
@@ -113,10 +113,10 @@ template<typename T>
       RowSigns (const MatrixCol<T> &matC)
       {
         size_t rowCount = matC.getRowCount ();
-        // Preallocate one PpPm per row.
+        // Preallocate one RowSign per row.
         rows.reserve (rowCount);
         for (size_t row = 0; row < rowCount; ++row) {
-          rows.push_back (PpPm (row));
+          rows.push_back (RowSign (row));
         }
         // For each column in matC, update the corresponding row.
         for (size_t icol = 0, cole = matC.getColumnCount (); icol < cole;
@@ -137,12 +137,12 @@ template<typename T>
       // This way, any extra bookkeeping we need later is performed here.
       void setValue (size_t row, size_t col, T newVal)
       {
-        // For now, simply delegate to the underlying PpPm.
+        // For now, simply delegate to the underlying RowSign.
         rows[row].setValue (col, newVal);
         // (Additional bookkeeping could be added here later.)
       }
 
-      const PpPm& get (size_t row) const
+      const RowSign& get (size_t row) const
       {
         return rows[row];
       }
@@ -168,7 +168,7 @@ template<typename T>
 
     private:
       // The underlying container for row sign data.
-      std::vector<PpPm> rows;
+      std::vector<RowSign> rows;
 
     };
 
@@ -250,13 +250,13 @@ template<typename T>
           treated.clear ();
         }
 
-        RowSigns pppms (colsB);
+        RowSigns rowSigns (colsB);
         SparseBoolArray negRows;
 
         int minRow = -1;
         int minRowWeight = -1;
-        for (size_t row = 0, rowe = pppms.size (); row < rowe; row++) {
-          PpPm pp = pppms.get (row);
+        for (size_t row = 0, rowe = rowSigns.size (); row < rowe; row++) {
+          RowSign pp = rowSigns.get (row);
           int pps = pp.pPlus.size ();
           int ppm = pp.pMinus.size ();
           int weight = pps + ppm;
@@ -315,7 +315,7 @@ template<typename T>
             bool needed = false;
             for (size_t j = 0, je = col.size (); j < je; j++) {
               int row = col.keyAt (j);
-              PpPm ppm = pppms.get (row);
+              RowSign ppm = rowSigns.get (row);
               if (ppm.pMinus.size () > 0) {
                 needed = true;
                 purePos = i;
@@ -336,7 +336,7 @@ template<typename T>
           // no more negative rows to treat
           break;
         }
-        PpPm ppm = pppms.get (targetRow);
+        RowSign ppm = rowSigns.get (targetRow);
         if (ppm.pPlus.size () > 0) {
           for (size_t j = 0, je = ppm.pPlus.size (); j < je; j++) {
             auto jindex = ppm.pPlus.keyAt (j);
@@ -568,10 +568,10 @@ template<typename T>
       cullDuplicateColumns (matC, matB, trivialInv);
       std::cout << "// Phase 1: matrix " << matC.getRowCount () << " rows "
           << matC.getColumnCount () << " cols" << std::endl;
-      RowSigns pppms (matC);
+      RowSigns rowSigns (matC);
       int startIndex = 0;
       while (!matC.isZero ()) {
-        startIndex = test1b (matC, matB, pppms, startIndex);
+        startIndex = applyRowElimination (matC, matB, rowSigns, startIndex);
         if (DEBUG) {
           std::cout << "Mat max : " << matC.maxVal () << std::endl;
           std::cout << "B max : " << matB.maxVal () << std::endl;
@@ -586,17 +586,17 @@ template<typename T>
       return matB;
     }
 
-    static int test1b (MatrixCol<T> &matC, MatrixCol<T> &matB, RowSigns &pppms,
+    static int applyRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB, RowSigns &rowSigns,
                        int startIndex)
     {
       // Find the candidate row with a single sign entry.
-      ssize_t candidateRow = pppms.findSingleSignRow (startIndex);
+      ssize_t candidateRow = rowSigns.findSingleSignRow (startIndex);
       if (candidateRow != -1) {
         // Use candidateRow (cast to int if necessary) in test1b1.
-        test1b1 (matC, matB, pppms, static_cast<size_t> (candidateRow));
+        applySingleSignRowElimination (matC, matB, rowSigns, static_cast<size_t> (candidateRow));
         startIndex = candidateRow;
       } else {
-        test1b2 (matC, matB, pppms);
+        applyGeneralRowElimination (matC, matB, rowSigns);
       }
       return startIndex;
     }
@@ -658,8 +658,8 @@ template<typename T>
       return (value > 0) - (value < 0);
     }
 
-    static void test1b2 (MatrixCol<T> &matC, MatrixCol<T> &matB,
-                         RowSigns &pppms)
+    static void applyGeneralRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
+                         RowSigns &rowSigns)
     {
       // [1.1.b.1] let tRow be the index of a non-zero row of C.
       // let tCol be the index of a column such that c[trow][tcol] != 0.
@@ -690,7 +690,7 @@ template<typename T>
         std::cout << "Rule 1b2 : " << tCol << std::endl;
       }
       // for all cols j with j != tCol and c[tRow][j] != 0
-      const PpPm &rowppm = pppms.get (tRow);
+      const RowSign &rowppm = rowSigns.get (tRow);
       if (DEBUG) {
         std::cout << "tCol : " << tCol << " tRow " << tRow << std::endl;
         std::cout << "rowppm : " << rowppm << std::endl;
@@ -731,7 +731,7 @@ template<typename T>
           SparseBoolArray changed = sumProdInto (beta, colj, alpha,
                                                  matC.getColumn (tCol));
           for (size_t ind = 0, inde = changed.size (); ind < inde; ind++) {
-            pppms.setValue (changed.keyAt (ind), j,
+            rowSigns.setValue (changed.keyAt (ind), j,
                             colj.get (changed.keyAt (ind)));
           }
           SparseArray<T> &coljb = matB.getColumn (j);
@@ -761,17 +761,17 @@ template<typename T>
           }
         }
       }
-      clearColumn (tCol, matC, matB, pppms);
+      clearColumn (tCol, matC, matB, rowSigns);
     }
 
   public:
     static void clearColumn (int tCol, MatrixCol<T> &matC, MatrixCol<T> &matB,
-                             RowSigns &pppms)
+                             RowSigns &rowSigns)
     {
       // delete from the extended matrix the column of index k
       SparseArray<T> &colk = matC.getColumn (tCol);
       for (size_t i = 0, ie = colk.size (); i < ie; i++) {
-        pppms.setValue (colk.keyAt (i), tCol, 0);
+        rowSigns.setValue (colk.keyAt (i), tCol, 0);
       }
       colk.clear ();
       matB.getColumn (tCol).clear ();
@@ -787,14 +787,14 @@ template<typename T>
       return tot;
     }
 
-    static void test1b1 (MatrixCol<T> &matC, MatrixCol<T> &matB,
-                         RowSigns &pppms, size_t candidateRow)
+    static void applySingleSignRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
+                         RowSigns &rowSigns, size_t candidateRow)
     {
       if (DEBUG) {
         std::cout << "Rule 1b.1 : " << candidateRow << std::endl;
       }
       // Get the candidate row data freshly.
-      const PpPm &rowData = pppms.get (candidateRow);
+      const RowSign &rowData = rowSigns.get (candidateRow);
       // In our construction, exactly one of pPlus or pMinus must have size 1.
       assert(rowData.pPlus.size() == 1 || rowData.pMinus.size() == 1);
 
@@ -807,7 +807,7 @@ template<typename T>
       // Loop while the complementary set (re-read fresh each iteration) is non-empty.
       while (true) {
         // Re-read the candidate row to get the latest state.
-        const PpPm &currentRow = pppms.get (candidateRow);
+        const RowSign &currentRow = rowSigns.get (candidateRow);
         const SparseBoolArray &currentComplement =
             isPos ? currentRow.pMinus : currentRow.pPlus;
         if (currentComplement.size () == 0) {
@@ -826,10 +826,10 @@ template<typename T>
         SparseBoolArray changed = sumProdInto (chk, matC.getColumn (j), chj,
                                                matC.getColumn (tCol));
         // For each change, update the row-sign bookkeeping.
-        // (We re-read each row via pppms.setValue to avoid caching any references.)
+        // (We re-read each row via rowSigns.setValue to avoid caching any references.)
         for (size_t ind = 0, inde = changed.size (); ind < inde; ++ind) {
           size_t key = changed.keyAt (ind);
-          pppms.setValue (key, j, matC.getColumn (j).get (key));
+          rowSigns.setValue (key, j, matC.getColumn (j).get (key));
         }
 
         // Update matB with the same linear combination.
@@ -848,10 +848,10 @@ template<typename T>
             }
           }
         }
-        // Loop condition re-evaluated by re-reading pppms.get(candidateRow)
+        // Loop condition re-evaluated by re-reading rowSigns.get(candidateRow)
       }
       // Finally, clear the candidate column from both matrices.
-      clearColumn (tCol, matC, matB, pppms);
+      clearColumn (tCol, matC, matB, rowSigns);
     }
 
     static T gcd (const std::vector<T> &set)
