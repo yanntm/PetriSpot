@@ -312,11 +312,13 @@ template<typename T>
     static int applyRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB, RowSigns<T> &rowSigns,
                        int startIndex)
     {
+      static size_t lastRow = 0;
       // Find the candidate row with a single sign entry.
-      ssize_t candidateRow = rowSigns.findSingleSignRow ();
+      ssize_t candidateRow = rowSigns.findSingleSignRow (lastRow);
       if (candidateRow != -1) {
         // Use candidateRow (cast to int if necessary) in test1b1.
         applySingleSignRowElimination (matC, matB, rowSigns, static_cast<size_t> (candidateRow));
+        lastRow = candidateRow;
       } else {
         applyGeneralRowElimination (matC, matB, rowSigns);
       }
@@ -488,7 +490,7 @@ template<typename T>
         // (We re-read each row via rowSigns.setValue to avoid caching any references.)
         for (size_t ind = 0, inde = changed.size (); ind < inde; ++ind) {
           size_t key = changed.keyAt (ind);
-          rowSigns.setValue (key, j, matC.getColumn (j).get (key));
+          rowSigns.setValue (key, j, matC.getColumn(j).get (key));
         }
 
         // Update matB with the same linear combination.
