@@ -56,7 +56,8 @@ public:
 template<typename T>
 class DenseRowSigns {
   // The container holding a RowSign for each row.
-  std::vector<RowSign<T>> rows;
+  using RowsType = std::vector<RowSign<T>>;
+  RowsType rows;
 
 public:
   /// Constructs the RowSigns data from the incidence matrix 'matC'.
@@ -95,22 +96,45 @@ public:
     return rows.size();
   }
 
+  /// Returns a const iterator to the first stored RowSign.
+  typename RowsType::const_iterator begin() const {
+    return rows.begin();
+  }
+
+  /// Returns a const iterator to one past the last stored RowSign.
+  typename RowsType::const_iterator end() const {
+    return rows.end();
+  }
+
   /// Scans from startIndex (wrapping around) to find the first row where either
   /// pPlus or pMinus has exactly one element. Returns the row index or -1 if none found.
-    ssize_t findSingleSignRow () const
-    {
-      // Iterate only over stored (nonempty) row signs.
-      for (const auto &rs : *this) { // assuming RowSigns supports begin() and end()
-        if (rs.pPlus.size () == 1 || rs.pMinus.size () == 1) return static_cast<ssize_t> (rs.row);
-      }
-      return -1;
+  ssize_t findSingleSignRow(size_t startIndex) const {
+    size_t sz = rows.size();
+    for (size_t i = startIndex; i < sz; ++i) {
+      if (rows[i].pMinus.size() == 1 || rows[i].pPlus.size() == 1)
+        return static_cast<ssize_t>(i);
     }
+    for (size_t i = 0; i < startIndex; ++i) {
+      if (rows[i].pMinus.size() == 1 || rows[i].pPlus.size() == 1)
+        return static_cast<ssize_t>(i);
+    }
+    return -1;
+  }
+
+//  ssize_t findSingleSignRow () const
+//    {
+//      // Iterate only over stored (nonempty) row signs.
+//      for (const auto &rs : *this) { // assuming RowSigns supports begin() and end()
+//        if (rs.pPlus.size () == 1 || rs.pMinus.size () == 1) return static_cast<ssize_t> (rs.row);
+//      }
+//      return -1;
+//    }
 };
 
 template<typename T>
 class SparseRowSigns {
 public:
-  using MapType = std::map<size_t, RowSign<T>>; // Key is row index.
+  using MapType = std::unordered_map<size_t, RowSign<T>>; // Key is row index.
 
 private:
   MapType rows;
@@ -202,7 +226,7 @@ public:
   // --- Candidate Search ---
   /// Iterates over the stored rows (in order) to find the first row where either
   /// pPlus or pMinus has exactly one element. Returns that row index, or -1 if none found.
-  ssize_t findSingleSignRow() const {
+  ssize_t findSingleSignRow(size_t) const {
     for (const auto &rs : *this) {
       if (rs.pPlus.size() == 1 || rs.pMinus.size() == 1)
         return static_cast<ssize_t>(rs.row);
