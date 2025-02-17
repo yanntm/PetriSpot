@@ -469,12 +469,24 @@ template<typename T>
       while (true) {
         // Re-read the candidate row to get the latest state.
         const auto &currentRow = rowSigns.get (candidateRow);
+        if (currentRow.pPlus.size () == 0 || currentRow.pMinus.size () == 0) {
+          break;
+        }
         const SparseBoolArray &currentComplement =
             isNeg ?  currentRow.pPlus : currentRow.pMinus ;
         if (currentComplement.size () == 0) {
           break;
         }
         int j = currentComplement.keyAt (0);
+
+        if (currentRow.pPlus.size () == 1 && currentRow.pMinus.size () == 1) {
+          // std::cout << "Examine col j=" << j << " size=" << matC.getColumn (j).size () <<" with col=" << tCol << " size " << matC.getColumn (tCol).size () << std::endl;
+          // we can actually choose which one to get rid of
+          if (matC.getColumn (j).size () < matC.getColumn (tCol).size ()) {
+            std::swap (j, tCol);
+            // std::cout << "SWAPPED" << std::endl;
+          }
+        }
 
         // Retrieve the coefficients from the candidate row.
         T chk = std::abs (matC.get (candidateRow, tCol));
@@ -486,7 +498,7 @@ template<typename T>
         // Update matC: combine columns j and tCol.
         SparseBoolArray changed = sumProdInto (chk, matC.getColumn (j), chj,
                                                matC.getColumn (tCol));
-   //     std::cout << "Reduce col j=" << j << " with col=" << tCol << " changed " << changed.size() << std::endl;
+        // std::cout << "Reduce col j=" << j << " with col=" << tCol << " changed " << changed.size() << std::endl;
 
         // For each change, update the row-sign bookkeeping.
         // (We re-read each row via rowSigns.setValue to avoid caching any references.)
