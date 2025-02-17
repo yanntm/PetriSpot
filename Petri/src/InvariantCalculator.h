@@ -462,15 +462,15 @@ template<typename T>
       // Determine which set is unique.
       // If pPlus is unique then tCol is the unique key and the complementary set is pMinus;
       // otherwise, tCol is from pMinus and the complementary set is pPlus.
-      bool isPos = (rowData.pPlus.size () == 1);
-      int tCol = isPos ? rowData.pPlus.keyAt (0) : rowData.pMinus.keyAt (0);
+      bool isNeg = (rowData.pMinus.size() == 1);
+      int tCol = isNeg ? rowData.pMinus.keyAt(0) : rowData.pPlus.keyAt(0);
 
       // Loop while the complementary set (re-read fresh each iteration) is non-empty.
       while (true) {
         // Re-read the candidate row to get the latest state.
         const auto &currentRow = rowSigns.get (candidateRow);
         const SparseBoolArray &currentComplement =
-            isPos ? currentRow.pMinus : currentRow.pPlus;
+            isNeg ?  currentRow.pPlus : currentRow.pMinus ;
         if (currentComplement.size () == 0) {
           break;
         }
@@ -486,6 +486,8 @@ template<typename T>
         // Update matC: combine columns j and tCol.
         SparseBoolArray changed = sumProdInto (chk, matC.getColumn (j), chj,
                                                matC.getColumn (tCol));
+   //     std::cout << "Reduce col j=" << j << " with col=" << tCol << " changed " << changed.size() << std::endl;
+
         // For each change, update the row-sign bookkeeping.
         // (We re-read each row via rowSigns.setValue to avoid caching any references.)
         for (size_t ind = 0, inde = changed.size (); ind < inde; ++ind) {
