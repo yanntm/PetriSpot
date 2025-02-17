@@ -24,8 +24,9 @@ namespace petri {
 template<typename T>
 SparseBoolArray sumProdInto(int alpha, SparseArray<T>& ta, int beta, const SparseArray<T>& tb)
 {
-    SparseBoolArray changed;
-    SparseArray<T> flow(std::max(ta.size(), tb.size()));
+    size_t reserved = ta.size() + tb.size();
+    SparseBoolArray changed(reserved);
+    SparseArray<T> flow(reserved);
 
     size_t i = 0;
     size_t j = 0;
@@ -41,7 +42,7 @@ SparseBoolArray sumProdInto(int alpha, SparseArray<T>& ta, int beta, const Spars
                 flow.append(ki, val);
             }
             if (val != ta.valueAt(i)) {
-                changed.set(ki);
+                changed.append(ki,true);
             }
             i++;
             j++;
@@ -51,7 +52,7 @@ SparseBoolArray sumProdInto(int alpha, SparseArray<T>& ta, int beta, const Spars
                 flow.append(ki, val);
             }
             if (val != ta.valueAt(i)) {
-                changed.set(ki);
+                changed.append(ki,true);
             }
             i++;
         } else if (kj < ki) {
@@ -60,7 +61,7 @@ SparseBoolArray sumProdInto(int alpha, SparseArray<T>& ta, int beta, const Spars
                 flow.append(kj, val);
             }
             if (val != 0) {
-                changed.set(kj);
+                changed.append(kj,true);
             }
             j++;
         }
