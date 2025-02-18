@@ -25,7 +25,7 @@ template<typename T>
 SparseBoolArray sumProdInto(int alpha, SparseArray<T>& ta, int beta, const SparseArray<T>& tb)
 {
     size_t reserved = ta.size() + tb.size();
-    SparseBoolArray changed(reserved);
+    SparseBoolArray changed(tb.size());
     SparseArray<T> flow(reserved);
 
     size_t i = 0;
