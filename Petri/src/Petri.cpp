@@ -19,7 +19,7 @@ const string PATH = "-i";
 const string QUIET = "-q";
 const string TIMEOUT = "-t";
 
-#define DEFAULT_TIMEOUT 120
+#define DEFAULT_TIMEOUT 150
 
 #ifndef VAL
 // default to 32 bit
