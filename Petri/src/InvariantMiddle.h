@@ -157,7 +157,7 @@ template<typename T>
         if (thread.joinable ()) {
           thread.detach ();
         }
-        writeToLog ("Error: Future is in invalid state.");
+        writeToLog ("Time Limit : exiting after meeting timeout of "+std::to_string(timeout)+" seconds.");
         return std::unordered_set<SparseArray<T>> ();
       }
     }
