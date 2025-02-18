@@ -168,6 +168,7 @@ public:
   SparseRowSigns(const MatrixCol<T>& matC) {
     // Build the dense version.
     DenseRowSigns<T> dense(matC);
+    rows.reserve(matC.getRowCount());
     // Insert only nonzero rows.
     for (size_t i = 0; i < dense.size(); i++) {
       const auto &rs = dense.get(i);
