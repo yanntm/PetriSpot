@@ -292,15 +292,17 @@ template<typename T>
       std::cout << "// Phase 1: matrix " << matC.getRowCount () << " rows "
           << matC.getColumnCount () << " cols" << std::endl;
       RowSigns rowSigns (matC);
+
+      std::pair<size_t,size_t> counts (0,0);
       int startIndex = 0;
       while (!matC.isZero ()) {
-        startIndex = applyRowElimination (matC, matB, rowSigns, startIndex);
+        startIndex = applyRowElimination (matC, matB, rowSigns, startIndex, counts);
         if (DEBUG) {
           std::cout << "Mat max : " << matC.maxVal () << std::endl;
           std::cout << "B max : " << matB.maxVal () << std::endl;
         }
       }
-
+      std::cout << "Finished phase 1 with " << counts.first << " SinglSign rule and " << counts.second << " generalized " << std::endl;
       // Re-add the trivial invariants back into matB.
       for (const auto &inv : trivialInv) {
         matB.appendColumn (inv);
@@ -310,17 +312,18 @@ template<typename T>
     }
 
     static int applyRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB, RowSigns<T> &rowSigns,
-                       int startIndex)
+                       int startIndex, std::pair<size_t,size_t> & counts)
     {
-      static size_t lastRow = 0;
       // Find the candidate row with a single sign entry.
-      ssize_t candidateRow = rowSigns.findSingleSignRow (lastRow);
+      ssize_t candidateRow = rowSigns.findSingleSignRow (startIndex);
       if (candidateRow != -1) {
         // Use candidateRow (cast to int if necessary) in test1b1.
         applySingleSignRowElimination (matC, matB, rowSigns, static_cast<size_t> (candidateRow));
-        lastRow = candidateRow;
+        startIndex = candidateRow;
+        counts.first++;
       } else {
         applyGeneralRowElimination (matC, matB, rowSigns);
+        counts.second++;
       }
       return startIndex;
     }
@@ -352,9 +355,6 @@ template<typename T>
       size_t tRow = matC.getColumn (candidate).keyAt (0);
       size_t tCol = candidate;
 
-      T cHk = matC.get (tRow, tCol);
-      T bbeta = std::abs (cHk);
-
       if (DEBUG) {
         std::cout << "Rule 1b2 : " << tCol << std::endl;
       }
@@ -366,6 +366,9 @@ template<typename T>
       }
       SparseBoolArray toVisit = SparseBoolArray::unionOperation (rowppm.pMinus,
                                                                  rowppm.pPlus);
+
+      T cHk = matC.get (tRow, tCol);
+      T bbeta = std::abs (cHk);
 
       for (size_t i = 0; i < toVisit.size (); i++) {
         size_t j = toVisit.keyAt (i);
@@ -465,6 +468,16 @@ template<typename T>
       bool isNeg = (rowData.pMinus.size() == 1);
       int tCol = isNeg ? rowData.pMinus.keyAt(0) : rowData.pPlus.keyAt(0);
 
+      if (rowData.pPlus.size () == 1 && rowData.pMinus.size () == 1) {
+        // std::cout << "Examine col j=" << j << " size=" << matC.getColumn (j).size () <<" with col=" << tCol << " size " << matC.getColumn (tCol).size () << std::endl;
+        // we can actually choose which one to get rid of
+        if (matC.getColumn (rowData.pMinus.keyAt(0)).size () > matC.getColumn (rowData.pPlus.keyAt(0)).size ()) {
+          tCol = rowData.pPlus.keyAt(0);
+          isNeg = !isNeg;
+          // std::cout << "SWAPPED" << std::endl;
+        }
+      }
+
       // Loop while the complementary set (re-read fresh each iteration) is non-empty.
       while (true) {
         // Re-read the candidate row to get the latest state.
@@ -478,15 +491,6 @@ template<typename T>
           break;
         }
         int j = currentComplement.keyAt (0);
-
-        if (currentRow.pPlus.size () == 1 && currentRow.pMinus.size () == 1) {
-          // std::cout << "Examine col j=" << j << " size=" << matC.getColumn (j).size () <<" with col=" << tCol << " size " << matC.getColumn (tCol).size () << std::endl;
-          // we can actually choose which one to get rid of
-          if (matC.getColumn (j).size () < matC.getColumn (tCol).size ()) {
-            std::swap (j, tCol);
-            // std::cout << "SWAPPED" << std::endl;
-          }
-        }
 
         // Retrieve the coefficients from the candidate row.
         T chk = std::abs (matC.get (candidateRow, tCol));
