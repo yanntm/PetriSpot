@@ -126,7 +126,7 @@ template<typename T>
       //int iter = 0;
       SparseBoolArray treated;
       colsBsparse = std::unordered_set<SparseArray<T>> ();
-      while (colsB.getColumnCount () < 20000) {
+      while (true || colsB.getColumnCount () < 20000) {
         if (treated.size () > 0) {
           for (ssize_t i = treated.size () - 1; i >= 0; i--) {
             colsBsparse.insert (colsB.getColumn (treated.keyAt (i)));
