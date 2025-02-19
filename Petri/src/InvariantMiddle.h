@@ -4,6 +4,7 @@
 #include "Arithmetic.hpp"
 #include "SparsePetriNet.h"
 #include "InvariantCalculator.h"
+#include "Heuristic.h"
 #include <chrono>
 #include <thread>
 #include <future>
@@ -14,6 +15,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+
+namespace petri {
 /**
  * A front-end for functionality computing invariants. Underlying code is
  * adapted from CvO-Theory group's APT : https://github.com/CvO-Theory/apt 
@@ -138,14 +141,14 @@ template<typename T>
     }
 
     static std::unordered_set<SparseArray<T>> computePInvariants (
-        const MatrixCol<T> &pn, bool onlyPositive, int timeout)
+        const MatrixCol<T> &pn, bool onlyPositive, int timeout, const EliminationHeuristic &heuristic=EliminationHeuristic())
     {
       std::promise < std::unordered_set<SparseArray<T>> > promise;
       auto future = promise.get_future ();
 
       std::thread thread (
           [&] () {
-            std::unordered_set<SparseArray<T>> result = computePInvariants(pn, onlyPositive);
+            std::unordered_set<SparseArray<T>> result = computePInvariants(pn, onlyPositive, heuristic);
             promise.set_value(result);
           });
 
@@ -244,7 +247,7 @@ template<typename T>
     }
 
     static std::unordered_set<SparseArray<T>> computePInvariants (
-        const MatrixCol<T> &pn, bool onlyPositive)
+        const MatrixCol<T> &pn, bool onlyPositive,  const EliminationHeuristic &heuristic=EliminationHeuristic())
     {
       std::unordered_set<SparseArray<T>> invar = checkCache (pn);
       if (!invar.empty ()) {
@@ -254,7 +257,7 @@ template<typename T>
       auto startTime = std::chrono::steady_clock::now ();
       try {
         invar = petri::InvariantCalculator<T>::calcInvariantsPIPE (pn.transpose (),
-                                                            onlyPositive);
+                                                            onlyPositive, heuristic);
         cache (pn, invar);
         std::string logMessage = "Computed " + std::to_string (invar.size ())
             + " invariants in "
@@ -366,5 +369,7 @@ template<typename T>
     }
 
   };
+
+} /* namespace petri */
 
 #endif /* INVARIANTMIDDLE_H_ */

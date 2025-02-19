@@ -29,6 +29,7 @@
 #include "InvariantHelpers.h"
 #include "RowSigns.h"
 #include "InvariantsTrivial.h"
+#include "Heuristic.h"
 
 namespace petri {
 
@@ -68,7 +69,7 @@ template<typename T>
      */
   public:
     static std::unordered_set<SparseArray<T>> calcInvariantsPIPE (
-        MatrixCol<T> mat, bool onlyPositive)
+        MatrixCol<T> mat, bool onlyPositive,  const EliminationHeuristic &heur=EliminationHeuristic())
     {
       if (mat.getColumnCount () == 0 || mat.getRowCount () == 0) {
         return std::unordered_set<SparseArray<T>> ();
@@ -91,7 +92,7 @@ template<typename T>
         matnorm.appendColumn (col);
       }
 
-      MatrixCol<T> matB = phase1PIPE (matnorm.transpose ());
+      MatrixCol<T> matB = phase1PIPE (matnorm.transpose (), heur);
 
 //		const MatrixCol<T> matB = phase1PIPE(new MatrixCol<T>(mat));
       // We want to work with columns in this part of the algorithm
@@ -277,7 +278,7 @@ template<typename T>
   private:
 
 
-    static MatrixCol<T> phase1PIPE (MatrixCol<T> matC)
+    static MatrixCol<T> phase1PIPE (MatrixCol<T> matC, const EliminationHeuristic &heur)
     {
       // Build the initial transformation matrix.
       MatrixCol<T> matB = MatrixCol<T>::identity (matC.getColumnCount (),
@@ -296,7 +297,7 @@ template<typename T>
       std::pair<size_t,size_t> counts (0,0);
       int startIndex = 0;
       while (!matC.isZero ()) {
-        startIndex = applyRowElimination (matC, matB, rowSigns, startIndex, counts);
+        startIndex = applyRowElimination (matC, matB, rowSigns, startIndex, counts, heur);
         if (DEBUG) {
           std::cout << "Mat max : " << matC.maxVal () << std::endl;
           std::cout << "B max : " << matB.maxVal () << std::endl;
@@ -315,10 +316,11 @@ template<typename T>
                                    MatrixCol<T>& matB,
                                    RowSigns<T>& rowSigns,
                                    int startIndex,
-                                   std::pair<size_t,size_t> &counts)
+                                   std::pair<size_t,size_t> &counts, const EliminationHeuristic &heur)
     {
         // 1) Check Single-Sign rows first:
-        ssize_t candidateRow = rowSigns.findSingleSignRow(startIndex);
+      if (heur.useSingleSignRow()) {
+        ssize_t candidateRow = rowSigns.findSingleSignRow(startIndex, heur.getLoopLimit());
         if (candidateRow != -1) {
             // Single-sign path => pick pivot col from pMinus or pPlus
             // possibly compare matC column sizes if both are size 1
@@ -326,12 +328,12 @@ template<typename T>
             counts.first++;
             return candidateRow;
         }
-
+      }
         // 2) General pivot choice:
         //    (a) pick a column with minimal size in matC
         //    (b) among the rows in that column, pick tRow with the smallest "cost"
         //        (for instance, the smallest absolute cell value, or minimal expansions)
-        auto pivot = findBestPivot(matC, rowSigns);
+        auto pivot = findBestPivot(matC, rowSigns, heur.getLoopLimit());
         // pivot is a struct { size_t row; size_t col; }
         eliminateRowWithPivot(pivot.row, pivot.col, matC, matB, rowSigns);
         counts.second++;
@@ -440,7 +442,7 @@ template<typename T>
     };
 
     static PivotChoice findBestPivot(const MatrixCol<T>& matC,
-                                     const RowSigns<T>& rowSigns)
+                                     const RowSigns<T>& rowSigns, size_t loopLimit)
     {
         // We'll assume there's at least one non-empty column; otherwise we can't pivot.
         // If you want to handle an all-empty matrix, you can do so by checking further.
@@ -462,6 +464,9 @@ template<typename T>
             }
             else if (s == bestColSize) {
                 candidateCols.push_back(c);
+            }
+            if (candidateCols.size () >= loopLimit) {
+              break; // early exit if we have enough candidates
             }
         }
         // Here we have a list of columns whose size is 'bestColSize'.

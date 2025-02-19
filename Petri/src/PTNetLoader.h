@@ -26,7 +26,7 @@ template<typename T>
     FILE *in = fopen (filename.c_str (), "r");
 
     std::string logMessage = "Parsing pnml file : " + filename;
-    InvariantMiddle<T>::writeToLog (logMessage);
+    petri::InvariantMiddle<T>::writeToLog (logMessage);
 
     XML_SetUserData (parser, &handler);
     XML_SetElementHandler (parser, &PTNetHandler<T>::startElement,
@@ -56,7 +56,7 @@ template<typename T>
         + std::to_string (
             std::chrono::duration_cast < std::chrono::milliseconds
                 > (std::chrono::steady_clock::now () - time).count ()) + " ms.";
-    InvariantMiddle<T>::writeToLog (logMessage);
+    petri::InvariantMiddle<T>::writeToLog (logMessage);
 
     return handler.getParseResult ();
   }

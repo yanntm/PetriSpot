@@ -7,8 +7,10 @@
 #include <fstream>
 #include <unordered_set>
 #include <chrono>
+#include "Heuristic.h"
 
 using namespace std;
+using namespace petri;
 
 const string FINDDEADLOCK = "--findDeadlock";
 const string PFLOW = "--Pflows";
@@ -45,6 +47,10 @@ int main (int argc, char *argv[])
   bool invariants = false;
   bool quiet = false;
   int timeout = DEFAULT_TIMEOUT;
+  // New elimination heuristic configuration parameters.
+  bool useSingleSignRow = true;
+  EliminationHeuristic::PivotStrategy pivotStrategy = EliminationHeuristic::PivotStrategy::FindBest;
+  ssize_t loopLimit = -1;
 
   if (argc == 1 || argc > 6) {
     cerr << "usage: petri -i model.pnml [options]\n";
@@ -72,11 +78,36 @@ int main (int argc, char *argv[])
     } else if (argv[i] == TSEMIFLOW) {
       tsemiflows = true;
       invariants = true;
+    } else if (std::string(argv[i]) == "--noSingleSignRow") {
+      useSingleSignRow = false;
+    } else if (std::string(argv[i]).substr(0, 8) == "--pivot=") {
+      std::string pivotStr = std::string(argv[i]).substr(8);
+      if (pivotStr == "best") {
+        pivotStrategy = EliminationHeuristic::PivotStrategy::FindBest;
+      } else if (pivotStr == "worst") {
+        pivotStrategy = EliminationHeuristic::PivotStrategy::FindWorst;
+      } else if (pivotStr == "first") {
+        pivotStrategy = EliminationHeuristic::PivotStrategy::FindFirst;
+      } else {
+        std::cerr << "Unknown pivot strategy: " << pivotStr << std::endl;
+        exit(1);
+      }
+    } else if (std::string(argv[i]).substr(0, 12) == "--loopLimit=") {
+      std::string limitStr = std::string(argv[i]).substr(12);
+      try {
+        loopLimit = std::stoll(limitStr);
+      } catch (const std::exception &e) {
+        std::cerr << "Invalid loopLimit value: " << limitStr << std::endl;
+        exit(1);
+      }
     } else {
       std::cout << "[WARNING   ] Option : " << argv[i] << " not recognized"
           << std::endl;
     }
   }
+
+  // Create the elimination heuristic configuration.
+    EliminationHeuristic heur(useSingleSignRow, pivotStrategy, loopLimit);
 
   if (pflows && psemiflows) {
     std::cout << "Cannot compute P flows and P semi-flows at the same time."
@@ -133,7 +164,7 @@ int main (int argc, char *argv[])
       if (pflows || psemiflows) {
         auto time = std::chrono::steady_clock::now ();
         MatrixCol<VAL> sumMatrix =  MatrixCol<VAL>::sumProd(-1, pn->getFlowPT(), 1, pn->getFlowTP());
-        unordered_set<SparseArray<VAL>> invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix, psemiflows , timeout);
+        unordered_set<SparseArray<VAL>> invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix, psemiflows , timeout, heur);
 
         std::cout << "Computed " << invar.size () << " P "
             << (psemiflows ? "semi" : "") << "flows in "
