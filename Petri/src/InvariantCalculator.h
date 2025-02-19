@@ -290,8 +290,12 @@ template<typename T>
       cullConstantColumns (matC, matB, trivialInv);
       // Remove duplicate columns
       cullDuplicateColumns (matC, matB, trivialInv);
+      size_t nbArcs =0;
+      for (const auto &col : matC.getColumns ()) {
+        nbArcs += col.size ();
+      }
       std::cout << "// Phase 1: matrix " << matC.getRowCount () << " rows "
-          << matC.getColumnCount () << " cols" << std::endl;
+          << matC.getColumnCount () << " cols " << nbArcs << " entries" << std::endl;
       RowSigns rowSigns (matC);
 
       std::pair<size_t,size_t> counts (0,0);
