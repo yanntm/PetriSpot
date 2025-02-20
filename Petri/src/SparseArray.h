@@ -473,6 +473,14 @@ template<std::integral T>
       return flow;
     }
 
+    bool isPurePositive () const {
+      for (size_t i = 0; i < mSize; i++) {
+        if (mValues[i] < 0) return false;
+      }
+      return true;
+    }
+
+
     static bool keysIntersect (const SparseArray &s1, const SparseArray &s2)
     {
       if (s1.size () == 0 || s2.size () == 0) {
