@@ -22,10 +22,30 @@ namespace petri {
 // the linear combination: ta = alpha * ta + beta * tb.
 //---------------------------------------------------------------------
 template<typename T>
-SparseArray<T> sumProdInto(int alpha, SparseArray<T>& ta, int beta, const SparseArray<T>& tb)
+using change_t = std::vector<std::pair<size_t, T>>;
+
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const std::vector<std::pair<size_t, T>>& changes) {
+    os << "{";
+    bool first = true;
+    for (const auto& change : changes) {
+        if (!first)
+            os << ", ";
+        os << change.first << "=" << change.second;
+        first = false;
+    }
+    os << "}";
+    return os;
+}
+
+
+template<typename T>
+change_t<T> sumProdInto(int alpha, SparseArray<T>& ta, int beta, const SparseArray<T>& tb)
 {
-    size_t reserved = ta.size() + tb.size() -1;
-    SparseArray<T> changed(tb.size());
+    size_t reserved = ta.size() + tb.size();
+    change_t<T> changed;
+    changed.reserve(tb.size());
     SparseArray<T> flow(reserved);
 
     size_t i = 0;
@@ -42,7 +62,7 @@ SparseArray<T> sumProdInto(int alpha, SparseArray<T>& ta, int beta, const Sparse
                 flow.append(ki, val);
             }
             if (val != ta.valueAt(i)) {
-                changed.append(ki,val);
+                changed.emplace_back(ki,val);
             }
             i++;
             j++;
@@ -52,14 +72,14 @@ SparseArray<T> sumProdInto(int alpha, SparseArray<T>& ta, int beta, const Sparse
                 flow.append(ki, val);
             }
             if (val != ta.valueAt(i)) {
-              changed.append(ki,val);
+              changed.emplace_back(ki,val);
             }
             i++;
         } else if (kj < ki) {
             T val = petri::multiplyExact(beta, tb.valueAt(j));
             if (val != 0) {
                 flow.append(kj, val);
-                changed.append(kj,val);
+                changed.emplace_back(kj,val);
             }
             j++;
         }
@@ -68,43 +88,49 @@ SparseArray<T> sumProdInto(int alpha, SparseArray<T>& ta, int beta, const Sparse
     return changed;
 }
 
+template<typename T>
+SparseArray<T> sumProd(int alpha, SparseArray<T>& ta, int beta, const SparseArray<T>& tb) {
+  size_t reserved = ta.size() + tb.size();
+  SparseArray<T> flow(reserved);
+
+  size_t i = 0;
+  size_t j = 0;
+  while (i < ta.size() || j < tb.size()) {
+      unsigned int ki = (i == ta.size()) ?
+          std::numeric_limits<unsigned int>::max() : ta.keyAt(i);
+      unsigned int kj = (j == tb.size()) ?
+          std::numeric_limits<unsigned int>::max() : tb.keyAt(j);
+      if (ki == kj) {
+          T val = petri::addExact(petri::multiplyExact(alpha, ta.valueAt(i)),
+                                  petri::multiplyExact(beta, tb.valueAt(j)));
+          if (val != 0) {
+              flow.append(ki, val);
+          }
+          i++;
+          j++;
+      } else if (ki < kj) {
+          T val = petri::multiplyExact(alpha, ta.valueAt(i));
+          if (val != 0) {
+              flow.append(ki, val);
+          }
+          i++;
+      } else if (kj < ki) {
+          T val = petri::multiplyExact(beta, tb.valueAt(j));
+          if (val != 0) {
+              flow.append(kj, val);
+          }
+          j++;
+      }
+  }
+  return flow;
+}
+
+
 
 template<typename T>
 void sumProdIntoNoChange(int alpha, SparseArray<T>& ta, int beta, const SparseArray<T>& tb)
 {
-    size_t reserved = ta.size() + tb.size() -1;
-    SparseArray<T> flow(reserved);
-
-    size_t i = 0;
-    size_t j = 0;
-    while (i < ta.size() || j < tb.size()) {
-        unsigned int ki = (i == ta.size()) ?
-            std::numeric_limits<unsigned int>::max() : ta.keyAt(i);
-        unsigned int kj = (j == tb.size()) ?
-            std::numeric_limits<unsigned int>::max() : tb.keyAt(j);
-        if (ki == kj) {
-            T val = petri::addExact(petri::multiplyExact(alpha, ta.valueAt(i)),
-                                    petri::multiplyExact(beta, tb.valueAt(j)));
-            if (val != 0) {
-                flow.append(ki, val);
-            }
-            i++;
-            j++;
-        } else if (ki < kj) {
-            T val = petri::multiplyExact(alpha, ta.valueAt(i));
-            if (val != 0) {
-                flow.append(ki, val);
-            }
-            i++;
-        } else if (kj < ki) {
-            T val = petri::multiplyExact(beta, tb.valueAt(j));
-            if (val != 0) {
-                flow.append(kj, val);
-            }
-            j++;
-        }
-    }
-    ta = std::move(flow);
+    ta = std::move(sumProd(alpha, ta, beta, tb));
 }
 
 //---------------------------------------------------------------------
