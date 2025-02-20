@@ -199,6 +199,15 @@ template<typename T>
       return this->iCols;
     }
 
+    size_t getEntryCount() {
+      size_t nbArcs = 0;
+      for (const auto &col : getColumns ()) {
+        nbArcs += col.size ();
+      }
+      return nbArcs;
+    }
+
+
     /**
      * Returns the column with the given index of this matrix.
      * @param i - the index of the wished column of this matrix.
@@ -256,6 +265,13 @@ template<typename T>
     {
       assert (column.size () == 0 || iRows > column.keyAt (column.size () - 1));
       lCols.push_back (column);
+      this->iCols++;
+    }
+
+    void appendColumn (SparseArray<T> &&column)
+    {
+      assert (column.size () == 0 || iRows > column.keyAt (column.size () - 1));
+      lCols.emplace_back (column);
       this->iCols++;
     }
 
@@ -403,6 +419,7 @@ template<typename T>
       if (iRows != other.iRows) return false;
       return lCols == other.lCols;
     }
+
 
     static MatrixCol sumProd (int alpha, const MatrixCol &ta, int beta,
                               const MatrixCol &tb)
