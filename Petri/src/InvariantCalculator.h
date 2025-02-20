@@ -101,22 +101,22 @@ template<typename T>
       // order of rows is really irrelevant + columns which are identical up to
       // scaling factor are useless
       // let's use a set of columns.
-      std::unordered_set<SparseArray<T>> colsBsparse (
+      std::unordered_set<SparseArray<T>> semiFlows (
           2 * matB.getColumnCount ());
       for (size_t i = 0; i < matB.getColumnCount (); i++) {
         SparseArray<T> &col = matB.getColumn (i);
         if (col.size () != 0) {
           normalizeWithSign (col);
-          colsBsparse.insert (col);
+          semiFlows.insert (col);
         }
       }
 
       if (!onlyPositive) {
-        return colsBsparse;
+        return semiFlows;
       }
 
       MatrixCol<T> colsB (tmat.getRowCount (), 0);
-      for (const SparseArray<T> &cb : colsBsparse) {
+      for (const SparseArray<T> &cb : semiFlows) {
         colsB.appendColumn (cb);
       }
 
@@ -124,155 +124,9 @@ template<typename T>
       std::cout << "// Phase 2 : computing semi flows from basis of "
           << colsB.getColumnCount () << " invariants " << std::endl;
 
-      //int iter = 0;
-      SparseBoolArray treated;
-      colsBsparse = std::unordered_set<SparseArray<T>> ();
-      while (true || colsB.getColumnCount () < 20000) {
-        if (treated.size () > 0) {
-          for (ssize_t i = treated.size () - 1; i >= 0; i--) {
-            colsBsparse.insert (colsB.getColumn (treated.keyAt (i)));
-            colsB.deleteColumn (treated.keyAt (i));
-          }
-          treated.clear ();
-        }
+      phase2Pipe (colsB, semiFlows);
 
-        RowSigns<T> rowSigns (colsB);
-        SparseBoolArray negRows;
-
-        int minRow = -1;
-        int minRowWeight = -1;
-        for (const auto &rs : rowSigns) {
-          int pps = rs.pPlus.size();
-          int ppm = rs.pMinus.size();
-          int weight = pps + ppm;
-
-          if (pps == 0) {
-            for (int i = 0; i < ppm; i++) {
-              negRows.set(rs.pMinus.keyAt(i));
-            }
-          }
-          if (pps > 0 && ppm > 0) {
-            if (pps == 1 || ppm == 1) {
-              // can't grow the size; use the stored row index
-              minRow = rs.row;
-              break;
-            }
-            if (minRow == -1 || minRowWeight > weight) {
-              int refinedweight = 0;
-              for (size_t i = 0, ie = rs.pPlus.size(); i < ie; i++) {
-                refinedweight += colsB.getColumn(rs.pPlus.keyAt(i)).size();
-              }
-              for (size_t i = 0, ie = rs.pMinus.size(); i < ie; i++) {
-                refinedweight += colsB.getColumn(rs.pMinus.keyAt(i)).size();
-              }
-              if (minRow == -1 || minRowWeight > refinedweight) {
-                minRow = rs.row;
-                minRowWeight = refinedweight;
-              }
-            }
-          }
-        }
-
-        if (negRows.size () > 0) {
-          // cleanup
-          for (ssize_t j = negRows.size () - 1; j >= 0; j--) {
-            colsB.deleteColumn (negRows.keyAt (j));
-          }
-          continue;
-        }
-        // check for a pure positive column
-        int purePos = -1;
-
-        for (size_t i = 0, ie = colsB.getColumnCount (); i < ie; i++) {
-          if (treated.get (i)) {
-            continue;
-          }
-          SparseArray<T> &col = colsB.getColumn (i);
-          bool hasNeg = false;
-          for (size_t j = 0, je = col.size (); j < je; j++) {
-            if (col.valueAt (j) < 0) {
-              hasNeg = true;
-              break;
-            }
-          }
-          if (!hasNeg) {
-            // check intersection
-            bool needed = false;
-            for (size_t j = 0, je = col.size (); j < je; j++) {
-              int row = col.keyAt (j);
-              RowSign ppm = rowSigns.get (row);
-              if (ppm.pMinus.size () > 0) {
-                needed = true;
-                purePos = i;
-                minRow = row;
-                break;
-              }
-            }
-            if (!needed) {
-              treated.set (i);
-            } else {
-              break;
-            }
-          }
-        }
-
-        int targetRow = minRow;
-        if (targetRow == -1) {
-          // no more negative rows to treat
-          break;
-        }
-        RowSign ppm = rowSigns.get (targetRow);
-        if (ppm.pPlus.size () > 0) {
-          for (size_t j = 0, je = ppm.pPlus.size (); j < je; j++) {
-            auto jindex = ppm.pPlus.keyAt (j);
-            if (purePos != -1) {
-              jindex = purePos;
-              j = je;
-            }
-            for (size_t k = 0, ke = ppm.pMinus.size (); k < ke; k++) {
-              // might have moved due to reallocations
-              SparseArray<T> &colj = colsB.getColumn (jindex);
-              SparseArray<T> &colk = colsB.getColumn (ppm.pMinus.keyAt (k));
-              // operate a linear combination on the columns of indices j and k
-              // in order to get a new column having the pair.getFirst element equal
-              // to zero
-              int a = -colk.get (targetRow);
-              int b = colj.get (targetRow);
-              SparseArray<T> column = SparseArray<T>::sumProd (a, colj, b,
-                                                               colk);
-              // add normalization step : we don't need scalar scaling of each other
-              normalize (column);
-              // append column to matrix B
-              // tests existence
-              if (column.size () > 0) {
-                colsB.appendColumn (column);
-              }
-            }
-          }
-          // Delete from B all the columns of index k \in P-
-          // cleanup
-          for (ssize_t j = ppm.pMinus.size () - 1; j >= 0; j--) {
-            colsB.deleteColumn (ppm.pMinus.keyAt (j));
-            treated.deleteAndShift (ppm.pMinus.keyAt (j));
-          }
-        }
-        // std::cout << "Phase 2 iter " << iter++ << " rows : " <<
-        // colsB.getRowCount() << " cols " << colsB.getColumnCount() << " treated " <<
-        // colsBsparse.size() << std::endl;
-        // std::cout << colsB << std::endl;
-      }
-      // std::cout << "Found "<< colsB.getColumnCount() << " invariants."<< std::endl;
-
-      for (SparseArray<T> l : colsB.getColumns ()) {
-        if (l.size () > 0) {
-          colsBsparse.insert (l);
-        }
-      }
-      // std::cout << "Found "<< colsBsparse.size() << " different invariants."<< std:endl;
-      removeNegativeValues (colsBsparse);
-      std::cout << "Found " << colsBsparse.size () << " positive invariants."
-          << std::endl;
-      return colsBsparse;
+      return semiFlows;
     }
 
   private:
@@ -314,6 +168,157 @@ template<typename T>
 
       return matB;
     }
+
+
+    static void phase2Pipe (MatrixCol<T> & colsB, std::unordered_set<SparseArray<T>> & semiFlows) {
+    //int iter = 0;
+    SparseBoolArray treated;
+    while (true || colsB.getColumnCount () < 20000) {
+      if (treated.size () > 0) {
+        for (ssize_t i = treated.size () - 1; i >= 0; i--) {
+          semiFlows.insert (colsB.getColumn (treated.keyAt (i)));
+          colsB.deleteColumn (treated.keyAt (i));
+        }
+        treated.clear ();
+      }
+
+      RowSigns<T> rowSigns (colsB);
+      SparseBoolArray negRows;
+
+      int minRow = -1;
+      int minRowWeight = -1;
+      for (const auto &rs : rowSigns) {
+        int pps = rs.pPlus.size();
+        int ppm = rs.pMinus.size();
+        int weight = pps + ppm;
+
+        if (pps == 0) {
+          for (int i = 0; i < ppm; i++) {
+            negRows.set(rs.pMinus.keyAt(i));
+          }
+        }
+        if (pps > 0 && ppm > 0) {
+          if (pps == 1 || ppm == 1) {
+            // can't grow the size; use the stored row index
+            minRow = rs.row;
+            break;
+          }
+          if (minRow == -1 || minRowWeight > weight) {
+            int refinedweight = 0;
+            for (size_t i = 0, ie = rs.pPlus.size(); i < ie; i++) {
+              refinedweight += colsB.getColumn(rs.pPlus.keyAt(i)).size();
+            }
+            for (size_t i = 0, ie = rs.pMinus.size(); i < ie; i++) {
+              refinedweight += colsB.getColumn(rs.pMinus.keyAt(i)).size();
+            }
+            if (minRow == -1 || minRowWeight > refinedweight) {
+              minRow = rs.row;
+              minRowWeight = refinedweight;
+            }
+          }
+        }
+      }
+
+      if (negRows.size () > 0) {
+        // cleanup
+        for (ssize_t j = negRows.size () - 1; j >= 0; j--) {
+          colsB.deleteColumn (negRows.keyAt (j));
+        }
+        continue;
+      }
+      // check for a pure positive column
+      int purePos = -1;
+
+      for (size_t i = 0, ie = colsB.getColumnCount (); i < ie; i++) {
+        if (treated.get (i)) {
+          continue;
+        }
+        SparseArray<T> &col = colsB.getColumn (i);
+        bool hasNeg = false;
+        for (size_t j = 0, je = col.size (); j < je; j++) {
+          if (col.valueAt (j) < 0) {
+            hasNeg = true;
+            break;
+          }
+        }
+        if (!hasNeg) {
+          // check intersection
+          bool needed = false;
+          for (size_t j = 0, je = col.size (); j < je; j++) {
+            int row = col.keyAt (j);
+            const auto & ppm = rowSigns.get (row);
+            if (ppm.pMinus.size () > 0) {
+              needed = true;
+              purePos = i;
+              minRow = row;
+              break;
+            }
+          }
+          if (!needed) {
+            treated.set (i);
+          } else {
+            break;
+          }
+        }
+      }
+
+      int targetRow = minRow;
+      if (targetRow == -1) {
+        // no more negative rows to treat
+        break;
+      }
+      const auto & ppm = rowSigns.get (targetRow);
+      if (ppm.pPlus.size () > 0) {
+        for (size_t j = 0, je = ppm.pPlus.size (); j < je; j++) {
+          auto jindex = ppm.pPlus.keyAt (j);
+          if (purePos != -1) {
+            jindex = purePos;
+            j = je;
+          }
+          for (size_t k = 0, ke = ppm.pMinus.size (); k < ke; k++) {
+            // might have moved due to reallocations
+            SparseArray<T> &colj = colsB.getColumn (jindex);
+            SparseArray<T> &colk = colsB.getColumn (ppm.pMinus.keyAt (k));
+            // operate a linear combination on the columns of indices j and k
+            // in order to get a new column having the pair.getFirst element equal
+            // to zero
+            int a = -colk.get (targetRow);
+            int b = colj.get (targetRow);
+            SparseArray<T> column = SparseArray<T>::sumProd (a, colj, b,
+                                                             colk);
+            // add normalization step : we don't need scalar scaling of each other
+            normalize (column);
+            // append column to matrix B
+            // tests existence
+            if (column.size () > 0) {
+              colsB.appendColumn (column);
+            }
+          }
+        }
+        // Delete from B all the columns of index k \in P-
+        // cleanup
+        for (ssize_t j = ppm.pMinus.size () - 1; j >= 0; j--) {
+          colsB.deleteColumn (ppm.pMinus.keyAt (j));
+          treated.deleteAndShift (ppm.pMinus.keyAt (j));
+        }
+      }
+      // std::cout << "Phase 2 iter " << iter++ << " rows : " <<
+      // colsB.getRowCount() << " cols " << colsB.getColumnCount() << " treated " <<
+      // colsBsparse.size() << std::endl;
+      // std::cout << colsB << std::endl;
+    }
+    // std::cout << "Found "<< colsB.getColumnCount() << " invariants."<< std::endl;
+
+    for (SparseArray<T> l : colsB.getColumns ()) {
+      if (l.size () > 0) {
+        semiFlows.insert (l);
+      }
+    }
+    // std::cout << "Found "<< colsBsparse.size() << " different invariants."<< std:endl;
+    removeNegativeValues (semiFlows);
+    std::cout << "Found " << semiFlows.size () << " positive invariants."
+        << std::endl;
+  }
 
     static void applyRowElimination(MatrixCol<T>& matC,
                                    MatrixCol<T>& matB,
