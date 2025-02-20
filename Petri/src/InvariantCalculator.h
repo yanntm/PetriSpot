@@ -554,35 +554,6 @@ template<typename T>
 
 
 
-    static void applyGeneralRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
-                         RowSigns<T> &rowSigns)
-    {
-      // [1.1.b.1] let tRow be the index of a non-zero row of C.
-      // let tCol be the index of a column such that c[trow][tcol] != 0.
-
-      ssize_t candidate = -1;
-      size_t szcand = std::numeric_limits<T>::max ();
-      size_t totalcand = std::numeric_limits<T>::max ();
-      for (size_t col = 0; col < matC.getColumnCount (); col++) {
-        size_t size = matC.getColumn (col).size ();
-        if (size == 0) {
-          continue;
-        } else if (size <= szcand) {
-          size_t total = sumAbsValues (matC.getColumn (col));
-          if (size < szcand || (size == szcand && total <= totalcand)) {
-            candidate = col;
-            szcand = size;
-            totalcand = total;
-          }
-        }
-      }
-      size_t tRow = matC.getColumn (candidate).keyAt (0);
-      size_t tCol = candidate;
-
-
-      eliminateRowWithPivot(tRow, tCol, matC, matB, rowSigns);
-    }
-
   public:
     static void clearColumn (int tCol, MatrixCol<T> &matC, MatrixCol<T> &matB,
                              RowSigns<T> &rowSigns)
