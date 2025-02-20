@@ -93,7 +93,7 @@ template<typename T>
         matnorm.appendColumn (col);
       }
 
-      MatrixCol<T> matB = phase1PIPE (matnorm.transpose (), heur);
+      MatrixCol<T> matB = phase1PIPE (matnorm.transpose (), onlyPositive, heur);
 
 //		const MatrixCol<T> matB = phase1PIPE(new MatrixCol<T>(mat));
       // We want to work with columns in this part of the algorithm
@@ -119,19 +119,19 @@ template<typename T>
       for (const SparseArray<T> &cb : semiFlows) {
         colsB.appendColumn (cb);
       }
-
+      semiFlows.clear ();
       // phase 2
       std::cout << "// Phase 2 : computing semi flows from basis of "
           << colsB.getColumnCount () << " invariants " << std::endl;
 
-      phase2Pipe (colsB, semiFlows);
+      phase2Pipe (colsB, semiFlows, heur);
 
       return semiFlows;
     }
 
   private:
 
-    static MatrixCol<T> phase1PIPE (MatrixCol<T> matC,
+    static MatrixCol<T> phase1PIPE (MatrixCol<T> matC, bool onlyPositive,
                                     const EliminationHeuristic &heur)
     {
       // Build the initial transformation matrix.
@@ -144,18 +144,33 @@ template<typename T>
       cullConstantColumns (matC, matB, trivialInv);
       // Remove duplicate columns
       cullDuplicateColumns (matC, matB, trivialInv);
-      size_t nbArcs = 0;
-      for (const auto &col : matC.getColumns ()) {
-        nbArcs += col.size ();
-      }
       std::cout << "// Phase 1: matrix " << matC.getRowCount () << " rows "
-          << matC.getColumnCount () << " cols " << nbArcs << " entries"
-          << std::endl;
+          << matC.getColumnCount () << " cols " << matC.getEntryCount ()
+          << " entries" << std::endl;
       RowSigns rowSigns (matC, heur.useSingleSignRow ());
+
+      if (onlyPositive) {
+        size_t elim = 0;
+        for (size_t row = 0; row < matC.getRowCount (); row++) {
+          const auto &rs = rowSigns.get (row);
+          auto pm = rs.pMinus.size ();
+          auto pp = rs.pPlus.size ();
+          if ((pm == 0 && pp > 0) || (pp == 0 && pm > 0)) {
+            eliminateRowWithPivot (PivotChoice (row, -1), matC, matB, rowSigns,
+                                   onlyPositive);
+            elim++;
+          }
+        }
+        if (elim) {
+          std::cout << "// After discarding improbable semiflows : matrix "
+              << matC.getRowCount () << " rows " << matC.getColumnCount ()
+              << " cols " << matC.getEntryCount () << " entries" << std::endl;
+        }
+      }
 
       std::pair<size_t, size_t> counts (0, 0);
       while (!matC.isZero ()) {
-        applyRowElimination (matC, matB, rowSigns, counts, heur);
+        applyRowElimination (matC, matB, rowSigns, counts, onlyPositive, heur);
         if (DEBUG) {
           std::cout << "Mat max : " << matC.maxVal () << std::endl;
           std::cout << "B max : " << matB.maxVal () << std::endl;
@@ -173,160 +188,163 @@ template<typename T>
     }
 
     static void phase2Pipe (MatrixCol<T> &colsB,
-                            std::unordered_set<SparseArray<T>> &semiFlows)
+                            std::unordered_set<SparseArray<T>> &semiFlows,
+                            const EliminationHeuristic &heur)
     {
-      //int iter = 0;
-      SparseBoolArray treated;
-      while (true || colsB.getColumnCount () < 20000) {
-        if (treated.size () > 0) {
-          for (ssize_t i = treated.size () - 1; i >= 0; i--) {
-            semiFlows.insert (colsB.getColumn (treated.keyAt (i)));
-            colsB.deleteColumn (treated.keyAt (i));
-          }
-          treated.clear ();
-        }
-
-        RowSigns<T> rowSigns (colsB);
-        SparseBoolArray negRows;
-
-        int minRow = -1;
-        int minRowWeight = -1;
+      RowSigns<T> rowSigns (colsB, true, true);
+      // step 1 : clear pure negative rows.
+      {
+        std::vector<size_t> tokill;
         for (const auto &rs : rowSigns) {
-          int pps = rs.pPlus.size ();
-          int ppm = rs.pMinus.size ();
-          int weight = pps + ppm;
-
-          if (pps == 0) {
-            for (int i = 0; i < ppm; i++) {
-              negRows.set (rs.pMinus.keyAt (i));
+          if (rs.pPlus.size () == 0) {
+            for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
+              colsB.getColumn (rs.pMinus.keyAt (i)).clear ();
             }
-          }
-          if (pps > 0 && ppm > 0) {
-            if (pps == 1 || ppm == 1) {
-              // can't grow the size; use the stored row index
-              minRow = rs.row;
-              break;
-            }
-            if (minRow == -1 || minRowWeight > weight) {
-              int refinedweight = 0;
-              for (size_t i = 0, ie = rs.pPlus.size (); i < ie; i++) {
-                refinedweight += colsB.getColumn (rs.pPlus.keyAt (i)).size ();
-              }
-              for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
-                refinedweight += colsB.getColumn (rs.pMinus.keyAt (i)).size ();
-              }
-              if (minRow == -1 || minRowWeight > refinedweight) {
-                minRow = rs.row;
-                minRowWeight = refinedweight;
-              }
-            }
+            tokill.push_back (rs.row);
           }
         }
-
-        if (negRows.size () > 0) {
-          // cleanup
-          for (ssize_t j = negRows.size () - 1; j >= 0; j--) {
-            colsB.deleteColumn (negRows.keyAt (j));
-          }
-          continue;
+        for (const auto &row : tokill) {
+          rowSigns.clearRow (row);
         }
-        // check for a pure positive column
-        int purePos = -1;
+      }
 
-        for (size_t i = 0, ie = colsB.getColumnCount (); i < ie; i++) {
-          if (treated.get (i)) {
-            continue;
-          }
-          SparseArray<T> &col = colsB.getColumn (i);
-          bool hasNeg = false;
-          for (size_t j = 0, je = col.size (); j < je; j++) {
-            if (col.valueAt (j) < 0) {
-              hasNeg = true;
-              break;
-            }
-          }
-          if (!hasNeg) {
-            // check intersection
-            bool needed = false;
-            for (size_t j = 0, je = col.size (); j < je; j++) {
-              int row = col.keyAt (j);
-              const auto &ppm = rowSigns.get (row);
-              if (ppm.pMinus.size () > 0) {
-                needed = true;
-                purePos = i;
-                minRow = row;
-                break;
-              }
-            }
-            if (!needed) {
-              treated.set (i);
-            } else {
-              break;
-            }
-          }
+      while (true) {
+        ssize_t tRow = rowSigns.findSingleSignRow (heur.getLoopLimit ());
+
+        if (tRow == -1) {
+          // look for a "small" row
+          tRow = findBestFMERow (colsB, rowSigns, heur.getLoopLimit ());
         }
 
-        int targetRow = minRow;
-        if (targetRow == -1) {
-          // no more negative rows to treat
+        if (tRow == -1) {
           break;
         }
-        const auto &ppm = rowSigns.get (targetRow);
-        if (ppm.pPlus.size () > 0) {
-          for (size_t j = 0, je = ppm.pPlus.size (); j < je; j++) {
-            auto jindex = ppm.pPlus.keyAt (j);
-            if (purePos != -1) {
-              jindex = purePos;
-              j = je;
-            }
-            for (size_t k = 0, ke = ppm.pMinus.size (); k < ke; k++) {
-              // might have moved due to reallocations
-              SparseArray<T> &colj = colsB.getColumn (jindex);
-              SparseArray<T> &colk = colsB.getColumn (ppm.pMinus.keyAt (k));
-              // operate a linear combination on the columns of indices j and k
-              // in order to get a new column having the pair.getFirst element equal
-              // to zero
-              int a = -colk.get (targetRow);
-              int b = colj.get (targetRow);
-              SparseArray<T> column = SparseArray<T>::sumProd (a, colj, b,
-                                                               colk);
-              // add normalization step : we don't need scalar scaling of each other
-              normalize (column);
-              // append column to matrix B
-              // tests existence
-              if (column.size () > 0) {
-                colsB.appendColumn (column);
-              }
-            }
-          }
-          // Delete from B all the columns of index k \in P-
-          // cleanup
-          for (ssize_t j = ppm.pMinus.size () - 1; j >= 0; j--) {
-            colsB.deleteColumn (ppm.pMinus.keyAt (j));
-            treated.deleteAndShift (ppm.pMinus.keyAt (j));
-          }
-        }
-        // std::cout << "Phase 2 iter " << iter++ << " rows : " <<
-        // colsB.getRowCount() << " cols " << colsB.getColumnCount() << " treated " <<
-        // colsBsparse.size() << std::endl;
-        // std::cout << colsB << std::endl;
-      }
-      // std::cout << "Found "<< colsB.getColumnCount() << " invariants."<< std::endl;
 
-      for (SparseArray<T> l : colsB.getColumns ()) {
-        if (l.size () > 0) {
-          semiFlows.insert (l);
+        eliminateRowFME (tRow, colsB, rowSigns);
+      }
+
+      // all coefficients are positive !
+      for (size_t i = 0; i < colsB.getColumnCount (); i++) {
+        auto &col = colsB.getColumn (i);
+        if (col.size () > 0) {
+          normalizeWithSign (col);
+          semiFlows.insert (col);
         }
       }
-      // std::cout << "Found "<< colsBsparse.size() << " different invariants."<< std:endl;
-      removeNegativeValues (semiFlows);
-      std::cout << "Found " << semiFlows.size () << " positive invariants."
-          << std::endl;
+
+      // all done
+    }
+
+    static void eliminateRowFME (ssize_t targetRow, MatrixCol<T> &colsB,
+    RowSigns<T> &rowSigns)
+    {
+      const auto &rs = rowSigns.get (targetRow);
+
+      if (DEBUG) {
+        std::cout << "Eliminating row " << targetRow << " with "
+            << rs.pPlus.size () << " plus and " << rs.pMinus.size ()
+            << " minus columns" << std::endl;
+        std::cout << rs << std::endl;
+      }
+
+      if (rs.pPlus.size () == 0) {
+        // this whole row sucks, all columns touching it suck too.
+        for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
+          colsB.getColumn (rs.pMinus.keyAt (i)).clear ();
+        }
+        rowSigns.clearRow (targetRow);
+        std::cout << "Cleared row " << targetRow << std::endl;
+        return;
+      }
+      ssize_t purePos = -1;
+      if (rs.pPlus.size () > 1) {
+        // we might be lucky to have (small) pure positive column in P+
+        // We can use it as single pivot to eliminate P- in the row
+        // it's guaranteed at least to not introduce new negative values in the columns we touch
+        for (size_t i = 0, ie = rs.pPlus.size (); i < ie; i++) {
+          size_t candCol = rs.pPlus.keyAt (i);
+          const auto &col = colsB.getColumn (candCol);
+          if (col.isPurePositive ()) {
+            if (purePos == -1
+                || colsB.getColumn (purePos).size () > col.size ()) {
+              purePos = candCol;
+            }
+          }
+        }
+      }
+      if (DEBUG && purePos != -1) {
+        std::cout << "Using pure positive column " << purePos << " as pivot"
+            << std::endl;
+      }
+
+      for (size_t j = 0, je = rs.pPlus.size (); j < je; j++) {
+        auto jindex = rs.pPlus.keyAt (j);
+        if (purePos != -1) {
+          jindex = purePos;
+          j = je;
+        }
+        for (size_t k = 0, ke = rs.pMinus.size (); k < ke; k++) {
+          // might have moved due to reallocations
+          SparseArray<T> &colj = colsB.getColumn (jindex);
+          size_t kindex = rs.pMinus.keyAt (k);
+          SparseArray<T> &colk = colsB.getColumn (kindex);
+          // operate a linear combination on the columns of indices j and k
+          // in order to get a new column having the pair.getFirst element equal
+          // to zero
+          T alpha = -colk.get (targetRow);
+          T beta = colj.get (targetRow);
+          T gcdt = std::gcd (alpha, beta);
+          alpha /= gcdt;
+          beta /= gcdt;
+
+          if (DEBUG) {
+            std::cout << "Computing " << beta << " * " << colk << " + " << alpha
+                << " * " << colj << std::endl;
+          }
+          // single pivot forced by pure pos, or last pivot to be applied
+          // modify the column colk in place
+          if (purePos != -1 || j == je - 1) {
+            auto changed = sumProdInto (beta, colk, alpha, colj);
+            for (size_t ind = 0, inde = changed.size (); ind < inde; ind++) {
+              size_t key = changed[ind].first;
+              rowSigns.setValue (key, kindex, changed[ind].second);
+            }
+            normalize (colk);
+            if (DEBUG) {
+              std::cout << "Built (emplaced at " << kindex << ") " << colk
+                  << std::endl;
+              std::cout << "Changed reported " << changed << std::endl;
+            }
+          } else {
+            auto newCol = sumProd (beta, colk, alpha, colj);
+            normalize (newCol);
+            if (newCol.size () > 0) {
+              size_t newColIndex = colsB.getColumnCount ();
+              for (size_t ind = 0, inde = newCol.size (); ind < inde; ind++) {
+                rowSigns.setValue (newCol.keyAt (ind), newColIndex,
+                                   newCol.valueAt (ind));
+              }
+              if (DEBUG) {
+                std::cout << "Built (appended at " << newColIndex << ") "
+                    << newCol << std::endl;
+              }
+              colsB.appendColumn (std::move (newCol));
+            }
+          }
+          if (DEBUG) {
+            std::cout << "Obtained rowsign " << rowSigns.get (targetRow)
+                << " for row " << targetRow << std::endl;
+          }
+        }
+
+      }
+
     }
 
     static void applyRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
     RowSigns<T> &rowSigns,
                                      std::pair<size_t, size_t> &counts,
+                                     bool onlyPositive,
                                      const EliminationHeuristic &heur)
     {
       // 1) Check Single-Sign rows first:
@@ -335,7 +353,7 @@ template<typename T>
         // possibly compare matC column sizes if both are size 1
         auto pivot = findSingleSignPivot (matC, rowSigns, heur.getLoopLimit ());
         if (pivot.isSet ()) {
-          eliminateRowWithPivot (pivot, matC, matB, rowSigns);
+          eliminateRowWithPivot (pivot, matC, matB, rowSigns, onlyPositive);
           counts.first++;
           return;
         }
@@ -344,9 +362,10 @@ template<typename T>
       //    (a) pick a column with minimal size in matC
       //    (b) among the rows in that column, pick tRow with the smallest "cost"
       //        (for instance, the smallest absolute cell value, or minimal expansions)
-      auto pivot = findBestPivot (matC, rowSigns, heur.getLoopLimit ());
+      auto pivot = findBestPivot (matC, rowSigns, onlyPositive,
+                                  heur.getLoopLimit ());
       // pivot is set or matC would be zero
-      eliminateRowWithPivot (pivot, matC, matB, rowSigns);
+      eliminateRowWithPivot (pivot, matC, matB, rowSigns, onlyPositive);
       counts.second++;
     }
 
@@ -368,7 +387,8 @@ template<typename T>
 
     static void eliminateRowWithPivot (const PivotChoice pivot,
                                        MatrixCol<T> &matC, MatrixCol<T> &matB,
-                                       RowSigns<T> &rowSigns)
+                                       RowSigns<T> &rowSigns,
+                                       bool onlyPositive)
     {
       assert(pivot.isSet ());
       const auto &tRow = pivot.row;
@@ -376,8 +396,29 @@ template<typename T>
       T cHk = matC.get (tRow, tCol);
       T bbeta = std::abs (cHk);
       const auto &rowsign = rowSigns.get (tRow);
+
       SparseBoolArray toVisit = SparseBoolArray::unionOperation (rowsign.pMinus,
                                                                  rowsign.pPlus);
+
+      if (toVisit.size () == 0) {
+        // nothing to do
+        return;
+      }
+      if (onlyPositive
+          && (rowsign.pMinus.size () == 0 || rowsign.pPlus.size () == 0)) {
+        // [1.1] if there exists a row h in C such that the sets P+ = {j | c_hj > 0},
+        // P- = {j | c_hj < 0} satisfy P+ == {} or P- == {} and not (P+ == {} and P- == {})
+        // that means it exists a row that all components are positive respectivly negativ
+        // [1.1.a] delete from the extended matrix all the columns of index j \in P+ \cup P-
+
+        for (size_t i = 0, ie = toVisit.size (); i < ie; i++) {
+          size_t j = toVisit.keyAt (i);
+          matC.getColumn (j).clear ();
+          matB.getColumn (j).clear ();
+        }
+        rowSigns.clearRow (tRow);
+        return;
+      }
 
       if (DEBUG) {
         std::cout << "tCol : " << tCol << " tRow " << tRow << std::endl;
@@ -411,12 +452,11 @@ template<typename T>
           }
 
           // Update matC
-          SparseArray<T> changed = sumProdInto (beta, colj, alpha,
-                                                matC.getColumn (tCol));
+          auto changed = sumProdInto (beta, colj, alpha, matC.getColumn (tCol));
           // Update the row-sign bookkeeping
           for (size_t ind = 0, inde = changed.size (); ind < inde; ind++) {
-            size_t key = changed.keyAt (ind);
-            rowSigns.setValue (key, j, changed.valueAt (ind));
+            size_t key = changed[ind].first;
+            rowSigns.setValue (key, j, changed[ind].second);
           }
 
           // Update matB
@@ -482,7 +522,7 @@ template<typename T>
 
     static PivotChoice findBestPivot (const MatrixCol<T> &matC,
                                       const RowSigns<T> &rowSigns,
-                                      size_t loopLimit)
+                                      bool onlyPositive, size_t loopLimit)
     {
       // We'll assume there's at least one non-empty column; otherwise we can't pivot.
       // If you want to handle an all-empty matrix, you can do so by checking further.
@@ -530,6 +570,12 @@ template<typename T>
 
           // Row size in rowSigns
           const auto &rs = rowSigns.get (r);
+
+          if (onlyPositive
+              && (rs.pMinus.size () == 0 || rs.pPlus.size () == 0)) {
+            // We can't pivot on a row that has all positive or all negative entries.
+            return PivotChoice (r, c);
+          }
           size_t rowSz = rs.pPlus.size () + rs.pMinus.size ();
           T absVal = (val < 0) ? -val : val;
 
@@ -560,6 +606,59 @@ template<typename T>
       return foundPivot ? PivotChoice
         { bestRow, bestCol } :
                           PivotChoice ();  // an unset pivot
+    }
+
+    static ssize_t findBestFMERow (const MatrixCol<T> &matB,
+                                   const RowSigns<T> &rowSigns,
+                                   size_t loopLimit)
+    {
+      ssize_t minRow = -1;
+      ssize_t minRowWeight = std::numeric_limits<ssize_t>::max ();
+      ssize_t minRefinedRowWeight = std::numeric_limits<ssize_t>::max ();
+      size_t seen = 0;
+      for (const auto &rs : rowSigns) {
+        size_t pps = rs.pPlus.size ();
+        size_t ppm = rs.pMinus.size ();
+
+        if (seen++ > loopLimit && minRow != -1) {
+          break;
+        }
+
+        if (pps == 0)
+        // a pure negative row => we need to clear all related columns
+        return rs.row;
+
+        // number of columns in result
+        int weight = pps * ppm - pps - ppm;
+
+        if (minRow == -1 || minRowWeight > weight) {
+          ssize_t refinedweight = 0;
+          for (size_t i = 0, ie = rs.pPlus.size (); i < ie; i++) {
+            refinedweight += matB.getColumn (rs.pPlus.keyAt (i)).size ();
+          }
+          for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
+            refinedweight += matB.getColumn (rs.pMinus.keyAt (i)).size ();
+          }
+          if (minRow == -1 || minRefinedRowWeight > refinedweight) {
+            minRow = rs.row;
+            minRowWeight = weight;
+            minRefinedRowWeight = refinedweight;
+          }
+        }
+      }
+
+      if (DEBUG) {
+        if (minRow != -1) {
+          std::cout << "Selected row " << minRow << " with weight "
+              << minRowWeight << " and refined weight " << minRefinedRowWeight
+              << std::endl;
+        } else {
+          std::cout << "No row selected from " << rowSigns << " with matB= "
+              << matB << std::endl;
+        }
+      }
+
+      return minRow;
     }
 
   public:
