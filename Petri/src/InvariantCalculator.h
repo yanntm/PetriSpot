@@ -299,9 +299,8 @@ template<typename T>
       RowSigns rowSigns (matC,heur.useSingleSignRow());
 
       std::pair<size_t,size_t> counts (0,0);
-      int startIndex = 0;
       while (!matC.isZero ()) {
-        startIndex = applyRowElimination (matC, matB, rowSigns, startIndex, counts, heur);
+        applyRowElimination (matC, matB, rowSigns, counts, heur);
         if (DEBUG) {
           std::cout << "Mat max : " << matC.maxVal () << std::endl;
           std::cout << "B max : " << matB.maxVal () << std::endl;
@@ -316,59 +315,51 @@ template<typename T>
       return matB;
     }
 
-    static int applyRowElimination(MatrixCol<T>& matC,
+    static void applyRowElimination(MatrixCol<T>& matC,
                                    MatrixCol<T>& matB,
                                    RowSigns<T>& rowSigns,
-                                   int startIndex,
                                    std::pair<size_t,size_t> &counts, const EliminationHeuristic &heur)
     {
         // 1) Check Single-Sign rows first:
       if (heur.useSingleSignRow()) {
-        ssize_t candidateRow = rowSigns.findSingleSignRow(startIndex, heur.getLoopLimit());
-        if (candidateRow != -1) {
-            // Single-sign path => pick pivot col from pMinus or pPlus
-            // possibly compare matC column sizes if both are size 1
-            applySingleSignRowElimination(matC, matB, rowSigns, static_cast<size_t>(candidateRow));
-            counts.first++;
-            return candidateRow;
+        // Single-sign path => pick pivot col from pMinus or pPlus
+        // possibly compare matC column sizes if both are size 1
+        auto pivot = findSingleSignPivot(matC, rowSigns, heur.getLoopLimit());
+        if (pivot.isSet()) {
+          eliminateRowWithPivot(pivot, matC, matB, rowSigns);
+          counts.first++;
+          return;
         }
       }
-        // 2) General pivot choice:
-        //    (a) pick a column with minimal size in matC
-        //    (b) among the rows in that column, pick tRow with the smallest "cost"
-        //        (for instance, the smallest absolute cell value, or minimal expansions)
-        auto pivot = findBestPivot(matC, rowSigns, heur.getLoopLimit());
-        // pivot is a struct { size_t row; size_t col; }
-        eliminateRowWithPivot(pivot.row, pivot.col, matC, matB, rowSigns);
-        counts.second++;
-        return startIndex;  // or possibly pivot.row, depending on your logic
+      // 2) General pivot choice:
+      //    (a) pick a column with minimal size in matC
+      //    (b) among the rows in that column, pick tRow with the smallest "cost"
+      //        (for instance, the smallest absolute cell value, or minimal expansions)
+      auto pivot = findBestPivot(matC, rowSigns, heur.getLoopLimit());
+      // pivot is set or matC would be zero
+      eliminateRowWithPivot(pivot, matC, matB, rowSigns);
+      counts.second++;
     }
 
-
-    static int applyRowElimination2 (MatrixCol<T> &matC, MatrixCol<T> &matB, RowSigns<T> &rowSigns,
-                       int startIndex, std::pair<size_t,size_t> & counts)
-    {
-      // Find the candidate row with a single sign entry.
-      ssize_t candidateRow = rowSigns.findSingleSignRow (startIndex);
-      if (candidateRow != -1) {
-        // Use candidateRow (cast to int if necessary) in test1b1.
-        applySingleSignRowElimination (matC, matB, rowSigns, static_cast<size_t> (candidateRow));
-        startIndex = candidateRow;
-        counts.first++;
-      } else {
-        applyGeneralRowElimination (matC, matB, rowSigns);
-        counts.second++;
-      }
-      return startIndex;
-    }
 
   private:
 
-    static void eliminateRowWithPivot(size_t tRow, int tCol,
+    struct PivotChoice {
+        ssize_t row;
+        ssize_t col;
+        PivotChoice(ssize_t r=-1, ssize_t c=-1) : row(r), col(c) {}
+        bool isSet() const { return row != -1; }
+    };
+
+
+    static void eliminateRowWithPivot(const PivotChoice pivot,
                                       MatrixCol<T>& matC,
                                       MatrixCol<T>& matB,
                                       RowSigns<T>& rowSigns)
     {
+      assert (pivot.isSet ());
+      const auto & tRow = pivot.row;
+      const auto & tCol = pivot.col;
         T cHk = matC.get(tRow, tCol);
         T bbeta = std::abs(cHk);
         const auto & rowsign = rowSigns.get(tRow);
@@ -440,10 +431,43 @@ template<typename T>
         clearColumn(tCol, matC, matB, rowSigns);
     }
 
-    struct PivotChoice {
-        size_t row;
-        size_t col;
-    };
+
+
+    static PivotChoice findSingleSignPivot(const MatrixCol<T>& matC,
+                                           const RowSigns<T>& rowSigns, size_t loopLimit){
+
+      PivotChoice pivot;
+      ssize_t candidateRow = rowSigns.findSingleSignRow(loopLimit);
+      if (candidateRow != -1) {
+           // Single-sign path => pick pivot col from pMinus or pPlus
+           // possibly compare matC column sizes if both are size 1
+        // Get the candidate row data freshly.
+        const auto &rowData = rowSigns.get (candidateRow);
+        // In our construction, exactly one of pPlus or pMinus must have size 1.
+        assert(rowData.pPlus.size() == 1 || rowData.pMinus.size() == 1);
+
+        // Determine which set is unique.
+        // If pPlus is unique then tCol is the unique key and the complementary set is pMinus;
+        // otherwise, tCol is from pMinus and the complementary set is pPlus.
+        bool isNeg = (rowData.pMinus.size() == 1);
+        int tCol = isNeg ? rowData.pMinus.keyAt(0) : rowData.pPlus.keyAt(0);
+
+        if (rowData.pPlus.size () == 1 && rowData.pMinus.size () == 1) {
+          // std::cout << "Examine col j=" << j << " size=" << matC.getColumn (j).size () <<" with col=" << tCol << " size " << matC.getColumn (tCol).size () << std::endl;
+          // we can actually choose which one to get rid of
+          if (matC.getColumn (rowData.pMinus.keyAt(0)).size () > matC.getColumn (rowData.pPlus.keyAt(0)).size ()) {
+            tCol = rowData.pPlus.keyAt(0);
+            isNeg = !isNeg;
+            // std::cout << "SWAPPED" << std::endl;
+          }
+        }
+
+        return PivotChoice { candidateRow, tCol };
+      } else {
+        return PivotChoice();
+      }
+    }
+
 
     static PivotChoice findBestPivot(const MatrixCol<T>& matC,
                                      const RowSigns<T>& rowSigns, size_t loopLimit)
@@ -479,8 +503,8 @@ template<typename T>
         //    - smallest rowSize = pPlus.size() + pMinus.size()
         //    - tie-break on absolute value
         //    - early break if rowSize <= 2 and absVal == 1
-        size_t bestRow    = 0;
-        size_t bestCol    = candidateCols[0];       // default
+        ssize_t bestRow    = 0;
+        ssize_t bestCol    = candidateCols[0];       // default
         size_t bestRowSz  = std::numeric_limits<size_t>::max();
         T      bestAbsVal = std::numeric_limits<T>::max();
         bool   foundPivot = false;
@@ -525,7 +549,7 @@ template<typename T>
         // So we finalize the best we found:
         return foundPivot
             ? PivotChoice { bestRow, bestCol }
-            : PivotChoice { 0, 0 };  // or throw/assert if truly impossible
+            : PivotChoice();  // an unset pivot
     }
 
 
@@ -571,39 +595,6 @@ template<typename T>
       colk.clear ();
       matB.getColumn (tCol).clear ();
     }
-
-  private:
-
-    static void applySingleSignRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
-                         RowSigns<T> &rowSigns, size_t tRow)
-    {
-      if (DEBUG) {
-        std::cout << "Rule 1b.1 : " << tRow << std::endl;
-      }
-      // Get the candidate row data freshly.
-      const auto &rowData = rowSigns.get (tRow);
-      // In our construction, exactly one of pPlus or pMinus must have size 1.
-      assert(rowData.pPlus.size() == 1 || rowData.pMinus.size() == 1);
-
-      // Determine which set is unique.
-      // If pPlus is unique then tCol is the unique key and the complementary set is pMinus;
-      // otherwise, tCol is from pMinus and the complementary set is pPlus.
-      bool isNeg = (rowData.pMinus.size() == 1);
-      int tCol = isNeg ? rowData.pMinus.keyAt(0) : rowData.pPlus.keyAt(0);
-
-      if (rowData.pPlus.size () == 1 && rowData.pMinus.size () == 1) {
-        // std::cout << "Examine col j=" << j << " size=" << matC.getColumn (j).size () <<" with col=" << tCol << " size " << matC.getColumn (tCol).size () << std::endl;
-        // we can actually choose which one to get rid of
-        if (matC.getColumn (rowData.pMinus.keyAt(0)).size () > matC.getColumn (rowData.pPlus.keyAt(0)).size ()) {
-          tCol = rowData.pPlus.keyAt(0);
-          isNeg = !isNeg;
-          // std::cout << "SWAPPED" << std::endl;
-        }
-      }
-
-      eliminateRowWithPivot(tRow, tCol, matC, matB, rowSigns);
-    }
-
 
   };
 
