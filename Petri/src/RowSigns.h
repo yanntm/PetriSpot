@@ -239,7 +239,7 @@ public:
   // --- Candidate Search ---
   /// Iterates over the stored rows (in order) to find the first row where either
   /// pPlus or pMinus has exactly one element. Returns that row index, or -1 if none found.
-  ssize_t findSingleSignRow(size_t, size_t limit) const {
+  ssize_t findSingleSignRow(size_t limit) const {
     if (indexSingleSignRows) {
       for (size_t index = singleSignRows.size(); index--> 0; ) {
           const auto &rs = get (singleSignRows[index]);
