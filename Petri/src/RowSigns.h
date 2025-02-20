@@ -139,7 +139,9 @@ public:
 private:
   MapType rows;
   bool indexSingleSignRows;
+  bool ignorePurePositiveRows;
   mutable std::vector<size_t> singleSignRows;
+  std::unordered_set<size_t> purePositiveRows;
 public:
   // --- Iterator API ---
   // A const iterator that yields a const reference to a RowSign.
@@ -166,13 +168,17 @@ public:
   /// Constructs the SparseRowSigns from the incidence matrix 'matC'
   /// using a two‑pass approach: first build a dense RowSigns,
   /// then insert only those rows with nonzero sign data into the map.
-  SparseRowSigns(const MatrixCol<T>& matC, bool indexSingleSignRows = false) : indexSingleSignRows(indexSingleSignRows){
+  SparseRowSigns(const MatrixCol<T>& matC, bool indexSingleSignRows = false, bool ignorePurePos=false) : indexSingleSignRows(indexSingleSignRows),ignorePurePositiveRows(ignorePurePos){
     // Build the dense version.
     DenseRowSigns<T> dense(matC);
     rows.reserve(matC.getRowCount());
     // Insert only nonzero rows.
     for (size_t i = 0; i < dense.size(); i++) {
       const auto &rs = dense.get(i);
+      if (ignorePurePos && rs.pPlus.size () != 0 && rs.pMinus.size () == 0) {
+        purePositiveRows.insert (rs.row);
+        continue;
+      }
       if (rs.pPlus.size() != 0 || rs.pMinus.size() != 0) {
         rows.insert({rs.row, rs});
       }
@@ -187,9 +193,14 @@ public:
   /// Forces all modifications to row sign data to go through this method.
   /// If the update causes the RowSign to become empty, erase the entry.
   void setValue(size_t row, size_t col, T newVal) {
+    if (ignorePurePositiveRows && purePositiveRows.find (row) != purePositiveRows.end ()) return;
     auto it = rows.find(row);
     if (it == rows.end()) {
       if (newVal != 0) {
+        if (ignorePurePositiveRows && newVal > 0) {
+          purePositiveRows.insert (row);
+          return;
+        }
         RowSign<T> rs(row);
         rs.setValue(col, newVal);
         rows.insert({row, std::move(rs)});
@@ -202,8 +213,11 @@ public:
       // Only remove if newVal is zero and both sets become empty.
       if (newVal == 0 && it->second.pPlus.size() == 0 && it->second.pMinus.size() == 0) {
         rows.erase(it);
-      }
-      if (indexSingleSignRows
+      } else if (ignorePurePositiveRows && newVal >= 0 && it->second.pMinus.size () == 0) {
+          purePositiveRows.insert (row);
+          rows.erase (it);
+          return;
+      } else if (indexSingleSignRows
           && (it->second.pPlus.size () == 1 || it->second.pMinus.size () == 1)) {
         singleSignRows.push_back (it->second.row);
       }
@@ -256,6 +270,30 @@ public:
       }
     }
     return -1;
+  }
+
+  void clearRow (size_t row)
+    {
+      rows.erase (row);
+    }
+
+  friend std::ostream& operator<<(std::ostream &os, const SparseRowSigns<T>& srs) {
+    os << "SparseRowSigns (" << srs.rows.size() << " entries):\n";
+    os << "  indexSingleSignRows: " << (srs.indexSingleSignRows ? "true" : "false") << "\n";
+    os << "  ignorePurePositiveRows: " << (srs.ignorePurePositiveRows ? "true" : "false") << "\n";
+    os << "  Cached singleSignRows: ";
+    for (size_t i = 0; i < srs.singleSignRows.size(); ++i)
+      os << srs.singleSignRows[i] << " ";
+    os << "\n";
+    os << "  Cached purePositiveRows: ";
+    for (const auto &idx : srs.purePositiveRows)
+      os << idx << " ";
+    os << "\n";
+    os << "  Stored Rows:\n";
+    for (auto it = srs.begin(); it != srs.end(); ++it) {
+      os << *it << "\n";
+    }
+    return os;
   }
 };
 
