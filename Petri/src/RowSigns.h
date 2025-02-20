@@ -138,7 +138,8 @@ public:
 
 private:
   MapType rows;
-
+  bool indexSingleSignRows;
+  mutable std::vector<size_t> singleSignRows;
 public:
   // --- Iterator API ---
   // A const iterator that yields a const reference to a RowSign.
@@ -165,7 +166,7 @@ public:
   /// Constructs the SparseRowSigns from the incidence matrix 'matC'
   /// using a two‑pass approach: first build a dense RowSigns,
   /// then insert only those rows with nonzero sign data into the map.
-  SparseRowSigns(const MatrixCol<T>& matC) {
+  SparseRowSigns(const MatrixCol<T>& matC, bool indexSingleSignRows = false) : indexSingleSignRows(indexSingleSignRows){
     // Build the dense version.
     DenseRowSigns<T> dense(matC);
     rows.reserve(matC.getRowCount());
@@ -174,6 +175,10 @@ public:
       const auto &rs = dense.get(i);
       if (rs.pPlus.size() != 0 || rs.pMinus.size() != 0) {
         rows.insert({rs.row, rs});
+      }
+      if (indexSingleSignRows
+          && (rs.pPlus.size () == 1 || rs.pMinus.size () == 1)) {
+        singleSignRows.push_back (rs.row);
       }
     }
   }
@@ -188,12 +193,19 @@ public:
         RowSign<T> rs(row);
         rs.setValue(col, newVal);
         rows.insert({row, std::move(rs)});
+        if (indexSingleSignRows) {
+          singleSignRows.push_back (rs.row);
+        }
       }
     } else {
       it->second.setValue(col, newVal);
       // Only remove if newVal is zero and both sets become empty.
       if (newVal == 0 && it->second.pPlus.size() == 0 && it->second.pMinus.size() == 0) {
         rows.erase(it);
+      }
+      if (indexSingleSignRows
+          && (it->second.pPlus.size () == 1 || it->second.pMinus.size () == 1)) {
+        singleSignRows.push_back (it->second.row);
       }
     }
   }
@@ -228,12 +240,20 @@ public:
   /// Iterates over the stored rows (in order) to find the first row where either
   /// pPlus or pMinus has exactly one element. Returns that row index, or -1 if none found.
   ssize_t findSingleSignRow(size_t, size_t limit) const {
-    size_t current = 0;
-    for (const auto &rs : *this) {
-      if (rs.pPlus.size() == 1 || rs.pMinus.size() == 1)
-        return static_cast<ssize_t>(rs.row);
-      if (++current >= limit)
-        break;
+    if (indexSingleSignRows) {
+      for (size_t index = singleSignRows.size(); index--> 0; ) {
+          const auto &rs = get (singleSignRows[index]);
+          singleSignRows.pop_back();
+          if (rs.pPlus.size () == 1 || rs.pMinus.size () == 1) return static_cast<ssize_t> (rs.row);
+      }
+    } else {
+      size_t current = 0;
+      for (const auto &rs : *this) {
+        if (rs.pPlus.size() == 1 || rs.pMinus.size() == 1)
+          return static_cast<ssize_t>(rs.row);
+        if (++current >= limit)
+          break;
+      }
     }
     return -1;
   }
