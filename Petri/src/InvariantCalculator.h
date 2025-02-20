@@ -296,7 +296,7 @@ template<typename T>
       }
       std::cout << "// Phase 1: matrix " << matC.getRowCount () << " rows "
           << matC.getColumnCount () << " cols " << nbArcs << " entries" << std::endl;
-      RowSigns rowSigns (matC);
+      RowSigns rowSigns (matC,heur.useSingleSignRow());
 
       std::pair<size_t,size_t> counts (0,0);
       int startIndex = 0;
@@ -408,19 +408,19 @@ template<typename T>
                 }
 
                 // Update matC
-                SparseBoolArray changed = sumProdInto(beta,
+                SparseArray<T> changed = sumProdInto(beta,
                                                       colj,
                                                       alpha,
                                                       matC.getColumn(tCol));
                 // Update the row-sign bookkeeping
                 for (size_t ind = 0, inde = changed.size(); ind < inde; ind++) {
                     size_t key = changed.keyAt(ind);
-                    rowSigns.setValue(key, j, colj.get(key));
+                    rowSigns.setValue(key, j, changed.valueAt(ind));
                 }
 
                 // Update matB
                 SparseArray<T>& coljb = matB.getColumn(j);
-                sumProdInto(beta, coljb, alpha, matB.getColumn(tCol));
+                sumProdIntoNoChange(beta, coljb, alpha, matB.getColumn(tCol));
 
                 // Optionally perform GCD reduction on column j
                 T gcdm = gcd(matC.getColumn(j));
