@@ -52,7 +52,7 @@ int main (int argc, char *argv[])
   EliminationHeuristic::PivotStrategy pivotStrategy = EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = -1;
 
-  if (argc == 1 || argc > 6) {
+  if (argc == 1) {
     cerr << "usage: petri -i model.pnml [options]\n";
     exit (1);
   }
