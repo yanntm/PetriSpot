@@ -393,8 +393,6 @@ template<typename T>
       assert(pivot.isSet ());
       const auto &tRow = pivot.row;
       const auto &tCol = pivot.col;
-      T cHk = matC.get (tRow, tCol);
-      T bbeta = std::abs (cHk);
       const auto &rowsign = rowSigns.get (tRow);
 
       SparseBoolArray toVisit = SparseBoolArray::unionOperation (rowsign.pMinus,
@@ -419,6 +417,9 @@ template<typename T>
         rowSigns.clearRow (tRow);
         return;
       }
+
+      T cHk = matC.get (tRow, tCol);
+      T bbeta = std::abs (cHk);
 
       if (DEBUG) {
         std::cout << "tCol : " << tCol << " tRow " << tRow << std::endl;
