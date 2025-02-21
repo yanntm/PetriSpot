@@ -253,7 +253,8 @@ template<typename T>
           colsB.getColumn (rs.pMinus.keyAt (i)).clear ();
         }
         rowSigns.clearRow (targetRow);
-        std::cout << "Cleared row " << targetRow << std::endl;
+        if (DEBUG)
+          std::cout << "Cleared row " << targetRow << std::endl;
         return;
       }
       ssize_t purePos = -1;
