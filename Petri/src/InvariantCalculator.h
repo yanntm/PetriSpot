@@ -2,17 +2,37 @@
 #define INVARIANTCALCULATOR_H_
 
 /**
- * A calculator for invariants and testing if a net is covered by invariants.
- * Provides two differient algorithms for calculating the invariants. The first
- * algorithm is descripted in http://de.scribd.com/doc/49919842/Pn-ESTII (slide
- * 88) and the other is also based an the farkas algorithm and is descripted in
+ * A calculator for invariants computing flows or semiflows.
+ * Provides a sparse implementation of a variant on Farkas algorithm.
+ *
+ * The algorithm proceed in two phases:
+ * - Phase 1 computes a basis of the kernel of the input matrix, which is a basis of the set of flows.
+ * This is worst case proportional to the number of columns of the matrix.
+ * - Phase 2 massages the flows into semiflows. This is worst case exponential in the number of flows.
+ *
+ * Originally, this file is derived from an implementation provided by the APT tool,
+ * from the team of Eike Best, University of Oldenburg, in Java.
+ * Dennis-Michael Borde, Manuel Gieseking are credited as authors in the source code.
+ *
+ * The algorithm itself is based on the PIPE algorithm described in
  * http://pipe2.sourceforge.net/documents/PIPE-Report.pdf (page 19) which is
  * based on the paper of D'Anna and Trigila "Concurrent system analysis using
  * Petri nets – an optimised algorithm for finding net invariants", Mario D'Anna
  * and Sebastiano Trigila, Computer Communications vol 11, no. 4 august 1988.
+ * according to source code comments.
  *
- * @author Dennis-Michael Borde, Manuel Gieseking , Adapted to ITS-tools by Yann
- *         Thierry-Mieg, 2017.
+ * It was first heavily adapted for ITS-Tools by Yann Thierry-Mieg starting from 2017,
+ * leading to a sparse implementation of the algorithm described in the PNSE23 paper
+ * "Efficient Strategies to Compute Invariants, Bounds and Stable Places of Petri nets"
+ * by Yann Thierry-Mieg.
+ *
+ * In 2024, the code was ported to C++ (with the help of Soufiane El Mahdi M1 student at Sorbonne University).
+ *
+ * In beginning of 2025 the code was practically entirely rewritten, though main elements of the algorithm remain, the source
+ * is barely recognizable. At this occasion several new heuristics and performance enhancements were added, implementing
+ * new ideas developed with the help of Denis Poitrenaud and Emmanuel Paviot-Adet.
+ *
+ * @author Yann Thierry-Mieg.
  *
  */
 
@@ -34,21 +54,27 @@
 namespace petri
 {
 
+
+/**
+ * @class InvariantCalculator
+ * @brief Computes invariants (flows or semiflows) of a Petri net using a sparse matrix representation.
+ *
+ * This class provides a static interface to calculate invariants from a given incidence matrix. It supports both flows
+ * (allowing negative coefficients) and semiflows (non-negative coefficients only). The algorithm operates in two phases:
+ * - Phase 1: Reduces the matrix to a basis of invariants using row elimination.
+ * - Phase 2: Optionally refines the basis into a minimal set of semiflows with positive coefficients.
+ *
+ * The implementation uses sparse data structures (SparseArray, MatrixCol) and incorporates heuristics for pivot selection
+ * and row elimination to optimize performance.
+ *
+ * @tparam T The numeric type for matrix entries (e.g., int, long).
+ */
 template<typename T>
   class InvariantCalculator
   {
 
+    // Enable for verbose debugging output during development.
     static inline const bool DEBUG = false;
-
-  public:
-    /**
-     * Enumeration for choosing which algorithm should be used.
-     */
-    enum class InvariantAlgorithm
-    {
-      // Farkas,
-      PIPE
-    };
 
   private:
     /**
@@ -59,13 +85,20 @@ template<typename T>
     }
 
     /**
-     * Calculates the invariants with the algorithm based on
-     * http://pipe2.sourceforge.net/documents/PIPE-Report.pdf (page 19).
+     * @brief Computes a generating set of invariants (flows or semiflows) from a Petri net incidence matrix.
      *
-     * @param mat          - the matrix to calculate the invariants from.
-     * @param onlyPositive whether we just stop at Flows or go for Semi-Flows
-     * @param pnames       variable names
-     * @return a generator set of the invariants.
+     * This method implements a sparse variant of the PIPE algorithm.
+     * It operates in two phases:
+     * 1. Phase 1: Reduces the input matrix to a basis of flows using row elimination (see phase1PIPE).
+     * 2. Phase 2: If onlyPositive is true, refines the basis into a minimal set of semiflows (see phase2Pipe).
+     *
+     * The input matrix is normalized (removing duplicate and scaled columns) before processing. The result is a set of sparse
+     * vectors representing the invariants.
+     *
+     * @param mat          The incidence matrix (rows = places, columns = transitions).
+     * @param onlyPositive If true, computes semiflows (non-negative coefficients); if false, computes flows (allowing negatives).
+     * @param heur         Heuristic settings for row elimination and pivot selection (default: EliminationHeuristic()).
+     * @return An unordered set of SparseArray<T> representing the invariants.
      */
   public:
     static std::unordered_set<SparseArray<T>> calcInvariantsPIPE (
@@ -75,7 +108,12 @@ template<typename T>
       if (mat.getColumnCount () == 0 || mat.getRowCount () == 0) {
         return std::unordered_set<SparseArray<T>> ();
       }
+
+      // while it's not classical, we actually work with columns in the algorithm
+      // The matrix data structure is asymetric in complexity between rows and columns
       MatrixCol<T> tmat = mat.transpose ();
+
+      // Normalize the transposed matrix: remove duplicate columns and scale them to canonical form.
       std::unordered_set<SparseArray<T>> normed = std::unordered_set<
           SparseArray<T>> ();
       for (size_t i = 0; i < tmat.getColumnCount (); i++) {
@@ -131,6 +169,20 @@ template<typename T>
 
   private:
 
+    /**
+     * @brief Phase 1 of the invariant calculation: computes a basis of flows by eliminating rows.
+     *
+     * This method reduces the input matrix `matC` to a zero matrix while updating a transformation matrix `matB` to
+     * represent a basis of flows. It uses row elimination with pivot selection guided by heuristics. Key steps:
+     * - Removes trivial (empty) and duplicate columns early.
+     * - Discards rows that cannot contribute to semiflows (if onlyPositive is true).
+     * - Iteratively eliminates rows until matC is zero, tracking changes in matB.
+     *
+     * @param matC         The incidence matrix to reduce (modified in place).
+     * @param onlyPositive If true, enforces constraints for semiflows during elimination.
+     * @param heur         Heuristic settings for pivot selection and elimination order.
+     * @return The transformation matrix matB representing the basis of flows.
+     */
     static MatrixCol<T> phase1PIPE (MatrixCol<T> matC, bool onlyPositive,
                                     const EliminationHeuristic &heur)
     {
@@ -140,15 +192,20 @@ template<typename T>
 
       // Vector to hold trivial invariants.
       std::vector<SparseArray<T>> trivialInv;
+
+
       // Remove trivial invariants (empty columns in matC) early.
       cullConstantColumns (matC, matB, trivialInv);
       // Remove duplicate columns
       cullDuplicateColumns (matC, matB, trivialInv);
+
       std::cout << "// Phase 1: matrix " << matC.getRowCount () << " rows "
           << matC.getColumnCount () << " cols " << matC.getEntryCount ()
           << " entries" << std::endl;
       RowSigns rowSigns (matC, heur.useSingleSignRow ());
 
+      // For semiflows, discard rows with all-positive or all-negative entries early,
+      // as they cannot balance to zero with non-negative coefficients.
       if (onlyPositive) {
         size_t elim = 0;
         for (size_t row = 0; row < matC.getRowCount (); row++) {
@@ -168,7 +225,10 @@ template<typename T>
         }
       }
 
+      // stats on which rule applied
       std::pair<size_t, size_t> counts (0, 0);
+
+      // Main elimination loop: reduce matC to zero by applying row operations, updating matB accordingly.
       while (!matC.isZero ()) {
         applyRowElimination (matC, matB, rowSigns, counts, onlyPositive, heur);
         if (DEBUG) {
@@ -187,12 +247,25 @@ template<typename T>
       return matB;
     }
 
+    /**
+     * @brief Phase 2 of the invariant calculation: refines a basis of flows into semiflows.
+     *
+     * This method takes a basis of flows (colsB) and computes a minimal set of semiflows (non-negative coefficients) by:
+     * - Clearing rows with only negative entries (and their associated columns).
+     * - Iteratively eliminating rows using linear combinations to ensure all coefficients are positive.
+     * - Normalizing the resulting vectors.
+     *
+     * @param colsB       The basis of flows from Phase 1 (modified in place).
+     * @param semiFlows   Output set of semiflows.
+     * @param heur        Heuristic settings for row selection.
+     */
     static void phase2Pipe (MatrixCol<T> &colsB,
                             std::unordered_set<SparseArray<T>> &semiFlows,
                             const EliminationHeuristic &heur)
     {
       RowSigns<T> rowSigns (colsB, true, true);
-      // step 1 : clear pure negative rows.
+
+      // Step 1: Remove rows with only negative entries, as they cannot contribute to semiflows.
       {
         std::vector<size_t> tokill;
         for (const auto &rs : rowSigns) {
@@ -208,6 +281,7 @@ template<typename T>
         }
       }
 
+      // Step 2: Iteratively eliminate rows to ensure all coefficients are non-negative.
       while (true) {
         ssize_t tRow = rowSigns.findSingleSignRow (heur.getLoopLimit ());
 
@@ -235,6 +309,17 @@ template<typename T>
       // all done
     }
 
+    /**
+     * @brief Eliminates a target row in Phase 2 using Full Matrix Elimination (FME).
+     *
+     * Combines columns from P+ (positive entries) and P- (negative entries) in the target row to produce new columns
+     * with non-negative coefficients. If a pure positive column exists, it is used as a pivot to avoid introducing
+     * new negatives. The resulting columns are normalized and appended or updated in place.
+     *
+     * @param targetRow The row to eliminate.
+     * @param colsB     The basis matrix (modified in place).
+     * @param rowSigns  Bookkeeping of row signs (updated during elimination).
+     */
     static void eliminateRowFME (ssize_t targetRow, MatrixCol<T> &colsB,
     RowSigns<T> &rowSigns)
     {
@@ -247,6 +332,7 @@ template<typename T>
         std::cout << rs << std::endl;
       }
 
+      // If the row has no positive entries, clear all associated columns (they cannot form semiflows).
       if (rs.pPlus.size () == 0) {
         // this whole row sucks, all columns touching it suck too.
         for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
@@ -257,6 +343,8 @@ template<typename T>
           std::cout << "Cleared row " << targetRow << std::endl;
         return;
       }
+
+      // Look for a pure positive column in P+ to use as a pivot, minimizing new negative entries.
       ssize_t purePos = -1;
       if (rs.pPlus.size () > 1) {
         // we might be lucky to have (small) pure positive column in P+
@@ -342,12 +430,26 @@ template<typename T>
 
     }
 
+    /**
+     * @brief Applies a single row elimination step in Phase 1.
+     *
+     * Selects a pivot (row, column) using either single-sign row heuristics or general pivot selection, then eliminates
+     * the row by updating matC and matB. Tracks the type of elimination (single-sign or general) in counts.
+     *
+     * @param matC        The incidence matrix (modified).
+     * @param matB        The transformation matrix (modified).
+     * @param rowSigns    Bookkeeping of row signs (updated).
+     * @param counts      Tracks single-sign (first) and general (second) eliminations.
+     * @param onlyPositive Enforces semiflow constraints if true.
+     * @param heur        Heuristic settings for pivot selection.
+     */
     static void applyRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
     RowSigns<T> &rowSigns,
                                      std::pair<size_t, size_t> &counts,
                                      bool onlyPositive,
                                      const EliminationHeuristic &heur)
     {
+      // Prioritize single-sign rows for faster elimination when enabled by heuristics.
       // 1) Check Single-Sign rows first:
       if (heur.useSingleSignRow ()) {
         // Single-sign path => pick pivot col from pMinus or pPlus
