@@ -54,7 +54,6 @@
 namespace petri
 {
 
-
 /**
  * @class InvariantCalculator
  * @brief Computes invariants (flows or semiflows) of a Petri net using a sparse matrix representation.
@@ -193,7 +192,6 @@ template<typename T>
       // Vector to hold trivial invariants.
       std::vector<SparseArray<T>> trivialInv;
 
-
       // Remove trivial invariants (empty columns in matC) early.
       cullConstantColumns (matC, matB, trivialInv);
       // Remove duplicate columns
@@ -267,17 +265,20 @@ template<typename T>
 
       // Step 1: Remove rows with only negative entries, as they cannot contribute to semiflows.
       {
-        std::vector<size_t> tokill;
+        std::unordered_set<size_t> tokill;
         for (const auto &rs : rowSigns) {
           if (rs.pPlus.size () == 0) {
             for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
-              colsB.getColumn (rs.pMinus.keyAt (i)).clear ();
+              tokill.insert (rs.pMinus.keyAt (i));
             }
-            tokill.push_back (rs.row);
           }
         }
-        for (const auto &row : tokill) {
-          rowSigns.clearRow (row);
+        if (tokill.size () > 0) {
+          for (const auto &col : tokill) {
+            clearColumn (col, colsB, rowSigns);
+          }
+          if (DEBUG) std::cout << "Cleared " << tokill.size ()
+              << " cols due to row with only negative entries" << std::endl;
         }
       }
 
@@ -330,17 +331,24 @@ template<typename T>
             << rs.pPlus.size () << " plus and " << rs.pMinus.size ()
             << " minus columns" << std::endl;
         std::cout << rs << std::endl;
+        for (size_t i = 0, ie = rs.pPlus.size (); i < ie; i++) {
+          std::cout << "P+ " << rs.pPlus.keyAt (i) << " : "
+              << colsB.getColumn (rs.pPlus.keyAt (i)) << std::endl;
+        }
+        for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
+          std::cout << "P- " << rs.pMinus.keyAt (i) << " : "
+              << colsB.getColumn (rs.pMinus.keyAt (i)) << std::endl;
+        }
       }
 
       // If the row has no positive entries, clear all associated columns (they cannot form semiflows).
       if (rs.pPlus.size () == 0) {
         // this whole row sucks, all columns touching it suck too.
-        for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
-          colsB.getColumn (rs.pMinus.keyAt (i)).clear ();
+        SparseBoolArray toVisit = rs.pMinus;
+        for (size_t i = 0, ie = toVisit.size (); i < ie; i++) {
+          clearColumn (toVisit.keyAt (i), colsB, rowSigns);
         }
-        rowSigns.clearRow (targetRow);
-        if (DEBUG)
-          std::cout << "Cleared row " << targetRow << std::endl;
+        if (DEBUG) std::cout << "Cleared row " << targetRow << std::endl;
         return;
       }
 
@@ -509,15 +517,11 @@ template<typename T>
           && (rowsign.pMinus.size () == 0 || rowsign.pPlus.size () == 0)) {
         // [1.1] if there exists a row h in C such that the sets P+ = {j | c_hj > 0},
         // P- = {j | c_hj < 0} satisfy P+ == {} or P- == {} and not (P+ == {} and P- == {})
-        // that means it exists a row that all components are positive respectivly negativ
+        // that means it exists a row that all components are positive respectively negative
         // [1.1.a] delete from the extended matrix all the columns of index j \in P+ \cup P-
-
         for (size_t i = 0, ie = toVisit.size (); i < ie; i++) {
-          size_t j = toVisit.keyAt (i);
-          matC.getColumn (j).clear ();
-          matB.getColumn (j).clear ();
+          clearColumn (toVisit.keyAt (i), matC, matB, rowSigns);
         }
-        rowSigns.clearRow (tRow);
         return;
       }
 
@@ -776,6 +780,17 @@ template<typename T>
       }
       colk.clear ();
       matB.getColumn (tCol).clear ();
+    }
+
+    static void clearColumn (int tCol, MatrixCol<T> &matB,
+                             RowSigns<T> &rowSigns)
+    {
+      // delete from the extended matrix the column of index k
+      SparseArray<T> &colk = matB.getColumn (tCol);
+      for (size_t i = 0, ie = colk.size (); i < ie; i++) {
+        rowSigns.setValue (colk.keyAt (i), tCol, 0);
+      }
+      colk.clear ();
     }
 
   };
