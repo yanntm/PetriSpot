@@ -197,8 +197,9 @@ public:
             return *this;
         }
 
-        // Rule 2: If mCap is sufficient but not excessively large, reuse it
-        if (mCap >= source.mSize && mCap < 2 * source.mSize) {
+        // Rule 2: If mCap is sufficient reuse it
+        // Commented out : if excessively large, realloc
+        if (mCap >= source.mSize /* && mCap < 2 * source.mSize*/) {
             memcpy(mKeys, source.mKeys, source.mSize * sizeof(size_t));
             memcpy(mValues, source.mValues, source.mSize * sizeof(T));
             mSize = source.mSize;

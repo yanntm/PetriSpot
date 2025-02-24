@@ -11,15 +11,15 @@
 template<typename T>
 class FlowPrinter {
 private:
-    static int nbWritten;
+    static size_t nbWritten; // Changed from int to size_t for file numbering
 
-    // Helper function to add neighborhood (similar to Java version)
-    static void addNeighborhood(int ti, const MatrixCol<T>& flowPT, const MatrixCol<T>& flowTP,
-                                std::set<int>& torep, std::set<int>& toret) {
+    // Helper function to add neighborhood
+    static void addNeighborhood(size_t ti, const MatrixCol<T>& flowPT, const MatrixCol<T>& flowTP,
+                                std::set<size_t>& torep, std::set<size_t>& toret) {
         toret.insert(ti);
         const SparseArray<T>& colPT = flowPT.getColumn(ti);
         for (size_t i = 0; i < colPT.size(); ++i) {
-            torep.insert(colPT.keyAt(i)); // Assumes SparseArray has keyAt()
+            torep.insert(colPT.keyAt(i));
         }
         const SparseArray<T>& colTP = flowTP.getColumn(ti);
         for (size_t i = 0; i < colTP.size(); ++i) {
@@ -32,8 +32,8 @@ public:
     static std::string drawNet(const MatrixCol<T>& flowPT, const MatrixCol<T>& flowTP,
                               const std::vector<T>& marks, const std::vector<std::string>& pnames,
                               const std::vector<std::string>& tnames, const std::vector<bool>& untouchable,
-                              const std::string& title, const std::set<int>& hlPlaces,
-                              const std::set<int>& hlTrans, int maxShown = 150) {
+                              const std::string& title, const std::set<size_t>& hlPlaces,
+                              const std::set<size_t>& hlTrans, size_t maxShown = 150) { // Changed int to size_t
         std::string filename = "petri" + std::to_string(nbWritten++) + "_.dot";
         std::ofstream pw(filename);
         if (!pw.is_open()) {
@@ -45,13 +45,13 @@ public:
         pw << "  labelloc=\"t\";\n";
 
         bool isLarge = false;
-        std::set<int> torep;
-        std::set<int> toret;
+        std::set<size_t> torep; // Changed int to size_t
+        std::set<size_t> toret; // Changed int to size_t
 
         MatrixCol<T> tflowPT;
         MatrixCol<T> tflowTP;
 
-        if (pnames.size() + tnames.size() > 2 * maxShown) {
+        if (pnames.size() + tnames.size() > 2 * maxShown) { // size_t comparison
             isLarge = true;
             std::stringstream newTitle;
             newTitle << title << " (Net is too large representing up to roughly " << maxShown << " objects)";
@@ -59,28 +59,28 @@ public:
 
             // Highlighted transitions
             auto it = hlTrans.begin();
-            for (int ite = 0; it != hlTrans.end() && ite < maxShown / 2; ++ite, ++it) {
+            for (size_t ite = 0; it != hlTrans.end() && ite < maxShown / 2; ++ite, ++it) { // size_t for counter
                 addNeighborhood(*it, flowPT, flowTP, torep, toret);
             }
 
             // Highlighted places and their neighborhoods
             it = hlPlaces.begin();
-            for (int i = 0; it != hlPlaces.end() && i < maxShown / 2; ++i, ++it) {
+            for (size_t i = 0; it != hlPlaces.end() && i < maxShown / 2; ++i, ++it) { // size_t for counter
                 torep.insert(*it);
             }
-            tflowPT = flowPT.transpose(); // Assumes transpose() exists
+            tflowPT = flowPT.transpose();
             tflowTP = flowTP.transpose();
-            for (int pi : torep) {
+            for (size_t pi : torep) { // size_t for index
                 addNeighborhood(pi, tflowPT, tflowTP, toret, torep);
             }
-            for (int ti : toret) {
+            for (size_t ti : toret) { // size_t for index
                 addNeighborhood(ti, flowPT, flowTP, torep, toret);
             }
 
             // Default selection if hlPlaces and hlTrans are empty
             if (hlTrans.empty() && hlPlaces.empty()) {
                 size_t pi = 0;
-                while (torep.size() + toret.size() < (3 * maxShown) / 2 && pi < untouchable.size()) {
+                while (torep.size() + toret.size() < (3 * maxShown) / 2 && pi < untouchable.size()) { // size_t comparison
                     if (untouchable[pi]) {
                         addNeighborhood(pi, tflowPT, tflowTP, toret, torep);
                     }
@@ -92,14 +92,14 @@ public:
             }
 
             // Expand until maxShown is reached
-            while (torep.size() + toret.size() < maxShown) {
+            while (torep.size() + toret.size() < maxShown) { // size_t comparison
                 size_t sz = torep.size() + toret.size();
                 auto pit = torep.begin();
-                while (torep.size() + toret.size() < maxShown && pit != torep.end()) {
+                while (torep.size() + toret.size() < maxShown && pit != torep.end()) { // size_t comparison
                     addNeighborhood(*pit++, tflowPT, tflowTP, toret, torep);
                 }
                 auto tit = toret.begin();
-                while (torep.size() + toret.size() < maxShown && tit != toret.end()) {
+                while (torep.size() + toret.size() < maxShown && tit != toret.end()) { // size_t comparison
                     addNeighborhood(*tit++, flowPT, flowTP, torep, toret);
                 }
                 if (torep.size() + toret.size() == sz) break;
@@ -108,7 +108,7 @@ public:
             pw << "label=\"" << title << "\";\n";
         }
 
-        int totalArcs = 0;
+        size_t totalArcs = 0; // Changed int to size_t
         for (size_t ti = 0; ti < tnames.size(); ++ti) {
             if (isLarge && toret.find(ti) == toret.end()) continue;
 
@@ -117,7 +117,7 @@ public:
             const SparseArray<T>& colPT = flowPT.getColumn(ti);
             if (totalArcs < maxShown * 4) {
                 for (size_t i = 0; i < colPT.size(); ++i) {
-                    int p = colPT.keyAt(i); // Placeholder: assumes keyAt()
+                    size_t p = colPT.keyAt(i); // Changed int to size_t
                     if (!isLarge || torep.find(p) != torep.end()) {
                         pw << " p" << p << " -> t" << ti;
                         if (colPT.valueAt(i) != 1) {
@@ -136,7 +136,7 @@ public:
             const SparseArray<T>& colTP = flowTP.getColumn(ti);
             if (totalArcs < maxShown * 4) {
                 for (size_t i = 0; i < colTP.size(); ++i) {
-                    int p = colTP.keyAt(i);
+                    size_t p = colTP.keyAt(i); // Changed int to size_t
                     if (!isLarge || torep.find(p) != torep.end()) {
                         pw << "  t" << ti << " -> p" << p;
                         if (colTP.valueAt(i) != 1) {
@@ -193,8 +193,9 @@ public:
 
     // Overloaded versions
     static std::string drawNet(const SparsePetriNet<T>& sr, const std::string& title,
-                              const std::set<int>& hlPlaces = std::set<int>(),
-                              const std::set<int>& hlTrans = std::set<int>(), int maxShown = 150) {
+                              const std::set<size_t>& hlPlaces = std::set<size_t>(), // Changed int to size_t
+                              const std::set<size_t>& hlTrans = std::set<size_t>(), // Changed int to size_t
+                              size_t maxShown = 150) { // Changed int to size_t
         std::vector<bool> untouchable(sr.getPlaceCount(), false); // Placeholder for computeSupport
         return drawNet(sr.getFlowPT(), sr.getFlowTP(), sr.getMarks(), sr.getPnames(), sr.getTnames(),
                        untouchable, "places: " + std::to_string(sr.getPlaceCount()) +
@@ -202,12 +203,12 @@ public:
                        hlPlaces, hlTrans, maxShown);
     }
 
-    static std::string drawNet(const SparsePetriNet<T>& sr, const std::string& title, int maxShown) {
-        return drawNet(sr, title, std::set<int>(), std::set<int>(), maxShown);
+    static std::string drawNet(const SparsePetriNet<T>& sr, const std::string& title, size_t maxShown = 150) { // Changed int to size_t
+        return drawNet(sr, title, std::set<size_t>(), std::set<size_t>(), maxShown); // Changed int to size_t
     }
 };
 
 template<typename T>
-int FlowPrinter<T>::nbWritten = 1000;
+size_t FlowPrinter<T>::nbWritten = 1000; // Changed int to size_t
 
 #endif /* FLOWPRINTER_H_ */

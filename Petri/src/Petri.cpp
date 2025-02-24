@@ -88,7 +88,7 @@ int main (int argc, char *argv[])
   ssize_t loopLimit = -1;
 
   if (argc == 1) {
-    usage (); // Call usage() when no arguments are provided
+    usage ();
     exit (1);
   }
 
@@ -158,7 +158,7 @@ int main (int argc, char *argv[])
 
   if (modelPath.empty ()) {
     std::cerr << "Error: no model file specified." << std::endl;
-    usage (); // Call usage() when -i is missing
+    usage ();
     return 1;
   }
 
@@ -171,20 +171,15 @@ int main (int argc, char *argv[])
   try {
     SparsePetriNet<VAL> *pn = loadXML<VAL> (modelPath);
 
-// 		std::cout << "PN : " ;
-// 		std::cout << "\nPre : " << std::endl;
-// 		pn->getFlowPT().print(std::cout);
-// 		std::cout << "\nPost : " << std::endl;
-// 		pn->getFlowTP().print(std::cout);
-// 		std::cout << std::endl;
-
-
     if (draw) {
       std::string title = "Petri Net: " + pn->getName ();
-      std::string filename = FlowPrinter<VAL>::drawNet (*pn, title,
-                                                        std::set<int> (),
-                                                        std::set<int> (),
-                                                        INT_MAX);
+      // Updated call: std::set<int> -> std::set<size_t>, INT_MAX -> std::numeric_limits<size_t>::max()
+      std::string filename = FlowPrinter<VAL>::drawNet (*pn,
+                                                        title,
+                                                        std::set<size_t> (), // Empty set for hlPlaces
+          std::set<size_t> (), // Empty set for hlTrans
+          std::numeric_limits < size_t > ::max () // Max size_t for no practical limit
+              );
       std::string targetFile = pn->getName () + ".dot";
       if (std::rename (filename.c_str (), targetFile.c_str ()) == 0) {
         std::cout << "Renamed output to " << targetFile << std::endl;
@@ -223,9 +218,9 @@ int main (int argc, char *argv[])
 
         std::cout << "Computed " << invar.size () << " P "
             << (psemiflows ? "semi" : "") << "flows in "
-            << std::chrono::duration_cast<std::chrono::milliseconds> (
-                std::chrono::steady_clock::now () - time).count () << " ms."
-            << std::endl;
+            << std::chrono::duration_cast < std::chrono::milliseconds
+            > (std::chrono::steady_clock::now () - time).count () << " ms."
+                << std::endl;
         if (!quiet) {
           InvariantMiddle<VAL>::printInvariant (invar, pn->getPnames (),
                                                 (*pn).getMarks ());
@@ -241,9 +236,9 @@ int main (int argc, char *argv[])
 
         std::cout << "Computed " << invarT.size () << " T "
             << (tsemiflows ? "semi" : "") << "flows in "
-            << std::chrono::duration_cast<std::chrono::milliseconds> (
-                std::chrono::steady_clock::now () - time).count () << " ms."
-            << std::endl;
+            << std::chrono::duration_cast < std::chrono::milliseconds
+            > (std::chrono::steady_clock::now () - time).count () << " ms."
+                << std::endl;
         if (!quiet) {
           std::vector<VAL> emptyVector;
           InvariantMiddle<VAL>::printInvariant (invarT, pn->getTnames (),
@@ -259,10 +254,10 @@ int main (int argc, char *argv[])
     return 1;
   }
 
-  std::cout << "Total runtime "
-      << std::chrono::duration_cast<std::chrono::milliseconds> (
-          std::chrono::steady_clock::now () - runtime).count () << " ms."
-      << std::endl;
+  std::cout << "Total runtime " << std::chrono::duration_cast
+      < std::chrono::milliseconds
+      > (std::chrono::steady_clock::now () - runtime).count () << " ms."
+          << std::endl;
 
   return 0;
 }
