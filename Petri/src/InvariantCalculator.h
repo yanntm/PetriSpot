@@ -192,10 +192,14 @@ template<typename T>
       // Vector to hold trivial invariants.
       std::vector<SparseArray<T>> trivialInv;
 
-      // Remove trivial invariants (empty columns in matC) early.
-      cullConstantColumns (matC, matB, trivialInv);
-      // Remove duplicate columns
-      cullDuplicateColumns (matC, matB, trivialInv);
+      if (heur.useCulling()) {
+        // Remove trivial invariants (empty columns in matC) early.
+        cullConstantColumns (matC, matB, trivialInv);
+        // Remove duplicate columns
+        cullDuplicateColumns (matC, matB, trivialInv);
+      } else {
+        std::cout << "Skipping cull step" << std::endl;
+      }
 
       std::cout << "// Phase 1: matrix " << matC.getRowCount () << " rows "
           << matC.getColumnCount () << " cols " << matC.getEntryCount ()
