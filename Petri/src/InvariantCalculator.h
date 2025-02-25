@@ -193,10 +193,17 @@ template<typename T>
       std::vector<SparseArray<T>> trivialInv;
 
       if (heur.useCulling()) {
+        auto time = std::chrono::steady_clock::now ();
+
         // Remove trivial invariants (empty columns in matC) early.
-        cullConstantColumns (matC, matB, trivialInv);
+        size_t culled = cullConstantColumns (matC, matB, trivialInv);
         // Remove duplicate columns
-        cullDuplicateColumns (matC, matB, trivialInv);
+        culled += cullDuplicateColumns (matC, matB, trivialInv);
+
+        std::cout << "Culled " << culled << " columns in "
+            << std::chrono::duration_cast < std::chrono::milliseconds
+            > (std::chrono::steady_clock::now () - time).count () << " ms."
+                << std::endl;
       } else {
         std::cout << "Skipping cull step" << std::endl;
       }

@@ -22,7 +22,7 @@ namespace petri {
 // @param trivialInv Vector accumulating trivial invariants.
 //---------------------------------------------------------------------
 template<typename T>
-void cullConstantColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
+size_t cullConstantColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
                          std::vector<SparseArray<T>>& trivialInv)
 {
     std::vector<size_t> trivialIndexes;
@@ -35,10 +35,11 @@ void cullConstantColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
         }
     }
 
+    size_t tocull = trivialIndexes.size();
     // Only rebuild if we found any trivial columns.
-    if (!trivialIndexes.empty()) {
-        std::cout << "Culling trivial invariants: removed "
-                  << trivialIndexes.size() << " columns." << std::endl;
+    if (tocull > 0) {
+        std::cout << "Culling trivial invariants: removing "
+                  << tocull << " columns." << std::endl;
 
         // Prepare new vectors for non-trivial columns.
         std::vector<SparseArray<T>> newColsC;
@@ -63,6 +64,7 @@ void cullConstantColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
         matC.setColumns(std::move(newColsC));
         matB.setColumns(std::move(newColsB));
     }
+    return tocull;
 }
 
 //---------------------------------------------------------------------
@@ -78,7 +80,7 @@ void cullConstantColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
 // @param trivialInv Vector accumulating trivial invariants.
 //---------------------------------------------------------------------
 template<typename T>
-void cullDuplicateColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
+size_t cullDuplicateColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
                           std::vector<SparseArray<T>>& trivialInv)
 {
     size_t colCount = matC.getColumnCount();
@@ -101,10 +103,11 @@ void cullDuplicateColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
         }
     }
 
+    size_t tocull = duplicateIndexes.size();
     // Only rebuild if we found duplicates.
-    if (!duplicateIndexes.empty()) {
-        std::cout << "Culling duplicate invariants: removed "
-                  << duplicateIndexes.size() << " columns." << std::endl;
+    if (tocull > 0) {
+        std::cout << "Culling duplicate invariants: removing "
+                  << tocull << " columns." << std::endl;
 
         // duplicateIndexes are produced in increasing order since col increases.
         std::vector<SparseArray<T>> newColsC;
@@ -126,6 +129,7 @@ void cullDuplicateColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
         matC.setColumns(std::move(newColsC));
         matB.setColumns(std::move(newColsB));
     }
+    return tocull;
 }
 
 } // namespace petri
