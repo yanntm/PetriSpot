@@ -48,6 +48,7 @@ void usage ()
       << "  -t <seconds>         Set timeout for computations (default: "
       << DEFAULT_TIMEOUT << "s).\n"
       << "  --noSingleSignRow    Disable single sign row heuristic in invariant computation.\n"
+      << "  --noTrivialCull      Disable test for equal or empty columns before algorithm.\n"
       << "  --pivot=<strategy>   Set pivot strategy for elimination heuristic:\n"
       << "                       - best: Optimize for best pivot (default).\n"
       << "                       - worst: Use worst pivot (for testing).\n"
@@ -83,6 +84,7 @@ int main (int argc, char *argv[])
   bool draw = false;
   int timeout = DEFAULT_TIMEOUT;
   bool useSingleSignRow = true;
+  bool useCulling = true;
   EliminationHeuristic::PivotStrategy pivotStrategy =
       EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = -1;
@@ -117,6 +119,8 @@ int main (int argc, char *argv[])
       draw = true;
     } else if (std::string (argv[i]) == "--noSingleSignRow") {
       useSingleSignRow = false;
+    } else if (std::string (argv[i]) == "--noTrivialCull") {
+      useCulling = false;
     } else if (std::string (argv[i]).substr (0, 8) == "--pivot=") {
       std::string pivotStr = std::string (argv[i]).substr (8);
       if (pivotStr == "best") {
@@ -143,7 +147,8 @@ int main (int argc, char *argv[])
     }
   }
 
-  EliminationHeuristic heur (useSingleSignRow, pivotStrategy, loopLimit);
+
+  EliminationHeuristic heur (useSingleSignRow, pivotStrategy, loopLimit, useCulling);
 
   if (pflows && psemiflows) {
     std::cout << "Cannot compute P flows and P semi-flows at the same time."
@@ -232,7 +237,7 @@ int main (int argc, char *argv[])
             MatrixCol<VAL>::sumProd (-1, pn->getFlowPT (), 1, pn->getFlowTP ()).transpose ();
         unordered_set<SparseArray<VAL>> invarT =
             InvariantMiddle<VAL>::computePInvariants (sumMatrix, tsemiflows,
-                                                      timeout);
+                                                      timeout, heur);
 
         std::cout << "Computed " << invarT.size () << " T "
             << (tsemiflows ? "semi" : "") << "flows in "
