@@ -300,6 +300,8 @@ template<typename T>
           || "position" == baliseName || "fill" == baliseName
           || "line" == baliseName || "dimension" == baliseName) {
         // Skip
+      } else if ("page" == baliseName) {
+        // Skip
       } else {
         std::cerr << "Unknown XML tag in source file: " << baliseName
             << std::endl;
