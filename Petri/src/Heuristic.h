@@ -24,10 +24,7 @@ public:
           loopLimit_((loopLimit == -1) ? std::numeric_limits<size_t>::max()
                                       : static_cast<size_t>(loopLimit)),
                                         useCulling_(useCulling)
-    {
-      std::cout << "Using cull = " << useCulling_ << std::endl;
-
-    }
+    {}
 
     bool useSingleSignRow() const { return useSingleSignRow_; }
     PivotStrategy getPivotStrategy() const { return pivotStrategy_; }
