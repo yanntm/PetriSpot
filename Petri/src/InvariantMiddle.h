@@ -63,7 +63,7 @@ template<typename T>
         std::stringstream sb;
         try {
           auto sum = printEquation (rv, initial, pnames, sb);
-          out << "inv : " << sb.str () << " = " << sum << std::endl;
+          out << "inv : " << sb.str () << " = " << sum << "\n";
         } catch (std::overflow_error &e) {
           std::cerr
               << "Overflow of 'int' when computing constant for invariant."
