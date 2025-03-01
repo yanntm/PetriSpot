@@ -18,23 +18,27 @@ public:
     EliminationHeuristic(bool useSingleSignRow = true,
            PivotStrategy pivotStrategy = PivotStrategy::FindBest,
            ssize_t loopLimit = -1,
-           bool useCulling = true)
+           bool useCulling = true,
+           bool minimize = false)
         : useSingleSignRow_(useSingleSignRow),
           pivotStrategy_(pivotStrategy),
           loopLimit_((loopLimit == -1) ? std::numeric_limits<size_t>::max()
                                       : static_cast<size_t>(loopLimit)),
-                                        useCulling_(useCulling)
+                                        useCulling_(useCulling),
+                                        minimize_(minimize)
     {}
 
     bool useSingleSignRow() const { return useSingleSignRow_; }
     PivotStrategy getPivotStrategy() const { return pivotStrategy_; }
     size_t getLoopLimit() const { return loopLimit_; }
     bool useCulling() const { return useCulling_; }
+    bool useMinimization() const { return minimize_; }
 private:
     const bool useSingleSignRow_;
     const PivotStrategy pivotStrategy_;
     const size_t loopLimit_;
     const bool useCulling_;
+    const bool minimize_;
 };
 
 } // namespace petri

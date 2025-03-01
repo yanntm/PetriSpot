@@ -22,6 +22,7 @@ const string PATH = "-i";
 const string QUIET = "-q";
 const string TIMEOUT = "-t";
 const string DRAW = "--draw";
+const string MINFLOWS = "--minFlows";
 
 #define DEFAULT_TIMEOUT 150
 
@@ -31,36 +32,35 @@ const string DRAW = "--draw";
 #endif
 
 // Usage function to display help message
-void usage ()
-{
+void usage() {
   std::cerr << "Usage: petri -i <model.pnml> [options]\n\n"
-      << "PetriSpot: A tool for analyzing Petri nets from PNML files.\n\n"
-      << "Required Arguments:\n"
-      << "  -i <path>            Specify the input PNML model file.\n\n"
-      << "Options:\n"
-      << "  --draw               Export the Petri net to a <modelName>.dot file with no size limit.\n"
-      << "  --findDeadlock       Run deadlock detection with forward and backward walks (up to 1M steps).\n"
-      << "  --Pflows             Compute minimal P-flows (place invariants) of the net.\n"
-      << "  --Psemiflows         Compute minimal P-semiflows (positive place invariants).\n"
-      << "  --Tflows             Compute minimal T-flows (transition invariants).\n"
-      << "  --Tsemiflows         Compute minimal T-semiflows (positive transition invariants).\n"
-      << "  -q                   Quiet mode: Suppress detailed invariant output.\n"
-      << "  -t <seconds>         Set timeout for computations (default: "
-      << DEFAULT_TIMEOUT << "s).\n"
-      << "  --noSingleSignRow    Disable single sign row heuristic in invariant computation.\n"
-      << "  --noTrivialCull      Disable test for equal or empty columns before algorithm.\n"
-      << "  --pivot=<strategy>   Set pivot strategy for elimination heuristic:\n"
-      << "                       - best: Optimize for best pivot (default).\n"
-      << "                       - worst: Use worst pivot (for testing).\n"
-      << "                       - first: Use first valid pivot.\n"
-      << "  --loopLimit=<n>      Limit elimination loops to <n> iterations (-1 for no limit).\n\n"
-      << "Notes:\n" << "  - P-flows and P-semiflows are mutually exclusive.\n"
-      << "  - T-flows and T-semiflows are mutually exclusive.\n"
-      << "  - Invariant options (--Pflows, --Psemiflows, --Tflows, --Tsemiflows) enable invariant analysis.\n"
-      << "  - Output files (e.g., .dot) are written to the current working directory.\n\n"
-      << "Examples:\n" << "  petri -i model.pnml --draw\n"
-      << "  petri -i model.pnml --findDeadlock -t 300\n"
-      << "  petri -i model.pnml --Psemiflows -q --pivot=first\n";
+            << "PetriSpot: A tool for analyzing Petri nets from PNML files.\n\n"
+            << "Required Arguments:\n"
+            << "  -i <path>            Specify the input PNML model file.\n\n"
+            << "Options:\n"
+            << "  --draw               Export the Petri net to a <modelName>.dot file with no size limit.\n"
+            << "  --findDeadlock       Run deadlock detection with forward and backward walks (up to 1M steps).\n"
+            << "  --Pflows             Compute minimal P-flows (place invariants) of the net.\n"
+            << "  --Psemiflows         Compute minimal P-semiflows (positive place invariants).\n"
+            << "  --Tflows             Compute minimal T-flows (transition invariants).\n"
+            << "  --Tsemiflows         Compute minimal T-semiflows (positive transition invariants).\n"
+            << "  --minBasis           Force minimization of the semi flows basis (default: false).\n"
+            << "  -q                   Quiet mode: Suppress detailed invariant output.\n"
+            << "  -t <seconds>         Set timeout for computations (default: " << DEFAULT_TIMEOUT << "s).\n"
+            << "  --noSingleSignRow    Disable single sign row heuristic in invariant computation.\n"
+            << "  --noTrivialCull      Disable test for equal or empty columns before algorithm.\n"
+            << "  --pivot=<strategy>   Set pivot strategy for elimination heuristic:\n"
+            << "                       - best: Optimize for best pivot (default).\n"
+            << "                       - worst: Use worst pivot (for testing).\n"
+            << "                       - first: Use first valid pivot.\n"
+            << "  --loopLimit=<n>      Limit elimination loops to <n> iterations (-1 for no limit).\n\n"
+            << "Notes:\n" << "  - P-flows and P-semiflows are mutually exclusive.\n"
+            << "  - T-flows and T-semiflows are mutually exclusive.\n"
+            << "  - Invariant options enable invariant analysis.\n"
+            << "  - Output files (e.g., .dot) are written to the current directory.\n\n"
+            << "Examples:\n" << "  petri -i model.pnml --draw\n"
+            << "  petri -i model.pnml --findDeadlock -t 300\n"
+            << "  petri -i model.pnml --Psemiflows -q --minFlows\n";
 }
 
 int main (int argc, char *argv[])
@@ -85,6 +85,7 @@ int main (int argc, char *argv[])
   int timeout = DEFAULT_TIMEOUT;
   bool useSingleSignRow = true;
   bool useCulling = true;
+  bool minimizeFlows = false;
   EliminationHeuristic::PivotStrategy pivotStrategy =
       EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = -1;
@@ -141,6 +142,8 @@ int main (int argc, char *argv[])
         std::cerr << "Invalid loopLimit value: " << limitStr << std::endl;
         exit (1);
       }
+    } else if (std::string(argv[i]) == MINFLOWS) { // New flag
+      minimizeFlows = true;
     } else {
       std::cout << "[WARNING   ] Option : " << argv[i] << " not recognized"
           << std::endl;
@@ -148,7 +151,7 @@ int main (int argc, char *argv[])
   }
 
 
-  EliminationHeuristic heur (useSingleSignRow, pivotStrategy, loopLimit, useCulling);
+  EliminationHeuristic heur (useSingleSignRow, pivotStrategy, loopLimit, useCulling, minimizeFlows);
 
   if (pflows && psemiflows) {
     std::cout << "Cannot compute P flows and P semi-flows at the same time."
