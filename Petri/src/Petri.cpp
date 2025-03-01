@@ -22,7 +22,7 @@ const string PATH = "-i";
 const string QUIET = "-q";
 const string TIMEOUT = "-t";
 const string DRAW = "--draw";
-const string MINFLOWS = "--minFlows";
+const string MINFLOWS = "--minBasis";
 
 #define DEFAULT_TIMEOUT 150
 
