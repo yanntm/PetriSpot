@@ -100,37 +100,33 @@ template<typename T>
      * @return An unordered set of SparseArray<T> representing the invariants.
      */
   public:
-    static std::unordered_set<SparseArray<T>> calcInvariantsPIPE (
-        MatrixCol<T> mat, bool onlyPositive, const EliminationHeuristic &heur =
+    static MatrixCol<T> calcInvariantsPIPE (
+        MatrixCol<T>& mat, bool onlyPositive, const EliminationHeuristic &heur =
             EliminationHeuristic ())
     {
       if (mat.getColumnCount () == 0 || mat.getRowCount () == 0) {
-        return std::unordered_set<SparseArray<T>> ();
+        return MatrixCol<T> ();
       }
+
+
 
       // while it's not classical, we actually work with columns in the algorithm
       // The matrix data structure is asymetric in complexity between rows and columns
-      MatrixCol<T> tmat = mat.transpose ();
+      mat = mat.transpose ();
 
+      size_t colCount = mat.getColumnCount ();
       // Normalize the transposed matrix: remove duplicate columns and scale them to canonical form.
-      std::unordered_set<SparseArray<T>> normed = std::unordered_set<
-          SparseArray<T>> ();
-      for (size_t i = 0; i < tmat.getColumnCount (); i++) {
-        SparseArray<T> &norm = tmat.getColumn (i);
-        normalize (norm);
-        normed.insert (norm);
-      }
-      if (normed.size () < tmat.getColumnCount ()) {
-        std::cout << "Normalized transition count is " << normed.size ()
-            << " out of " << tmat.getColumnCount () << " initially."
+      mat.normalizeAndReduce(false);
+
+      if (mat.getColumnCount() < colCount) {
+        std::cout << "Normalized transition count is " << mat.getColumnCount()
+            << " out of " << colCount << " initially."
             << std::endl;
       }
-      MatrixCol<T> matnorm (tmat.getRowCount (), 0);
-      for (const SparseArray<T> &col : normed) {
-        matnorm.appendColumn (col);
-      }
 
-      MatrixCol<T> matB = phase1PIPE (matnorm.transpose (), onlyPositive, heur);
+      mat = mat.transpose ();
+
+      MatrixCol<T> matB = phase1PIPE (mat, onlyPositive, heur);
 
 //		const MatrixCol<T> matB = phase1PIPE(new MatrixCol<T>(mat));
       // We want to work with columns in this part of the algorithm
@@ -139,31 +135,19 @@ template<typename T>
       // order of rows is really irrelevant + columns which are identical up to
       // scaling factor are useless
       // let's use a set of columns.
-      std::unordered_set<SparseArray<T>> semiFlows (2 * matB.getColumnCount ());
-      for (size_t i = 0; i < matB.getColumnCount (); i++) {
-        SparseArray<T> &col = matB.getColumn (i);
-        if (col.size () != 0) {
-          normalizeWithSign (col);
-          semiFlows.insert (col);
-        }
-      }
+      matB.normalizeAndReduce (true);
 
       if (!onlyPositive) {
-        return semiFlows;
+        return matB;
       }
 
-      MatrixCol<T> colsB (tmat.getRowCount (), 0);
-      for (const SparseArray<T> &cb : semiFlows) {
-        colsB.appendColumn (cb);
-      }
-      semiFlows.clear ();
       // phase 2
       std::cout << "// Phase 2 : computing semi flows from basis of "
-          << colsB.getColumnCount () << " invariants " << std::endl;
+          << matB.getColumnCount () << " invariants " << std::endl;
 
-      phase2Pipe (colsB, semiFlows, heur);
+      phase2Pipe (matB, heur);
 
-      return semiFlows;
+      return matB;
     }
 
   private:
@@ -182,7 +166,7 @@ template<typename T>
      * @param heur         Heuristic settings for pivot selection and elimination order.
      * @return The transformation matrix matB representing the basis of flows.
      */
-    static MatrixCol<T> phase1PIPE (MatrixCol<T> matC, bool onlyPositive,
+    static MatrixCol<T> phase1PIPE (MatrixCol<T> & matC, bool onlyPositive,
                                     const EliminationHeuristic &heur)
     {
       // Build the initial transformation matrix.
@@ -269,7 +253,6 @@ template<typename T>
      * @param heur        Heuristic settings for row selection.
      */
     static void phase2Pipe (MatrixCol<T> &colsB,
-                            std::unordered_set<SparseArray<T>> &semiFlows,
                             const EliminationHeuristic &heur)
     {
       RowSigns<T> rowSigns (colsB, true, true);
@@ -311,18 +294,11 @@ template<typename T>
 
       // all coefficients are positive !
       if (heur.useMinimization()) {
-        minimizeBasis (colsB, semiFlows);
+        colsB = minimizeBasis (colsB);
       } else {
         // basic version
-        for (size_t i = 0; i < colsB.getColumnCount (); i++) {
-          auto &col = colsB.getColumn (i);
-          if (col.size () > 0) {
-            normalizeWithSign (col);
-            semiFlows.insert (col);
-          }
-        }
+        colsB.normalizeAndReduce (true);
       }
-      // all done
     }
 
 
@@ -335,7 +311,7 @@ template<typename T>
      * @param colsB     Input basis of semiflows (positive, normalized).
      * @param semiFlows Output set of minimal semiflows.
      */
-    static void minimizeBasis(MatrixCol<T>& colsB, std::unordered_set<SparseArray<T>>& semiFlows) {
+    static MatrixCol<T> minimizeBasis(MatrixCol<T>& colsB) {
       auto startTime = std::chrono::steady_clock::now(); // Start timing
 
       // Step 1: Collect non-empty columns into partitioned map
@@ -413,17 +389,18 @@ template<typename T>
 
       // Step 4: Transfer to semiFlows with tracing
       size_t insertions = 0; // Total insertions attempted (YY)
-      size_t finalSizeBefore = semiFlows.size(); // For duplicates calculation
+      MatrixCol<T> semiFlows(colsB.getRowCount());
       for (const auto& pair : candidatesMap) {
         for (SparseArray<T>* vec : pair.second) {
           if (vec->size() > 0) {
-            semiFlows.insert(*vec); // Attempt insertion
+            semiFlows.appendColumn(std::move(*vec)); // Attempt insertion
             insertions++;
           }
         }
       }
-      size_t finalSize = semiFlows.size(); // Final unique flows (ZZ)
-      size_t duplicatesRemoved = insertions - (finalSize - finalSizeBefore); // Duplicates (YY - ZZ if no prior entries)
+
+      size_t finalSize = semiFlows.getColumnCount(); // Final unique flows (ZZ)
+      size_t duplicatesRemoved = insertions - finalSize ; // Duplicates (YY - ZZ if no prior entries)
 
       // Compute runtime
       auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -433,12 +410,14 @@ template<typename T>
       std::cout << "Minimization of " << initialNonEmpty << " non-empty flows to a minimal basis of "
                 << finalSize << " flows" << (duplicatesRemoved > 0 ? " (" + std::to_string(duplicatesRemoved) + " duplicates removed)" : "")
                 << " in " << duration << " ms" << std::endl;
+
+      return semiFlows;
     }
     // Helper: Subtracts coli from colj as many times as possible
     static bool subtractAllFrom(const SparseArray<T>* coli, SparseArray<T>* colj) {
       bool modified = false;
       while (SparseArray<T>::greaterOrEqual(*colj, *coli)) {
-        sumProdIntoNoChange(1, *colj, -1, *coli); // colj -= coli
+        sumProdIntoNoChange<T>(1, *colj, -1, *coli); // colj -= coli
         modified = true;
       }
       if (modified)
@@ -744,7 +723,7 @@ template<typename T>
         // If pPlus is unique then tCol is the unique key and the complementary set is pMinus;
         // otherwise, tCol is from pMinus and the complementary set is pPlus.
         bool isNeg = (rowData.pMinus.size () == 1);
-        int tCol = isNeg ? rowData.pMinus.keyAt (0) : rowData.pPlus.keyAt (0);
+        ssize_t tCol = isNeg ? rowData.pMinus.keyAt (0) : rowData.pPlus.keyAt (0);
 
         if (rowData.pPlus.size () == 1 && rowData.pMinus.size () == 1) {
           // std::cout << "Examine col j=" << j << " size=" << matC.getColumn (j).size () <<" with col=" << tCol << " size " << matC.getColumn (tCol).size () << std::endl;
@@ -873,7 +852,7 @@ template<typename T>
         return rs.row;
 
         // number of columns in result
-        int weight = pps * ppm - pps - ppm;
+        ssize_t weight = pps * ppm - pps - ppm;
 
         if (minRow == -1 || minRowWeight > weight) {
           ssize_t refinedweight = 0;
@@ -906,7 +885,7 @@ template<typename T>
     }
 
   public:
-    static void clearColumn (int tCol, MatrixCol<T> &matC, MatrixCol<T> &matB,
+    static void clearColumn (size_t tCol, MatrixCol<T> &matC, MatrixCol<T> &matB,
     RowSigns<T> &rowSigns)
     {
       // delete from the extended matrix the column of index k
@@ -918,7 +897,7 @@ template<typename T>
       matB.getColumn (tCol).clear ();
     }
 
-    static void clearColumn (int tCol, MatrixCol<T> &matB,
+    static void clearColumn (size_t tCol, MatrixCol<T> &matB,
                              RowSigns<T> &rowSigns)
     {
       // delete from the extended matrix the column of index k
