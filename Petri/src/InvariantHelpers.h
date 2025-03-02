@@ -11,7 +11,6 @@
 #include <cstdlib>
 #include <cassert>
 #include "SparseArray.h"
-#include "MatrixCol.h"
 #include "SparseBoolArray.h"
 #include "Arithmetic.hpp"
 
@@ -40,7 +39,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<std::pair<size_t, T
 }
 
 template<typename T>
-change_t<T> sumProdInto(int alpha, SparseArray<T>& ta, int beta, const SparseArray<T>& tb) {
+change_t<T> sumProdInto(T alpha, SparseArray<T>& ta, T beta, const SparseArray<T>& tb) {
     thread_local SparseArray<T> tmp;
     change_t<T> changed;
     changed.reserve(alpha == 1 ? tb.size() : ta.size() + tb.size());
@@ -51,9 +50,9 @@ change_t<T> sumProdInto(int alpha, SparseArray<T>& ta, int beta, const SparseArr
     size_t i = 0;
     size_t j = 0;
     while (i < tmp.size() || j < tb.size()) {
-        unsigned int ki = (i == tmp.size()) ?
+        size_t ki = (i == tmp.size()) ?
             std::numeric_limits<unsigned int>::max() : tmp.keyAt(i);
-        unsigned int kj = (j == tb.size()) ?
+        size_t kj = (j == tb.size()) ?
             std::numeric_limits<unsigned int>::max() : tb.keyAt(j);
         if (ki == kj) {
             T val = petri::addExact(petri::multiplyExact(alpha, tmp.valueAt(i)),
@@ -88,17 +87,17 @@ change_t<T> sumProdInto(int alpha, SparseArray<T>& ta, int beta, const SparseArr
 }
 
 template<typename T>
-SparseArray<T> sumProd(int alpha, SparseArray<T>& ta, int beta, const SparseArray<T>& tb) {
+SparseArray<T> sumProd(T alpha, SparseArray<T>& ta, T beta, const SparseArray<T>& tb) {
   size_t reserved = ta.size() + tb.size();
   SparseArray<T> flow(reserved);
 
   size_t i = 0;
   size_t j = 0;
   while (i < ta.size() || j < tb.size()) {
-      unsigned int ki = (i == ta.size()) ?
-          std::numeric_limits<unsigned int>::max() : ta.keyAt(i);
-      unsigned int kj = (j == tb.size()) ?
-          std::numeric_limits<unsigned int>::max() : tb.keyAt(j);
+      size_t ki = (i == ta.size()) ?
+          std::numeric_limits<size_t>::max() : ta.keyAt(i);
+      size_t kj = (j == tb.size()) ?
+          std::numeric_limits<size_t>::max() : tb.keyAt(j);
       if (ki == kj) {
           T val = petri::addExact(petri::multiplyExact(alpha, ta.valueAt(i)),
                                   petri::multiplyExact(beta, tb.valueAt(j)));
@@ -126,7 +125,7 @@ SparseArray<T> sumProd(int alpha, SparseArray<T>& ta, int beta, const SparseArra
 
 
 template<typename T>
-void sumProdIntoNoChange(int alpha, SparseArray<T>& ta, int beta, const SparseArray<T>& tb) {
+void sumProdIntoNoChange(T alpha, SparseArray<T>& ta, T beta, const SparseArray<T>& tb) {
     thread_local SparseArray<T> tmp;  // Grows naturally to max ta.mSize needed
 
     // Copy ta into tmp
@@ -138,9 +137,9 @@ void sumProdIntoNoChange(int alpha, SparseArray<T>& ta, int beta, const SparseAr
     size_t i = 0;
     size_t j = 0;
     while (i < tmp.size() || j < tb.size()) {
-        unsigned int ki = (i == tmp.size()) ?
+        size_t ki = (i == tmp.size()) ?
             std::numeric_limits<unsigned int>::max() : tmp.keyAt(i);
-        unsigned int kj = (j == tb.size()) ?
+        size_t kj = (j == tb.size()) ?
             std::numeric_limits<unsigned int>::max() : tb.keyAt(j);
         if (ki == kj) {
             T val = petri::addExact(petri::multiplyExact(alpha, tmp.valueAt(i)),
