@@ -88,7 +88,7 @@ template<typename T>
       return sum;
     }
 
-    void setMarking (int pid, T val)
+    void setMarking (size_t pid, T val)
     {
       marks[pid] = val;
     }
