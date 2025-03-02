@@ -2,7 +2,7 @@
 #define PTNETHANDLER_H_
 
 #include "SparsePetriNet.h"
-#include "ddd/util/ext_hash_map.hh"
+#include <unordered_map>    // Replaced ext_hash_map.hh with standard header
 #include <expat.h>
 #include <stack>
 #include <iostream>
@@ -16,7 +16,7 @@ template<typename T>
     std::stack<void*> stack;
     SparsePetriNet<T> *net;
     typedef std::pair<bool, int> node_t;
-    typedef ext_hash_map<std::string, node_t> index_t;
+    typedef std::unordered_map<std::string, node_t> index_t; // Changed to unordered_map
     index_t index;
     typedef std::pair<std::pair<std::string, std::string>, T> arc_t;
     typedef std::vector<arc_t*> arcs_t;
@@ -24,7 +24,7 @@ template<typename T>
 
     std::string lastseen;
     bool readtext;
-    long lastint;
+    T lastint;
     bool readint;
     bool inOpaqueToolSpecific;
     bool doIt;
@@ -104,10 +104,8 @@ template<typename T>
           }
         }
         size_t pid = pn->addPlace (id, 0);
-        index_t::accessor acc;
-        tthis->index.insert (acc, id);
-        acc->second =
-          { true, static_cast<int> (pid) };
+        tthis->index[id] =
+          { true, static_cast<int> (pid) };  // Simplified insertion
         tthis->stack.push (reinterpret_cast<void*> (pid));
         if (DEBUG) std::cout << "  Added place '" << id << "' with pid " << pid
             << std::endl;
@@ -130,10 +128,8 @@ template<typename T>
           }
         }
         size_t tid = pn->addTransition (id);
-        index_t::accessor acc;
-        tthis->index.insert (acc, id);
-        acc->second =
-          { false, static_cast<int> (tid) };
+        tthis->index[id] =
+          { false, static_cast<int> (tid) };  // Simplified insertion
         tthis->stack.push (reinterpret_cast<void*> (tid));
         if (DEBUG) std::cout << "  Added transition '" << id << "' with tid "
             << tid << std::endl;
@@ -198,21 +194,22 @@ template<typename T>
         tthis->stack.pop ();
       } else if ("arc" == baliseName) {
         arc_t *arc = static_cast<arc_t*> (tthis->stack.top ());
-        index_t::const_accessor accsrc, acctgt;
-        bool oksrc = tthis->index.find (accsrc, arc->first.first);
-        bool oktgt = tthis->index.find (acctgt, arc->first.second);
+        auto src_it = tthis->index.find (arc->first.first); // Changed to standard iterator
+        auto tgt_it = tthis->index.find (arc->first.second); // Changed to standard iterator
+        bool oksrc = src_it != tthis->index.end ();
+        bool oktgt = tgt_it != tthis->index.end ();
         if (oktgt && oksrc) {
-          if (accsrc->second.first) {
-            tthis->net->addPreArc (accsrc->second.second, acctgt->second.second,
+          if (src_it->second.first) {
+            tthis->net->addPreArc (src_it->second.second, tgt_it->second.second,
                                    arc->second);
-            if (DEBUG) std::cout << "  Added pre-arc P" << accsrc->second.second
-                << " -> T" << acctgt->second.second << " (weight="
+            if (DEBUG) std::cout << "  Added pre-arc P" << src_it->second.second
+                << " -> T" << tgt_it->second.second << " (weight="
                 << arc->second << ")" << std::endl;
           } else {
-            tthis->net->addPostArc (acctgt->second.second,
-                                    accsrc->second.second, arc->second);
+            tthis->net->addPostArc (tgt_it->second.second,
+                                    src_it->second.second, arc->second);
             if (DEBUG) std::cout << "  Added post-arc T"
-                << accsrc->second.second << " -> P" << acctgt->second.second
+                << src_it->second.second << " -> P" << tgt_it->second.second
                 << " (weight=" << arc->second << ")" << std::endl;
           }
           delete arc;
@@ -237,7 +234,7 @@ template<typename T>
               << tthis->textBuffer << "': " << e.what () << std::endl;
           tthis->lastint = 0; // Default to 0 on error
         }
-        tthis->net->setMarking (p, tthis->lastint);
+        tthis->net->setMarking (p, (T) tthis->lastint);
         if (DEBUG) std::cout << "Initial marking for place " << p << " = "
             << tthis->net->getPnames ()[p] << " is " << tthis->lastint
             << std::endl;
@@ -268,28 +265,30 @@ template<typename T>
             << std::endl;
       } else if ("pnml" == baliseName) {
         for (arc_t *&arc : tthis->topatch) {
-          index_t::const_accessor accsrc, acctgt;
-          bool oksrc = tthis->index.find (accsrc, arc->first.first);
-          bool oktgt = tthis->index.find (acctgt, arc->first.second);
+          auto src_it = tthis->index.find (arc->first.first); // Changed to standard iterator
+          auto tgt_it = tthis->index.find (arc->first.second); // Changed to standard iterator
+          bool oksrc = src_it != tthis->index.end ();
+          bool oktgt = tgt_it != tthis->index.end ();
           if (oktgt && oksrc) {
-            if (accsrc->second.first) {
-              tthis->net->addPreArc (accsrc->second.second,
-                                     acctgt->second.second, arc->second);
+            if (src_it->second.first) {
+              tthis->net->addPreArc (src_it->second.second,
+                                     tgt_it->second.second, arc->second);
               if (DEBUG) std::cout << "  Patched pre-arc P"
-                  << accsrc->second.second << " -> T" << acctgt->second.second
+                  << src_it->second.second << " -> T" << tgt_it->second.second
                   << " (weight=" << arc->second << ")" << std::endl;
             } else {
-              tthis->net->addPostArc (acctgt->second.second,
-                                      accsrc->second.second, arc->second);
+              tthis->net->addPostArc (tgt_it->second.second,
+                                      src_it->second.second, arc->second);
               if (DEBUG) std::cout << "  Patched post-arc T"
-                  << accsrc->second.second << " -> P" << acctgt->second.second
+                  << src_it->second.second << " -> P" << tgt_it->second.second
                   << " (weight=" << arc->second << ")" << std::endl;
             }
             delete arc;
           } else {
             std::string err =
                 "Problem when linking arc : source or target node not found <"
-                    + accsrc->first + "," + acctgt->first + ">";
+                    + (oksrc ? src_it->first : arc->first.first) + ","
+                    + (oktgt ? tgt_it->first : arc->first.second) + ">";
             delete arc;
             throw err.c_str ();
           }
