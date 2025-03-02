@@ -220,11 +220,10 @@ int main (int argc, char *argv[])
         MatrixCol<VAL> sumMatrix = MatrixCol<VAL>::sumProd (-1,
                                                             pn->getFlowPT (), 1,
                                                             pn->getFlowTP ());
-        unordered_set<SparseArray<VAL>> invar =
-            InvariantMiddle<VAL>::computePInvariants (sumMatrix, psemiflows,
+        auto invar= InvariantMiddle<VAL>::computePInvariants (sumMatrix, psemiflows,
                                                       timeout, heur);
 
-        std::cout << "Computed " << invar.size () << " P "
+        std::cout << "Computed " << invar.getColumnCount() << " P "
             << (psemiflows ? "semi" : "") << "flows in "
             << std::chrono::duration_cast < std::chrono::milliseconds
             > (std::chrono::steady_clock::now () - time).count () << " ms."
@@ -238,18 +237,17 @@ int main (int argc, char *argv[])
         auto time = std::chrono::steady_clock::now ();
         MatrixCol<VAL> sumMatrix =
             MatrixCol<VAL>::sumProd (-1, pn->getFlowPT (), 1, pn->getFlowTP ()).transpose ();
-        unordered_set<SparseArray<VAL>> invarT =
-            InvariantMiddle<VAL>::computePInvariants (sumMatrix, tsemiflows,
+        auto invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix, tsemiflows,
                                                       timeout, heur);
 
-        std::cout << "Computed " << invarT.size () << " T "
+        std::cout << "Computed " << invar.getColumnCount () << " T "
             << (tsemiflows ? "semi" : "") << "flows in "
             << std::chrono::duration_cast < std::chrono::milliseconds
             > (std::chrono::steady_clock::now () - time).count () << " ms."
                 << std::endl;
         if (!quiet) {
           std::vector<VAL> emptyVector;
-          InvariantMiddle<VAL>::printInvariant (invarT, pn->getTnames (),
+          InvariantMiddle<VAL>::printInvariant (invar, pn->getTnames (),
                                                 emptyVector);
         }
       }
