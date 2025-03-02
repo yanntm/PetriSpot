@@ -29,6 +29,8 @@
 
 // package fr.lip6.move.gal.util;
 #include "SparseArray.h"
+#include "InvariantHelpers.h"
+#include <unordered_set>
 
 /**
  * A Matrix specified for the invariant module, stored by COLUMN so that deletColumn has good complexity.
@@ -330,6 +332,34 @@ template<typename T>
           tr.set (tcol, trow, val);
         }
       }
+    }
+
+    /**
+     * Normalizes and reduces this matrix in-place, keeping only unique, non-zero columns.
+     * Columns are normalized with sign, empty columns are removed, and duplicates are eliminated.
+     * Modifies this matrix directly, reducing iCols and lCols accordingly.
+     */
+    void normalizeAndReduce(bool withSign=false) {
+        std::unordered_set<SparseArray<T>*> seen(iCols); // Pointer-based uniqueness
+        size_t writePos = 0;
+
+        for (size_t i = 0; i < iCols; ++i) {
+            SparseArray<T>& col = lCols[i];
+            if (col.size() == 0) continue;       // Skip empty
+
+            if (withSign) petri::normalizeWithSign (col);          // Normalize in-place
+            else petri::normalize (col);                  // Normalize in-place
+
+            if (seen.insert(&col).second) {      // Unique
+                if (writePos != i) {
+                    lCols[writePos] = std::move(col); // Move to new position
+                }
+                writePos++;
+            }
+        }
+
+        lCols.resize(writePos); // Shrink to fit unique columns
+        iCols = writePos;       // Update column count
     }
 
     void print (std::ostream &os) const
