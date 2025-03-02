@@ -150,7 +150,7 @@ public:
    */
   bool get (size_t key, bool valueIfKeyNotFound) const
   {
-    int i = binarySearch (mKeys, mSize, key);
+    ssize_t i = binarySearch (mKeys, mSize, key);
     if (i < 0) {
       return valueIfKeyNotFound;
     } else {
@@ -162,7 +162,7 @@ public:
    */
   void remove (size_t key)
   {
-    int i = binarySearch (mKeys, mSize, key);
+    ssize_t i = binarySearch (mKeys, mSize, key);
     if (i >= 0) {
       removeAt (i);
     }
@@ -182,7 +182,7 @@ public:
    */
   void put (size_t key, bool v)
   {
-    int i = binarySearch (mKeys, mSize, key);
+    ssize_t i = binarySearch (mKeys, mSize, key);
     if (i >= 0) {
       if (v) {
         return;
@@ -224,7 +224,7 @@ public:
    * specified key, or a negative number if the specified
    * key is not mapped.
    */
-  int indexOfKey (size_t key)
+  ssize_t indexOfKey (size_t key)
   {
     return binarySearch (mKeys, mSize, key);
   }
@@ -403,19 +403,19 @@ public:
     return res;
   }
 private:
-  static int binarySearch (const size_t *const array, size_t sz, size_t value)
+  static ssize_t binarySearch (const size_t *const array, size_t sz, size_t value)
   {
-    int lo = 0;
-    int hi = sz - 1;
+    ssize_t lo = 0;
+    ssize_t hi = sz - 1;
 
     return binarySearch (array, value, lo, hi);
   }
   // This is Arrays.binarySearch(), but doesn't do any argument validation.
-  static int binarySearch (const size_t *const array, size_t value, int lo,
-                           int hi)
+  static ssize_t binarySearch (const size_t *const array, size_t value, ssize_t lo,
+                           ssize_t hi)
   {
     while (lo <= hi) {
-      int mid = (lo + hi) >> 1;
+      ssize_t mid = (lo + hi) >> 1;
       size_t midVal = array[mid];
       if (midVal < value) {
         lo = mid + 1;
