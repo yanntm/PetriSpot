@@ -251,7 +251,7 @@ public:
      * if no such mapping has been made.
      */
     T get(size_t key, const T &valueIfKeyNotFound) const {
-        std::ptrdiff_t i = binarySearch(mKeys, mSize, key);
+        ssize_t i = binarySearch(mKeys, mSize, key);
         if (i < 0) {
             return valueIfKeyNotFound;
         } else {
@@ -262,8 +262,8 @@ public:
     /**
      * Removes the mapping from the specified key, if there was any.
      */
-    std::ptrdiff_t del(size_t key) {
-        std::ptrdiff_t i = binarySearch(mKeys, mSize, key);
+    ssize_t del(size_t key) {
+        ssize_t i = binarySearch(mKeys, mSize, key);
         if (i >= 0) {
             removeAt(i);
         }
@@ -285,7 +285,7 @@ public:
      * was one.
      */
     void put(size_t key, T value) {
-        std::ptrdiff_t i = binarySearch(mKeys, mSize, key);
+        ssize_t i = binarySearch(mKeys, mSize, key);
         if (value == 0) {
             if (i >= 0) {
                 removeAt(i);
@@ -361,7 +361,7 @@ public:
      * specified key, or a negative number if the specified
      * key is not mapped.
      */
-    std::ptrdiff_t indexOfKey(size_t key) const {
+    ssize_t indexOfKey(size_t key) const {
         return binarySearch(mKeys, mSize, key);
     }
 
@@ -571,7 +571,7 @@ public:
         } else {
           // sk1 < sk2 : we must progress in s1
           // use a binary search for that
-          std::ptrdiff_t ii = binarySearch (s1.mKeys, sk2, i + 1, s1.mSize - 1);
+          ssize_t ii = binarySearch (s1.mKeys, sk2, i + 1, s1.mSize - 1);
           if (ii < 0) {
             return false;
           }
@@ -582,6 +582,57 @@ public:
         }
       }
       return true;
+    }
+
+    /**
+     * Computes the maximum number of times s2 can be subtracted from s1, assuming all entries are positive.
+     * Returns the minimum integer ratio s1[i]/s2[i] over common keys, or 0 if s2 is not contained in s1.
+     * @param s1 the greater array
+     * @param s2 the smaller/lower valued array
+     * @return the integer k such that s1 >= k * s2, or 0 if not fully contained
+     */
+    static ssize_t countContainsPos (const SparseArray<T> &s1, const SparseArray<T> &s2)
+    {
+      if (s1.size () < s2.size ()) {
+        return 0;
+      }
+      if (s2.size () == 0) {
+        return 0;
+      }
+
+      ssize_t minCount = std::numeric_limits<ssize_t>::max();
+      for (ssize_t j = 0, i = 0, ss1 = s1.size (), ss2 = s2.size ();
+          i < ss1 && j < ss2;) {
+        ssize_t sk1 = s1.keyAt (i);
+        ssize_t sk2 = s2.keyAt (j);
+        if (sk1 == sk2) {
+          T count = s1.valueAt (i) / s2.valueAt (j);
+          if (count == 0) {
+            return 0;
+          } else {
+            if (count < minCount) {
+              minCount = count;
+            }
+            i++;
+            j++;
+          }
+        } else if (sk1 > sk2) {
+          // missing entries !
+          return 0;
+        } else {
+          // sk1 < sk2 : we must progress in s1
+          // use a binary search for that
+          ssize_t ii = binarySearch (s1.mKeys, sk2, i + 1, s1.mSize - 1);
+          if (ii < 0) {
+            return 0;
+          }
+          i = ii;
+          if (ss1 - i < ss2 - j) {
+            return 0;
+          }
+        }
+      }
+      return minCount == std::numeric_limits<ssize_t>::max () ? 0 : minCount;
     }
 
     static size_t manhattanDistance(const SparseArray &ta, const SparseArray &tb) {
@@ -616,7 +667,7 @@ public:
         if (mSize == 0 || i > mKeys[mSize - 1]) {
             return;
         }
-        std::ptrdiff_t k = static_cast<std::ptrdiff_t>(mSize) - 1;
+        ssize_t k = static_cast<ssize_t>(mSize) - 1;
         for (; k >= 0 && mKeys[k] > i; k--) {
             mKeys[k]--;
         }
@@ -633,7 +684,7 @@ public:
         if (mSize == 0 || todel.empty() || todel.back() > mKeys[mSize - 1]) {
             return;
         }
-        std::ptrdiff_t k = static_cast<std::ptrdiff_t>(mSize) - 1;
+        ssize_t k = static_cast<ssize_t>(mSize) - 1;
         for (size_t cur = 0, e = todel.size(); cur < e; cur++) {
             size_t val = todel[cur];
             for (; k >= 0 && mKeys[k] > val; k--) {
@@ -647,16 +698,16 @@ public:
     }
 
 private:
-    static std::ptrdiff_t binarySearch(const size_t *const array, size_t sz, size_t value) {
-        std::ptrdiff_t lo = 0;
-        std::ptrdiff_t hi = sz - 1;
+    static ssize_t binarySearch(const size_t *const array, size_t sz, size_t value) {
+        ssize_t lo = 0;
+        ssize_t hi = sz - 1;
         return binarySearch(array, value, lo, hi);
     }
 
-    static std::ptrdiff_t binarySearch(const size_t *const array, size_t value,
-                                       std::ptrdiff_t lo, std::ptrdiff_t hi) {
+    static ssize_t binarySearch(const size_t *const array, size_t value,
+                                       ssize_t lo, ssize_t hi) {
         while (lo <= hi) {
-            std::ptrdiff_t mid = (lo + hi) >> 1;
+            ssize_t mid = (lo + hi) >> 1;
             size_t midVal = array[mid];
             if (midVal < value) {
                 lo = mid + 1;
