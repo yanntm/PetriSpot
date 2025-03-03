@@ -311,36 +311,58 @@ template<typename T>
      * @param colsB     Input basis of semiflows (positive, normalized).
      * @param semiFlows Output set of minimal semiflows.
      */
+    // Hash functor for std::pair<size_t, size_t> to use in unordered_map
+    struct PairHash {
+        std::size_t operator()(const std::pair<size_t, size_t>& p) const {
+            // Simple hash combination: shift first and XOR with second
+            return (p.first << 16) ^ p.second;
+        }
+    };
+
     static MatrixCol<T> minimizeBasis(MatrixCol<T>& colsB) {
       auto startTime = std::chrono::steady_clock::now(); // Start timing
 
       // Step 1: Collect non-empty columns into partitioned map
-      std::unordered_map<size_t, std::vector<SparseArray<T>*>> candidatesMap;
+      std::unordered_map<std::pair<size_t, size_t>, std::vector<SparseArray<T>*>, PairHash> candidatesMap;
       size_t initialNonEmpty = 0; // Count non-empty columns (XX)
       for (size_t i = 0; i < colsB.getColumnCount(); i++) {
         SparseArray<T>* col = &colsB.getColumn(i);
         if (col->size() > 0) { // Skip empty
-          candidatesMap[col->keyAt(0)].push_back(col);
+          std::pair<size_t, size_t> key = {col->keyAt(0), col->keyAt(col->size() - 1)};
+          candidatesMap[key].push_back(col);
           initialNonEmpty++;
         }
       }
 
       // Step 2: Initialize visitation with all keys
-      std::unordered_set<size_t> indexesToBeVisited;
+      std::unordered_set<std::pair<size_t, size_t>, PairHash> indexesToBeVisited;
       for (const auto& pair : candidatesMap) {
         indexesToBeVisited.insert(pair.first);
       }
 
+      // Compute runtime
+      auto dur1 = std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now() - startTime).count();
+      std::cout << "Preparing partition took :" << dur1 << " ms" << std::endl;
+      if (DEBUG) {
+        for (const auto & ent : candidatesMap) {
+          std::cout << ent.second.size() << ", ";
+        }
+        std::cout << std::endl;
+      }
+
+      size_t iterCount=0;
       // Step 3: Domination testing with fixpoint loop
       while (!indexesToBeVisited.empty()) {
+        iterCount++;
         // Sort keys by partition size for this pass
-        std::vector<size_t> keys(indexesToBeVisited.begin(), indexesToBeVisited.end());
-        std::sort(keys.begin(), keys.end(), [&](size_t a, size_t b) {
+        std::vector<std::pair<size_t, size_t>> keys(indexesToBeVisited.begin(), indexesToBeVisited.end());
+        std::sort(keys.begin(), keys.end(), [&](std::pair<size_t, size_t> a, std::pair<size_t, size_t> b) {
           return candidatesMap[a].size() < candidatesMap[b].size();
         });
 
         // Process each key
-        for (size_t key : keys) {
+        for (std::pair<size_t, size_t> key : keys) {
           indexesToBeVisited.erase(key);
           auto& vecs = candidatesMap[key];
           std::vector<char> skips(vecs.size(), 0);
@@ -370,9 +392,10 @@ template<typename T>
             SparseArray<T>* vec = vecs[k];
             if (vec->size() == 0) {
               // Discard empty
-            } else if (vec->keyAt(0) != key) {
-              candidatesMap[vec->keyAt(0)].push_back(vec);
-              indexesToBeVisited.insert(vec->keyAt(0));
+            } else if (vec->keyAt(0) != key.first || vec->keyAt(vec->size() - 1) != key.second) {
+              std::pair<size_t, size_t> newKey = {vec->keyAt(0), vec->keyAt(vec->size() - 1)};
+              candidatesMap[newKey].push_back(vec);
+              indexesToBeVisited.insert(newKey);
             } else {
               revisitCurrent = true;
             }
@@ -409,20 +432,18 @@ template<typename T>
       // Output trace message
       std::cout << "Minimization of " << initialNonEmpty << " non-empty flows to a minimal basis of "
                 << finalSize << " flows" << (duplicatesRemoved > 0 ? " (" + std::to_string(duplicatesRemoved) + " duplicates removed)" : "")
+                << " took " << iterCount << " iterations "
                 << " in " << duration << " ms" << std::endl;
 
       return semiFlows;
     }
     // Helper: Subtracts coli from colj as many times as possible
     static bool subtractAllFrom(const SparseArray<T>* coli, SparseArray<T>* colj) {
-      bool modified = false;
-      while (SparseArray<T>::greaterOrEqual(*colj, *coli)) {
-        sumProdIntoNoChange<T>(1, *colj, -1, *coli); // colj -= coli
-        modified = true;
-      }
-      if (modified)
-        normalize(*colj);
-      return modified;
+      T count = SparseArray<T>::countContainsPos(*colj,*coli);
+      if (count == 0) return false;
+      sumProdIntoNoChange<T>(1, *colj, -count, *coli); // colj -= count*coli
+      normalize(*colj);
+      return true;
     }
 
     /**
