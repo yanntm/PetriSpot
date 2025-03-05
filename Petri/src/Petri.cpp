@@ -9,6 +9,7 @@
 #include <chrono>
 #include "Heuristic.h"
 #include "FlowPrinter.h"
+#include "MatrixExporter.h"  // New include
 
 using namespace std;
 using namespace petri;
@@ -23,44 +24,49 @@ const string QUIET = "-q";
 const string TIMEOUT = "-t";
 const string DRAW = "--draw";
 const string MINFLOWS = "--minBasis";
+const string EXPORT_MATRIX = "--exportAsMatrix";  // New flag
 
 #define DEFAULT_TIMEOUT 150
 
 #ifndef VAL
-// default to 32 bit
-#define VAL int
+// default to 64 bit
+#define VAL long
 #endif
 
 // Usage function to display help message
-void usage() {
+void usage ()
+{
   std::cerr << "Usage: petri -i <model.pnml> [options]\n\n"
-            << "PetriSpot: A tool for analyzing Petri nets from PNML files.\n\n"
-            << "Required Arguments:\n"
-            << "  -i <path>            Specify the input PNML model file.\n\n"
-            << "Options:\n"
-            << "  --draw               Export the Petri net to a <modelName>.dot file with no size limit.\n"
-            << "  --findDeadlock       Run deadlock detection with forward and backward walks (up to 1M steps).\n"
-            << "  --Pflows             Compute minimal P-flows (place invariants) of the net.\n"
-            << "  --Psemiflows         Compute minimal P-semiflows (positive place invariants).\n"
-            << "  --Tflows             Compute minimal T-flows (transition invariants).\n"
-            << "  --Tsemiflows         Compute minimal T-semiflows (positive transition invariants).\n"
-            << "  --minBasis           Force minimization of the semi flows basis (default: false).\n"
-            << "  -q                   Quiet mode: Suppress detailed invariant output.\n"
-            << "  -t <seconds>         Set timeout for computations (default: " << DEFAULT_TIMEOUT << "s).\n"
-            << "  --noSingleSignRow    Disable single sign row heuristic in invariant computation.\n"
-            << "  --noTrivialCull      Disable test for equal or empty columns before algorithm.\n"
-            << "  --pivot=<strategy>   Set pivot strategy for elimination heuristic:\n"
-            << "                       - best: Optimize for best pivot (default).\n"
-            << "                       - worst: Use worst pivot (for testing).\n"
-            << "                       - first: Use first valid pivot.\n"
-            << "  --loopLimit=<n>      Limit elimination loops to <n> iterations (-1 for no limit).\n\n"
-            << "Notes:\n" << "  - P-flows and P-semiflows are mutually exclusive.\n"
-            << "  - T-flows and T-semiflows are mutually exclusive.\n"
-            << "  - Invariant options enable invariant analysis.\n"
-            << "  - Output files (e.g., .dot) are written to the current directory.\n\n"
-            << "Examples:\n" << "  petri -i model.pnml --draw\n"
-            << "  petri -i model.pnml --findDeadlock -t 300\n"
-            << "  petri -i model.pnml --Psemiflows -q --minFlows\n";
+      << "PetriSpot: A tool for analyzing Petri nets from PNML files.\n\n"
+      << "Required Arguments:\n"
+      << "  -i <path>            Specify the input PNML model file.\n\n"
+      << "Options:\n"
+      << "  --draw               Export the Petri net to a <modelName>.dot file with no size limit.\n"
+      << "  --findDeadlock       Run deadlock detection with forward and backward walks (up to 1M steps).\n"
+      << "  --Pflows             Compute minimal P-flows (place invariants) of the net.\n"
+      << "  --Psemiflows         Compute minimal P-semiflows (positive place invariants).\n"
+      << "  --Tflows             Compute minimal T-flows (transition invariants).\n"
+      << "  --Tsemiflows         Compute minimal T-semiflows (positive transition invariants).\n"
+      << "  --minBasis           Force minimization of the semi flows basis (default: false).\n"
+      << "  --exportAsMatrix=<file>  Export the incidence matrix to <file> in sparse format.\n"
+      << "  -q                   Quiet mode: Suppress detailed invariant output.\n"
+      << "  -t <seconds>         Set timeout for computations (default: "
+      << DEFAULT_TIMEOUT << "s).\n"
+      << "  --noSingleSignRow    Disable single sign row heuristic in invariant computation.\n"
+      << "  --noTrivialCull      Disable test for equal or empty columns before algorithm.\n"
+      << "  --pivot=<strategy>   Set pivot strategy for elimination heuristic:\n"
+      << "                       - best: Optimize for best pivot (default).\n"
+      << "                       - worst: Use worst pivot (for testing).\n"
+      << "                       - first: Use first valid pivot.\n"
+      << "  --loopLimit=<n>      Limit elimination loops to <n> iterations (-1 for no limit).\n\n"
+      << "Notes:\n" << "  - P-flows and P-semiflows are mutually exclusive.\n"
+      << "  - T-flows and T-semiflows are mutually exclusive.\n"
+      << "  - Invariant options enable invariant analysis.\n"
+      << "  - Output files (e.g., .dot, .mat) are written to the current directory.\n\n"
+      << "Examples:\n" << "  petri -i model.pnml --draw\n"
+      << "  petri -i model.pnml --findDeadlock -t 300\n"
+      << "  petri -i model.pnml --Psemiflows -q --minBasis\n"
+      << "  petri -i model.pnml --exportAsMatrix=model.mat\n";  // New example
 }
 
 int main (int argc, char *argv[])
@@ -86,6 +92,7 @@ int main (int argc, char *argv[])
   bool useSingleSignRow = true;
   bool useCulling = true;
   bool minimizeFlows = false;
+  std::string exportMatrixFile;
   EliminationHeuristic::PivotStrategy pivotStrategy =
       EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = -1;
@@ -142,16 +149,18 @@ int main (int argc, char *argv[])
         std::cerr << "Invalid loopLimit value: " << limitStr << std::endl;
         exit (1);
       }
-    } else if (std::string(argv[i]) == MINFLOWS) { // New flag
+    } else if (std::string (argv[i]) == MINFLOWS) {
       minimizeFlows = true;
+    } else if (std::string (argv[i]).substr (0, 17) == "--exportAsMatrix=") { // Parse new flag
+      exportMatrixFile = std::string (argv[i]).substr (17);
     } else {
       std::cout << "[WARNING   ] Option : " << argv[i] << " not recognized"
           << std::endl;
     }
   }
 
-
-  EliminationHeuristic heur (useSingleSignRow, pivotStrategy, loopLimit, useCulling, minimizeFlows);
+  EliminationHeuristic heur (useSingleSignRow, pivotStrategy, loopLimit,
+                             useCulling, minimizeFlows);
 
   if (pflows && psemiflows) {
     std::cout << "Cannot compute P flows and P semi-flows at the same time."
@@ -181,13 +190,9 @@ int main (int argc, char *argv[])
 
     if (draw) {
       std::string title = "Petri Net: " + pn->getName ();
-      // Updated call: std::set<int> -> std::set<size_t>, INT_MAX -> std::numeric_limits<size_t>::max()
-      std::string filename = FlowPrinter<VAL>::drawNet (*pn,
-                                                        title,
-                                                        std::set<size_t> (), // Empty set for hlPlaces
-          std::set<size_t> (), // Empty set for hlTrans
-          std::numeric_limits < size_t > ::max () // Max size_t for no practical limit
-              );
+      std::string filename = FlowPrinter<VAL>::drawNet (
+          *pn, title, std::set<size_t> (), std::set<size_t> (),
+          std::numeric_limits<size_t>::max ());
       std::string targetFile = pn->getName () + ".dot";
       if (std::rename (filename.c_str (), targetFile.c_str ()) == 0) {
         std::cout << "Renamed output to " << targetFile << std::endl;
@@ -195,6 +200,13 @@ int main (int argc, char *argv[])
         std::cerr << "Warning: Could not rename " << filename << " to "
             << targetFile << std::endl;
       }
+    }
+
+    // Export matrix if requested
+    if (!exportMatrixFile.empty ()) {
+      MatrixCol<VAL> sumMatrix = MatrixCol<VAL>::sumProd (-1, pn->getFlowPT (),
+                                                          1, pn->getFlowTP ());
+      MatrixExporter<VAL>::exportMatrix (sumMatrix, exportMatrixFile);
     }
 
     if (findDeadlock) {
@@ -220,14 +232,14 @@ int main (int argc, char *argv[])
         MatrixCol<VAL> sumMatrix = MatrixCol<VAL>::sumProd (-1,
                                                             pn->getFlowPT (), 1,
                                                             pn->getFlowTP ());
-        auto invar= InvariantMiddle<VAL>::computePInvariants (sumMatrix, psemiflows,
-                                                      timeout, heur);
-
-        std::cout << "Computed " << invar.getColumnCount() << " P "
+        auto invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix,
+                                                               psemiflows,
+                                                               timeout, heur);
+        std::cout << "Computed " << invar.getColumnCount () << " P "
             << (psemiflows ? "semi" : "") << "flows in "
-            << std::chrono::duration_cast < std::chrono::milliseconds
-            > (std::chrono::steady_clock::now () - time).count () << " ms."
-                << std::endl;
+            << std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now () - time).count () << " ms."
+            << std::endl;
         if (!quiet) {
           InvariantMiddle<VAL>::printInvariant (invar, pn->getPnames (),
                                                 (*pn).getMarks ());
@@ -237,14 +249,14 @@ int main (int argc, char *argv[])
         auto time = std::chrono::steady_clock::now ();
         MatrixCol<VAL> sumMatrix =
             MatrixCol<VAL>::sumProd (-1, pn->getFlowPT (), 1, pn->getFlowTP ()).transpose ();
-        auto invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix, tsemiflows,
-                                                      timeout, heur);
-
+        auto invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix,
+                                                               tsemiflows,
+                                                               timeout, heur);
         std::cout << "Computed " << invar.getColumnCount () << " T "
             << (tsemiflows ? "semi" : "") << "flows in "
-            << std::chrono::duration_cast < std::chrono::milliseconds
-            > (std::chrono::steady_clock::now () - time).count () << " ms."
-                << std::endl;
+            << std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now () - time).count () << " ms."
+            << std::endl;
         if (!quiet) {
           std::vector<VAL> emptyVector;
           InvariantMiddle<VAL>::printInvariant (invar, pn->getTnames (),
@@ -260,10 +272,10 @@ int main (int argc, char *argv[])
     return 1;
   }
 
-  std::cout << "Total runtime " << std::chrono::duration_cast
-      < std::chrono::milliseconds
-      > (std::chrono::steady_clock::now () - runtime).count () << " ms."
-          << std::endl;
+  std::cout << "Total runtime "
+      << std::chrono::duration_cast<std::chrono::milliseconds> (
+          std::chrono::steady_clock::now () - runtime).count () << " ms."
+      << std::endl;
 
   return 0;
 }
