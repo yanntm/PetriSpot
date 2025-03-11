@@ -58,6 +58,7 @@ template<typename T>
                 > (std::chrono::steady_clock::now () - time).count ()) + " ms.";
     petri::InvariantMiddle<T>::writeToLog (logMessage);
 
+    handler.getParseResult()->normalizeNames();
     return handler.getParseResult ();
   }
 

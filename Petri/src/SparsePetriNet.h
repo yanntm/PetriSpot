@@ -103,6 +103,23 @@ template<typename T>
       return pnames;
     }
 
+    void normalizeNames () {
+      for (auto &name : tnames) {
+        normalizeName (name);
+      }
+      for (auto &name : pnames) {
+        normalizeName (name);
+      }
+    }
+
+    static void normalizeName (std::string &name) {
+      std::replace (name.begin (), name.end (), ' ', '_');
+      std::replace (name.begin (), name.end (), '-', '_');
+      std::replace (name.begin (), name.end (), '/', '_');
+      std::replace (name.begin (), name.end (), '*', 'x');
+      std::replace (name.begin (), name.end (), '=', '_');
+    }
+
     MatrixCol<T>& getFlowPT ()
     {
       return flowPT;
