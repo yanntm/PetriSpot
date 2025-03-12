@@ -183,7 +183,7 @@ def main():
     backend = 'HNF'
     for arg in sys.argv[4:]:
         if arg.startswith('--backend='):
-            backend = arg[len('--backend='):].lower()
+            backend = arg[len('--backend='):]
     if mode not in ['TFLOWS', 'PFLOWS']:
         logger.error("Mode must be TFLOWS or PFLOWS")
         sys.exit(1)
