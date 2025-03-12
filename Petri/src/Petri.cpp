@@ -9,7 +9,8 @@
 #include <chrono>
 #include "Heuristic.h"
 #include "FlowPrinter.h"
-#include "MatrixExporter.h"  // New include
+#include "MatrixExporter.h"
+#include "PNMLExport.h"  
 
 using namespace std;
 using namespace petri;
@@ -24,7 +25,8 @@ const string QUIET = "-q";
 const string TIMEOUT = "-t";
 const string DRAW = "--draw";
 const string MINFLOWS = "--minBasis";
-const string EXPORT_MATRIX = "--exportAsMatrix";  // New flag
+const string EXPORT_MATRIX = "--exportAsMatrix";
+const string NORMALIZE_PNML = "--normalizePNML";  
 
 #define DEFAULT_TIMEOUT 150
 
@@ -49,6 +51,9 @@ void usage ()
       << "  --Tsemiflows         Compute minimal T-semiflows (positive transition invariants).\n"
       << "  --minBasis           Force minimization of the semi flows basis (default: false).\n"
       << "  --exportAsMatrix=<file>  Export the incidence matrix to <file> in sparse format.\n"
+      << "  --normalizePNML[=<file>] Exports a normalized PNML model to <file> (default: <input_path>.norm.pnml).\n"
+      << "                       All places and transitions have id and name set to p0,p1... and t0,t1...\n"
+      << "                       respectively, graphical and tool-specific information is removed.\n"
       << "  -q                   Quiet mode: Suppress detailed invariant output.\n"
       << "  -t <seconds>         Set timeout for computations (default: "
       << DEFAULT_TIMEOUT << "s).\n"
@@ -62,11 +67,13 @@ void usage ()
       << "Notes:\n" << "  - P-flows and P-semiflows are mutually exclusive.\n"
       << "  - T-flows and T-semiflows are mutually exclusive.\n"
       << "  - Invariant options enable invariant analysis.\n"
-      << "  - Output files (e.g., .dot, .mat) are written to the current directory.\n\n"
+      << "  - Output files (e.g., .dot, .mat, .pnml) are written to the current directory.\n\n"
       << "Examples:\n" << "  petri -i model.pnml --draw\n"
       << "  petri -i model.pnml --findDeadlock -t 300\n"
       << "  petri -i model.pnml --Psemiflows -q --minBasis\n"
-      << "  petri -i model.pnml --exportAsMatrix=model.mat\n";  // New example
+      << "  petri -i model.pnml --exportAsMatrix=model.mat\n"
+      << "  petri -i x/y/model.pnml --normalizePNML\n"
+      << "  petri -i model.pnml --normalizePNML=normalized.pnml\n";
 }
 
 int main (int argc, char *argv[])
@@ -93,6 +100,7 @@ int main (int argc, char *argv[])
   bool useCulling = true;
   bool minimizeFlows = false;
   std::string exportMatrixFile;
+  std::string normalizePnmlFile; 
   EliminationHeuristic::PivotStrategy pivotStrategy =
       EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = -1;
@@ -151,8 +159,16 @@ int main (int argc, char *argv[])
       }
     } else if (std::string (argv[i]) == MINFLOWS) {
       minimizeFlows = true;
-    } else if (std::string (argv[i]).substr (0, 17) == "--exportAsMatrix=") { // Parse new flag
+    } else if (std::string (argv[i]).substr (0, 17) == "--exportAsMatrix=") {
       exportMatrixFile = std::string (argv[i]).substr (17);
+    } else if (std::string (argv[i]).substr (0, 15) == "--normalizePNML") {
+      std::string arg = std::string(argv[i]);
+      if (arg == NORMALIZE_PNML) {
+        // Default output file: append .norm.pnml to input path
+        normalizePnmlFile = "";
+      } else if (arg.substr(0, 16) == "--normalizePNML=") {
+        normalizePnmlFile = arg.substr(16);
+      }
     } else {
       std::cout << "[WARNING   ] Option : " << argv[i] << " not recognized"
           << std::endl;
@@ -187,6 +203,17 @@ int main (int argc, char *argv[])
 
   try {
     SparsePetriNet<VAL> *pn = loadXML<VAL> (modelPath);
+
+    // Handle PNML normalization and export
+    if (!normalizePnmlFile.empty() || normalizePnmlFile == "") {
+      // Set default output file if not specified
+      std::string outputFile = normalizePnmlFile;
+      if (outputFile.empty()) {
+        outputFile = modelPath + ".norm.pnml";
+      }
+      pn->normalize();  // Call our normalize function
+      PNMLExport<VAL>::transform(*pn, outputFile);
+    }
 
     if (draw) {
       std::string title = "Petri Net: " + pn->getName ();
