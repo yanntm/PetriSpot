@@ -100,7 +100,8 @@ int main (int argc, char *argv[])
   bool useCulling = true;
   bool minimizeFlows = false;
   std::string exportMatrixFile;
-  std::string normalizePnmlFile; 
+  bool doNormalize = false;  // New boolean flag, initially false
+  std::string normalizePnmlFile;  // Separate string for filename
   EliminationHeuristic::PivotStrategy pivotStrategy =
       EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = -1;
@@ -162,12 +163,12 @@ int main (int argc, char *argv[])
     } else if (std::string (argv[i]).substr (0, 17) == "--exportAsMatrix=") {
       exportMatrixFile = std::string (argv[i]).substr (17);
     } else if (std::string (argv[i]).substr (0, 15) == "--normalizePNML") {
+      doNormalize = true;  // Set the flag when we see --normalizePNML
       std::string arg = std::string(argv[i]);
       if (arg == NORMALIZE_PNML) {
-        // Default output file: append .norm.pnml to input path
-        normalizePnmlFile = "";
+        normalizePnmlFile = "";  // Empty string means use default later
       } else if (arg.substr(0, 16) == "--normalizePNML=") {
-        normalizePnmlFile = arg.substr(16);
+        normalizePnmlFile = arg.substr(16);  // Specific filename provided
       }
     } else {
       std::cout << "[WARNING   ] Option : " << argv[i] << " not recognized"
@@ -204,14 +205,13 @@ int main (int argc, char *argv[])
   try {
     SparsePetriNet<VAL> *pn = loadXML<VAL> (modelPath);
 
-    // Handle PNML normalization and export
-    if (!normalizePnmlFile.empty() || normalizePnmlFile == "") {
-      // Set default output file if not specified
+    // Handle PNML normalization and export only if flag is present
+    if (doNormalize) {
       std::string outputFile = normalizePnmlFile;
       if (outputFile.empty()) {
         outputFile = modelPath + ".norm.pnml";
       }
-      pn->normalizeNames();  // Call our normalize function
+      pn->normalizeNames();
       PNMLExport<VAL>::transform(*pn, outputFile);
     }
 
