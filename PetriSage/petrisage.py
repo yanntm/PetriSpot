@@ -86,6 +86,35 @@ def compute_flows_snf(m, n, sparse_data):
     logger.info(f"Computing SNF for {m}x{n} matrix")
     C = Matrix(ZZ, m, n, sparse=True, entries=sparse_data)
     logger.debug(f"Matrix C:\n{C}")
+    D, S, T = C.smith_form()
+    logger.debug(f"SNF D:\n{D}")
+    logger.debug(f"Left transformation S:\n{S}")
+    logger.debug(f"Right transformation T:\n{T}")
+    
+    # Compute rank from D (number of non-zero diagonal entries)
+    rank = sum(1 for i in range(min(m, n)) if D[i, i] != 0)
+    nullity = n - rank
+    logger.info(f"Rank: {rank}, Nullity: {nullity}")
+    
+    # Extract kernel basis from the last (n - rank) columns of T
+    if nullity > 0:
+        flows = [T.column(i) for i in range(n - nullity, n)]
+    else:
+        flows = []
+    
+    logger.info(f"Extracted {len(flows)} flows directly from SNF")
+    logger.debug(f"Flows: {flows}")
+    
+    # Optional: Verify flows are in the kernel (for debugging)
+    for flow in flows:
+        assert C * flow == vector(ZZ, m), "Flow not in kernel!"
+    
+    return flows
+
+def compute_flows_snf_old(m, n, sparse_data):
+    logger.info(f"Computing SNF for {m}x{n} matrix")
+    C = Matrix(ZZ, m, n, sparse=True, entries=sparse_data)
+    logger.debug(f"Matrix C:\n{C}")
     D, _, T = C.smith_form()
     logger.debug(f"SNF D:\n{D}")
     logger.debug(f"Transformation T:\n{T}")
