@@ -167,10 +167,10 @@ Arguments:
 
 Options:
   --backend=BACKEND  Select computation backend (default: hnf):
-    hnf            Hermite Normal Form via FLINT (sparse, integer basis).
-    pari_kernel    Direct integer kernel via PARI/GP (dense matrix).
-    snf            Smith Normal Form via FLINT/PARI (integer basis).
-    rational       Rational kernel via LinBox, scaled to integers.
+    HNF            Hermite Normal Form via FLINT (sparse, integer basis).
+    PariKernel    Direct integer kernel via PARI/GP (dense matrix).
+    SNF            Smith Normal Form via FLINT/PARI (integer basis).
+    Rational       Rational kernel via LinBox, scaled to integers.
 """)
 
 def main():
@@ -180,7 +180,7 @@ def main():
     matrix_file = sys.argv[1]
     output_file = sys.argv[2]
     mode = sys.argv[3].upper()
-    backend = 'hnf'
+    backend = 'HNF'
     for arg in sys.argv[4:]:
         if arg.startswith('--backend='):
             backend = arg[len('--backend='):].lower()
@@ -188,10 +188,10 @@ def main():
         logger.error("Mode must be TFLOWS or PFLOWS")
         sys.exit(1)
     backends = {
-        'hnf': compute_flows_hnf,
-        'pari_kernel': compute_flows_pari_kernel,
-        'snf': compute_flows_snf,
-        'rational': compute_flows_rational
+        'HNF': compute_flows_hnf,
+        'PariKernel': compute_flows_pari_kernel,
+        'SNF': compute_flows_snf,
+        'Rational': compute_flows_rational
     }
     if backend not in backends:
         logger.error(f"Unknown backend '{backend}'. Available: {', '.join(backends.keys())}")
