@@ -63,8 +63,8 @@ template<typename T>
       for (size_t t = 0; t < sr.getTnames ().size (); t++) {
         const SparseArray<T> &pt = sr.getFlowPT ().getColumn (t);
         for (size_t i = 0; i < pt.size (); i++) {
-          int p = pt.getIndex (i);
-          T val = pt.getValue (i);
+          size_t p = pt.keyAt (i);
+          T val = pt.valueAt (i);
           pw << "<arc id=\"arc" << (arcid++) << "\" source=\"p" << p
               << "\" target=\"t" << t << "\">";
           if (val != 1) {
@@ -78,8 +78,8 @@ template<typename T>
       for (size_t t = 0; t < sr.getTnames ().size (); t++) {
         const SparseArray<T> &tp = sr.getFlowTP ().getColumn (t);
         for (size_t i = 0; i < tp.size (); i++) {
-          int p = tp.getIndex (i);
-          T val = tp.getValue (i);
+          size_t p = tp.keyAt (i);
+          T val = tp.valueAt (i);
           pw << "<arc id=\"arc" << (arcid++) << "\" source=\"t" << t
               << "\" target=\"p" << p << "\">";
           if (val != 1) {

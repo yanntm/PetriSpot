@@ -211,7 +211,7 @@ int main (int argc, char *argv[])
       if (outputFile.empty()) {
         outputFile = modelPath + ".norm.pnml";
       }
-      pn->normalize();  // Call our normalize function
+      pn->normalizeNames();  // Call our normalize function
       PNMLExport<VAL>::transform(*pn, outputFile);
     }
 
