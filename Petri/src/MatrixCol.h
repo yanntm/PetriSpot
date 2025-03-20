@@ -339,27 +339,28 @@ template<typename T>
      * Columns are normalized with sign, empty columns are removed, and duplicates are eliminated.
      * Modifies this matrix directly, reducing iCols and lCols accordingly.
      */
-    void normalizeAndReduce(bool withSign=false) {
-        std::unordered_set<SparseArray<T>*> seen(iCols); // Pointer-based uniqueness
+    void normalizeAndReduce(bool withSign = false) {
+        std::unordered_set<SparseArray<T>*> seen(iCols);
         size_t writePos = 0;
 
         for (size_t i = 0; i < iCols; ++i) {
             SparseArray<T>& col = lCols[i];
-            if (col.size() == 0) continue;       // Skip empty
+            if (col.size() == 0) continue;
 
-            if (withSign) petri::normalizeWithSign (col);          // Normalize in-place
-            else petri::normalize (col);                  // Normalize in-place
+            if (withSign) petri::normalizeWithSign(col);
+            else petri::normalize(col);
 
-            if (seen.insert(&col).second) {      // Unique
+            if (seen.find(&col) == seen.end()) { // Not found
                 if (writePos != i) {
-                    lCols[writePos] = std::move(col); // Move to new position
+                    lCols[writePos] = std::move(col);
                 }
+                seen.insert(&lCols[writePos]);  // Insert the new location
                 writePos++;
             }
         }
 
-        lCols.resize(writePos); // Shrink to fit unique columns
-        iCols = writePos;       // Update column count
+        lCols.resize(writePos);
+        iCols = writePos;
     }
 
     void print (std::ostream &os) const
