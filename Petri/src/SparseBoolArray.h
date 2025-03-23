@@ -355,6 +355,37 @@ public:
     }
   }
 
+  size_t restrict(const SparseBoolArray& other) {
+      if (mSize == 0) return 0;
+      if (other.mSize == 0) { clear(); return 0; }
+
+      size_t writePos = 0;
+      size_t i = 0;
+      size_t j = 0;
+      const size_t BINARY_THRESHOLD = 16;  // Tune later
+
+      while (i < mSize && j < other.mSize) {
+          size_t keyThis = mKeys[i];
+          size_t keyOther = other.mKeys[j];
+          if (keyThis == keyOther) {
+              if (writePos != i) mKeys[writePos] = keyThis;
+              writePos++; i++; j++;
+          } else if (keyThis < keyOther) {
+              i++;
+          } else {  // keyThis > keyOther
+              if (other.mSize - j > BINARY_THRESHOLD) {
+                  ssize_t newJ = binarySearch(other.mKeys, keyThis, j, other.mSize - 1);
+                  j = (newJ >= 0) ? newJ : ~newJ;
+                  if (j >= other.mSize) break;
+              } else {
+                  j++;
+              }
+          }
+      }
+      mSize = writePos;
+      return mSize;
+  }
+
   static SparseBoolArray unionOperation (const SparseBoolArray &a,
                                          const SparseBoolArray &b)
   {
