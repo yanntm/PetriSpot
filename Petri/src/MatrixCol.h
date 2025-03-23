@@ -146,11 +146,11 @@ template<typename T>
     }
 
     // Set columns using an rvalue reference.
-     void setColumns(std::vector<SparseArray<T>>&& newCols) {
-         lCols = std::move(newCols);
-         iCols = lCols.size();
-     }
-
+    void setColumns (std::vector<SparseArray<T>> &&newCols)
+    {
+      lCols = std::move (newCols);
+      iCols = lCols.size ();
+    }
 
     void reserveColumns (size_t nbCol)
     {
@@ -201,14 +201,14 @@ template<typename T>
       return this->iCols;
     }
 
-    size_t getEntryCount() {
+    size_t getEntryCount ()
+    {
       size_t nbArcs = 0;
       for (const auto &col : getColumns ()) {
         nbArcs += col.size ();
       }
       return nbArcs;
     }
-
 
     /**
      * Returns the column with the given index of this matrix.
@@ -236,7 +236,7 @@ template<typename T>
 
     void set (size_t row, size_t col, T val)
     {
-      assert (row < iRows && col < iCols);
+      assert(row < iRows && col < iCols);
       if (val != 0) {
         SparseArray<T> &column = lCols[col];
         if (column.size () == 0 || column.keyAt (column.size () - 1) < row) {
@@ -265,14 +265,14 @@ template<typename T>
      */
     void appendColumn (const SparseArray<T> &column)
     {
-      assert (column.size () == 0 || iRows > column.keyAt (column.size () - 1));
+      assert(column.size () == 0 || iRows > column.keyAt (column.size () - 1));
       lCols.push_back (column);
       this->iCols++;
     }
 
     void appendColumn (SparseArray<T> &&column)
     {
-      assert (column.size () == 0 || iRows > column.keyAt (column.size () - 1));
+      assert(column.size () == 0 || iRows > column.keyAt (column.size () - 1));
       lCols.emplace_back (column);
       this->iCols++;
     }
@@ -339,28 +339,29 @@ template<typename T>
      * Columns are normalized with sign, empty columns are removed, and duplicates are eliminated.
      * Modifies this matrix directly, reducing iCols and lCols accordingly.
      */
-    void normalizeAndReduce(bool withSign = false) {
-        std::unordered_set<SparseArray<T>*> seen(iCols);
-        size_t writePos = 0;
+    void normalizeAndReduce (bool withSign = false)
+    {
+      std::unordered_set<SparseArray<T>*> seen (iCols);
+      size_t writePos = 0;
 
-        for (size_t i = 0; i < iCols; ++i) {
-            SparseArray<T>& col = lCols[i];
-            if (col.size() == 0) continue;
+      for (size_t i = 0; i < iCols; ++i) {
+        SparseArray<T> &col = lCols[i];
+        if (col.size () == 0) continue;
 
-            if (withSign) petri::normalizeWithSign(col);
-            else petri::normalize(col);
+        if (withSign) petri::normalizeWithSign (col);
+        else petri::normalize (col);
 
-            if (seen.find(&col) == seen.end()) { // Not found
-                if (writePos != i) {
-                    lCols[writePos] = std::move(col);
-                }
-                seen.insert(&lCols[writePos]);  // Insert the new location
-                writePos++;
-            }
+        if (seen.find (&col) == seen.end ()) { // Not found
+          if (writePos != i) {
+            lCols[writePos] = std::move (col);
+          }
+          seen.insert (&lCols[writePos]);  // Insert the new location
+          writePos++;
         }
+      }
 
-        lCols.resize(writePos);
-        iCols = writePos;
+      lCols.resize (writePos);
+      iCols = writePos;
     }
 
     void print (std::ostream &os) const
@@ -374,8 +375,9 @@ template<typename T>
       }
       os << '}';
     }
-    friend std::ostream & operator<< (std::ostream & os, const MatrixCol & m) {
-      m.print(os);
+    friend std::ostream& operator<< (std::ostream &os, const MatrixCol &m)
+    {
+      m.print (os);
       return os;
     }
 
@@ -388,28 +390,29 @@ template<typename T>
       return lCols;
     }
 
-    void sortByColumnSize ()
+    void sortByColumnSize (bool descending = false)
     {
-      std::sort (lCols.begin (), lCols.end (),
-                 [] (const SparseArray<T> &a, const SparseArray<T> &b) {
-                   size_t aSize = a.size();
-                   size_t bSize = b.size();
+      std::sort (
+          lCols.begin (), lCols.end (),
+          [descending] (const SparseArray<T> &a, const SparseArray<T> &b) {
+            size_t aSize = a.size();
+            size_t bSize = b.size();
 
-                   // First criterion: size of the columns
-                     if (aSize != bSize) {
-                       return aSize < bSize;
-                     }
+            // First criterion: size of the columns
+                        if (aSize != bSize) {
+                          return descending ? aSize > bSize : aSize < bSize;
+                        }
 
-                     // If sizes are equal, check if columns are empty
-                     if (aSize == 0) {
-                       return false;
-                     }
+                        // If sizes are equal, check if columns are empty
+              if (aSize == 0) {
+                return false;  // Maintain stability for empty columns
+              }
 
-                     // Second criterion: index of the first key
-                     size_t aFirstKey = a.keyAt(0);
-                     size_t bFirstKey = b.keyAt(0);
-                     return aFirstKey < bFirstKey;
-                   });
+              // Second criterion: index of the first key
+              size_t aFirstKey = a.keyAt(0);
+              size_t bFirstKey = b.keyAt(0);
+              return aFirstKey < bFirstKey;// Ascending tiebreaker
+            });
     }
 
     void clear (size_t rowCount, size_t colCount)
@@ -451,13 +454,12 @@ template<typename T>
       return lCols == other.lCols;
     }
 
-
     static MatrixCol sumProd (int alpha, const MatrixCol &ta, int beta,
                               const MatrixCol &tb)
     {
       // Matrices should be homogeneous dimensions for sum-product operation."
-      assert( ta.getColumnCount () == tb.getColumnCount ()
-              && ta.getRowCount () == tb.getRowCount ());
+      assert(
+          ta.getColumnCount () == tb.getColumnCount () && ta.getRowCount () == tb.getRowCount ());
 
       MatrixCol mat (ta.getRowCount (), ta.getColumnCount ());
       for (size_t col = 0, cole = ta.getColumnCount (); col < cole; col++) {
