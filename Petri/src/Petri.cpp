@@ -26,7 +26,9 @@ const string TIMEOUT = "-t";
 const string DRAW = "--draw";
 const string MINFLOWS = "--minBasis";
 const string EXPORT_MATRIX = "--exportAsMatrix";
-const string NORMALIZE_PNML = "--normalizePNML";  
+const string NORMALIZE_PNML = "--normalizePNML";
+const string USEQPLUS = "--useQPlusBasis";
+
 
 #define DEFAULT_TIMEOUT 150
 
@@ -105,6 +107,7 @@ int main (int argc, char *argv[])
   EliminationHeuristic::PivotStrategy pivotStrategy =
       EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = -1;
+  bool doUseQPlusBasis = false;
 
   if (argc == 1) {
     usage ();
@@ -134,6 +137,8 @@ int main (int argc, char *argv[])
       invariants = true;
     } else if (argv[i] == DRAW) {
       draw = true;
+    } else if (argv[i] == USEQPLUS) {
+      doUseQPlusBasis = true;
     } else if (std::string (argv[i]) == "--noSingleSignRow") {
       useSingleSignRow = false;
     } else if (std::string (argv[i]) == "--noTrivialCull") {
@@ -177,7 +182,7 @@ int main (int argc, char *argv[])
   }
 
   EliminationHeuristic heur (useSingleSignRow, pivotStrategy, loopLimit,
-                             useCulling, minimizeFlows);
+                             useCulling, minimizeFlows, doUseQPlusBasis);
 
   if (pflows && psemiflows) {
     std::cout << "Cannot compute P flows and P semi-flows at the same time."
