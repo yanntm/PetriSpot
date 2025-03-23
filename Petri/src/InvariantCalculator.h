@@ -308,76 +308,75 @@ template<typename T>
       }
     }
 
+    static MatrixCol<T> minimizeBasisWithSupport (MatrixCol<T> &colsB)
+    {
+      auto startTime = std::chrono::high_resolution_clock::now ();
 
-    static MatrixCol<T> minimizeBasisWithSupport(MatrixCol<T>& colsB) {
-            auto startTime = std::chrono::high_resolution_clock::now();
+      // Step 0: Normalize input
+      std::cout << "Normalizing input matrix with " << colsB.getColumnCount ()
+          << " columns\n";
+      colsB.normalizeAndReduce ();
 
-            // Step 0: Normalize input
-            std::cout << "Normalizing input matrix with " << colsB.getColumnCount() << " columns\n";
-            colsB.normalizeAndReduce();
+      // Step 1: Sort colsB by support size (descending)
+      std::cout << "Sorting columns by support size (descending)\n";
+      colsB.sortByColumnSize (true); // Largest to smallest, smallest at high indices
 
-            // Step 1: Sort colsB by support size (descending)
-            std::cout << "Sorting columns by support size (descending)\n";
-            colsB.sortByColumnSize(true);  // Largest to smallest, smallest at high indices
+      // Step 2: Build row index
+      std::cout << "Building RowSigns index\n";
+      RowSigns<T> rowIndex (colsB, false);  // All non-zero rows
 
-            // Step 2: Build row index
-            std::cout << "Building RowSigns index\n";
-            RowSigns<T> rowIndex(colsB, false);  // All non-zero rows
+      // Step 3: Process vectors
+      MatrixCol<T> basis (colsB.getRowCount ());
+      std::cout << "Starting minimization loop with " << colsB.getColumnCount ()
+          << " columns\n";
 
-            // Step 3: Process vectors
-            MatrixCol<T> basis(colsB.getRowCount());
-            std::cout << "Starting minimization loop with " << colsB.getColumnCount() << " columns\n";
-
-            for (ssize_t lastVictim = colsB.getColumnCount() - 1; lastVictim >= 0; --lastVictim) {
-                // Skip if column is empty
-                if (colsB.getColumn(lastVictim).size() == 0) {
-                    continue;
-                }
-
-                // Adopt vector
-                if (DEBUG) {
-                    std::cout << "Adopting column " << lastVictim << " with support size "
-                              << colsB.getColumn(lastVictim).size() << "\n";
-                }
-                basis.appendColumn(colsB.getColumn(lastVictim));  // Copy
-
-                // Compute intersection
-                const SparseArray<T>& currentCol = colsB.getColumn(lastVictim);
-                SparseBoolArray intersectingCols = rowIndex.get(currentCol.keyAt(0)).pPlus;
-                for (size_t i = 1; i < currentCol.size(); ++i) {
-                    size_t row = currentCol.keyAt(i);
-                    intersectingCols.restrict(rowIndex.get(row).pPlus);
-                }
-                if (DEBUG) {
-                    std::cout << "Intersection size for column " << lastVictim << ": "
-                              << intersectingCols.size() << "\n";
-                }
-
-                // Sort intersectingCols keys in decreasing order for clearing
-                std::vector<size_t> colIndices;
-                colIndices.reserve(intersectingCols.size());
-                for (size_t j = 0; j < intersectingCols.size(); ++j) {
-                    colIndices.push_back(intersectingCols.keyAt(j));
-                }
-                std::sort(colIndices.begin(), colIndices.end(), std::greater<size_t>());
-
-                // Discard redundant vectors (including self) in decreasing order
-                for (size_t colIdx : colIndices) {
-                    InvariantCalculator<T>::clearColumn(colIdx, colsB, rowIndex);
-                    if (DEBUG) {
-                        std::cout << "Discarded column " << colIdx << "\n";
-                    }
-                }
-            }
-
-            // Step 4: Finalize and return
-            auto endTime = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-            std::cout << "Minimization complete. Basis size: " << basis.getColumnCount()
-                      << ". Time: " << duration.count() << " ms\n";
-
-            return basis;
+      for (ssize_t lastVictim = colsB.getColumnCount () - 1; lastVictim >= 0;
+          --lastVictim) {
+        // Skip if column is empty
+        if (colsB.getColumn (lastVictim).size () == 0) {
+          continue;
         }
+
+        // Adopt vector
+        if (DEBUG) {
+          std::cout << "Adopting column " << lastVictim << " with support size "
+              << colsB.getColumn (lastVictim).size () << "\n";
+        }
+        basis.appendColumn (colsB.getColumn (lastVictim));  // Copy
+
+        // Compute intersection
+        const SparseArray<T> &currentCol = colsB.getColumn (lastVictim);
+        SparseBoolArray intersectingCols =
+            rowIndex.get (currentCol.keyAt (0)).pPlus;
+        for (size_t i = 1; i < currentCol.size (); ++i) {
+          size_t row = currentCol.keyAt (i);
+          intersectingCols.restrict (rowIndex.get (row).pPlus);
+        }
+        if (DEBUG) {
+          std::cout << "Intersection size for column " << lastVictim << ": "
+              << intersectingCols.size () << "\n";
+        }
+
+        // Discard redundant vectors (including self) in decreasing order
+        for (ssize_t j = intersectingCols.size () - 1; j >= 0; --j) {
+          size_t colIdx = intersectingCols.keyAt (j);
+          InvariantCalculator<T>::clearColumn (colIdx, colsB, rowIndex);
+          if (DEBUG) {
+            std::cout << "Discarded column " << colIdx << "\n";
+          }
+        }
+      }
+
+      // Step 4: Finalize and return
+      auto endTime = std::chrono::high_resolution_clock::now ();
+      auto duration = std::chrono::duration_cast < std::chrono::milliseconds
+          > (endTime - startTime);
+      std::cout << "Minimization complete. Basis size: "
+          << basis.getColumnCount () << ". Time: " << duration.count ()
+          << " ms\n";
+
+      return basis;
+    }
 
     /**
      * @brief Minimizes a basis of positive semiflows into a minimal generating set with tracing.
