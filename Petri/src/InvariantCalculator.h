@@ -289,18 +289,95 @@ template<typename T>
           break;
         }
 
-        eliminateRowFME (tRow, colsB, rowSigns);
+        eliminateRowFME (tRow, colsB, rowSigns, heur);
       }
+
+      std::cout << "After removing all negative signs "
+          << colsB.getColumnCount () << " semiflows remain." << std::endl;
 
       // all coefficients are positive !
       if (heur.useMinimization()) {
-        colsB = minimizeBasis (colsB);
+        if (heur.useQPlusBasis()) {
+          colsB = minimizeBasisWithSupport (colsB);
+        } else {
+          colsB = minimizeBasis (colsB);
+        }
       } else {
         // basic version
         colsB.normalizeAndReduce (true);
       }
     }
 
+
+    static MatrixCol<T> minimizeBasisWithSupport(MatrixCol<T>& colsB) {
+            auto startTime = std::chrono::high_resolution_clock::now();
+
+            // Step 0: Normalize input
+            std::cout << "Normalizing input matrix with " << colsB.getColumnCount() << " columns\n";
+            colsB.normalizeAndReduce();
+
+            // Step 1: Sort colsB by support size (descending)
+            std::cout << "Sorting columns by support size (descending)\n";
+            colsB.sortByColumnSize(true);  // Largest to smallest, smallest at high indices
+
+            // Step 2: Build row index
+            std::cout << "Building RowSigns index\n";
+            RowSigns<T> rowIndex(colsB, false);  // All non-zero rows
+
+            // Step 3: Process vectors
+            MatrixCol<T> basis(colsB.getRowCount());
+            std::cout << "Starting minimization loop with " << colsB.getColumnCount() << " columns\n";
+
+            for (ssize_t lastVictim = colsB.getColumnCount() - 1; lastVictim >= 0; --lastVictim) {
+                // Skip if column is empty
+                if (colsB.getColumn(lastVictim).size() == 0) {
+                    continue;
+                }
+
+                // Adopt vector
+                if (DEBUG) {
+                    std::cout << "Adopting column " << lastVictim << " with support size "
+                              << colsB.getColumn(lastVictim).size() << "\n";
+                }
+                basis.appendColumn(colsB.getColumn(lastVictim));  // Copy
+
+                // Compute intersection
+                const SparseArray<T>& currentCol = colsB.getColumn(lastVictim);
+                SparseBoolArray intersectingCols = rowIndex.get(currentCol.keyAt(0)).pPlus;
+                for (size_t i = 1; i < currentCol.size(); ++i) {
+                    size_t row = currentCol.keyAt(i);
+                    intersectingCols.restrict(rowIndex.get(row).pPlus);
+                }
+                if (DEBUG) {
+                    std::cout << "Intersection size for column " << lastVictim << ": "
+                              << intersectingCols.size() << "\n";
+                }
+
+                // Sort intersectingCols keys in decreasing order for clearing
+                std::vector<size_t> colIndices;
+                colIndices.reserve(intersectingCols.size());
+                for (size_t j = 0; j < intersectingCols.size(); ++j) {
+                    colIndices.push_back(intersectingCols.keyAt(j));
+                }
+                std::sort(colIndices.begin(), colIndices.end(), std::greater<size_t>());
+
+                // Discard redundant vectors (including self) in decreasing order
+                for (size_t colIdx : colIndices) {
+                    InvariantCalculator<T>::clearColumn(colIdx, colsB, rowIndex);
+                    if (DEBUG) {
+                        std::cout << "Discarded column " << colIdx << "\n";
+                    }
+                }
+            }
+
+            // Step 4: Finalize and return
+            auto endTime = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+            std::cout << "Minimization complete. Basis size: " << basis.getColumnCount()
+                      << ". Time: " << duration.count() << " ms\n";
+
+            return basis;
+        }
 
     /**
      * @brief Minimizes a basis of positive semiflows into a minimal generating set with tracing.
@@ -321,6 +398,9 @@ template<typename T>
 
     static MatrixCol<T> minimizeBasis(MatrixCol<T>& colsB) {
       auto startTime = std::chrono::steady_clock::now(); // Start timing
+
+      // start with a normalization
+      colsB.normalizeAndReduce(true);
 
       // Step 1: Collect non-empty columns into partitioned map
       std::unordered_map<std::pair<size_t, size_t>, std::vector<SparseArray<T>*>, PairHash> candidatesMap;
@@ -458,7 +538,7 @@ template<typename T>
      * @param rowSigns  Bookkeeping of row signs (updated during elimination).
      */
     static void eliminateRowFME (ssize_t targetRow, MatrixCol<T> &colsB,
-    RowSigns<T> &rowSigns)
+    RowSigns<T> &rowSigns, const EliminationHeuristic &heur)
     {
       const auto &rs = rowSigns.get (targetRow);
 
@@ -490,7 +570,7 @@ template<typename T>
 
       // Look for a pure positive column in P+ to use as a pivot, minimizing new negative entries.
       ssize_t purePos = -1;
-      if (rs.pPlus.size () > 1) {
+      if (! heur.useQPlusBasis() && rs.pPlus.size () > 1) {
         // we might be lucky to have (small) pure positive column in P+
         // We can use it as single pivot to eliminate P- in the row
         // it's guaranteed at least to not introduce new negative values in the columns we touch
