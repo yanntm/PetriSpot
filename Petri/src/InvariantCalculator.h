@@ -1345,46 +1345,40 @@ if (DEBUG) {
     static std::pair<bool, std::vector<size_t>> hasMinimalSupport(
         const SparseArray<T>& newCol, const MatrixCol<T>& basis,
         const std::unordered_set<size_t>& basisIndices, const RS& rowSigns) {
-        std::unordered_map<size_t, size_t> counts;  // colIdx -> overlap count
+        std::vector<size_t> counts(basis.getColumnCount(), 0);  // Pre-allocate
         size_t newColSize = newCol.size();
 
-        // Check if newCol is dominated by any basis vector
+        // Check if newCol is dominated
         for (size_t i = 0; i < newCol.size(); ++i) {
-            size_t row = newCol.keyAt(i);
-            const RowSign<T>& rs = rowSigns.get(row);
-            for (size_t j = 0; j < rs.pPlus.size(); ++j) {
-                size_t colIdx = rs.pPlus.keyAt(j);
-                if (basisIndices.count(colIdx) > 0) {
-                    auto [it, inserted] = counts.insert({colIdx, 1});
-                    if (!inserted) {
-                        it->second++;
-                    }
-                    size_t basisColSize = basis.getColumn(colIdx).size();
-                    if (it->second == basisColSize) {
-                        if (DEBUG) {
-                            std::cout << "Vector " << newCol << " dominated by basis column "
-                                      << colIdx << " (support size " << basisColSize << ")\n";
-                        }
-                        return {false, {}};  // newCol is non-minimal, no dominated vectors
-                    }
-                }
+          size_t row = newCol.keyAt(i);
+          const RowSign<T>& rs = rowSigns.get(row);
+          for (size_t j = 0; j < rs.pPlus.size(); ++j) {
+            size_t colIdx = rs.pPlus.keyAt(j);
+
+            if (++counts[colIdx] == basis.getColumn(colIdx).size()  && basisIndices.count(colIdx) > 0) {
+              if (DEBUG) {
+                std::cout << "Vector " << newCol << " dominated by basis column "
+                    << colIdx << " (" << basis.getColumn(colIdx).size() << ")\n";
+              }
+              return {false, {}};
             }
+          }
         }
+
 
         // Check if newCol dominates any basis vectors
         std::vector<size_t> dominated;
-        for (const auto& [colIdx, count] : counts) {
-            size_t basisColSize = basis.getColumn(colIdx).size();
-            if (count == newColSize && basisColSize > newColSize) {
+        for (size_t colIdx : basisIndices) {
+            if (counts[colIdx] == newColSize && basis.getColumn(colIdx).size() > newColSize) {
                 if (DEBUG) {
                     std::cout << "Vector " << newCol << " dominates basis column " << colIdx
-                              << " (" << basisColSize << ")\n";
+                              << " (" << basis.getColumn(colIdx).size() << ")\n";
                 }
                 dominated.push_back(colIdx);
             }
         }
 
-        return {true, dominated};  // newCol is minimal, with list of dominated indices
+        return {true, dominated};
     }
 
     template <typename RS>
