@@ -334,6 +334,22 @@ template<typename T>
       }
     }
 
+    void dropEmptyColumns()
+    {
+        size_t writePos = 0;
+        for (size_t i = 0; i < iCols; ++i) {
+            SparseArray<T>& col = lCols[i];
+            if (col.size() != 0) {  // Keep non-empty columns
+                if (writePos != i) {
+                    lCols[writePos] = std::move(col);
+                }
+                writePos++;
+            }
+        }
+        lCols.resize(writePos);
+        iCols = writePos;
+    }
+
     /**
      * Normalizes and reduces this matrix in-place, keeping only unique, non-zero columns.
      * Columns are normalized with sign, empty columns are removed, and duplicates are eliminated.
