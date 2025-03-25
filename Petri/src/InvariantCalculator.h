@@ -100,15 +100,14 @@ template<typename T>
      * @return An unordered set of SparseArray<T> representing the invariants.
      */
   public:
-    static MatrixCol<T> calcInvariantsPIPE (
-        MatrixCol<T>& mat, bool onlyPositive, const EliminationHeuristic &heur =
-            EliminationHeuristic ())
+    static MatrixCol<T> calcInvariantsPIPE (MatrixCol<T> &mat,
+                                            bool onlyPositive,
+                                            const EliminationHeuristic &heur =
+                                                EliminationHeuristic ())
     {
       if (mat.getColumnCount () == 0 || mat.getRowCount () == 0) {
         return MatrixCol<T> ();
       }
-
-
 
       // while it's not classical, we actually work with columns in the algorithm
       // The matrix data structure is asymetric in complexity between rows and columns
@@ -289,11 +288,11 @@ template<typename T>
           }
         }
         if (DEBUG) {
-        std::cout << "Initial basis size: " << basisIndices.size () << "\n";
-        for (const auto & index : basisIndices) {
-          std::cout << index << " :" << colsB.getColumn (index) << "\n";
-        }
-        std::cout << "End of initial basis" << std::endl;
+          std::cout << "Initial basis size: " << basisIndices.size () << "\n";
+          for (const auto &index : basisIndices) {
+            std::cout << index << " :" << colsB.getColumn (index) << "\n";
+          }
+          std::cout << "End of initial basis" << std::endl;
         }
       }
 
@@ -318,83 +317,95 @@ template<typename T>
         std::cout << "Q+ minimal vectors: " << basisIndices.size ()
             << ", filtered " << filteredCount << " non-minimal vectors\n";
         colsB = minimizeBasisWithSupport (colsB);
-        std::cout << "After minimization with support: " << colsB.getColumnCount () << " semiflows\n";
+        std::cout << "After minimization with support: "
+            << colsB.getColumnCount () << " semiflows\n";
 
       } else if (heur.useMinimization ()) {
         colsB = minimizeBasis (colsB);
       } else {
         colsB.normalizeAndReduce (true);
       }
-      std::cout << "Final semi flow basis size: " << colsB.getColumnCount () << "\n";
+      std::cout << "Final semi flow basis size: " << colsB.getColumnCount ()
+          << "\n";
     }
 
-    static MatrixCol<T> minimizeBasisWithSupport(MatrixCol<T>& colsB) {
-        auto startTime = std::chrono::high_resolution_clock::now();
+    static MatrixCol<T> minimizeBasisWithSupport (MatrixCol<T> &colsB)
+    {
+      auto startTime = std::chrono::high_resolution_clock::now ();
 
-        // Step 0: Normalize input
-        std::cout << "Normalizing (culling duplicates and empty) from input matrix with " << colsB.getColumnCount() << " columns";
-        colsB.normalizeAndReduce();
-        std::cout << "produced a matrix with " << colsB.getColumnCount() << " columns \n";
+      // Step 0: Normalize input
+      std::cout
+          << "Normalizing (culling duplicates and empty) from input matrix with "
+          << colsB.getColumnCount () << " columns";
+      colsB.normalizeAndReduce ();
+      std::cout << "produced a matrix with " << colsB.getColumnCount ()
+          << " columns \n";
 
-        // Step 1: Sort colsB by support size (descending)
-        colsB.sortByColumnSize(true); // Largest to smallest, smallest at high indices
+      // Step 1: Sort colsB by support size (descending)
+      colsB.sortByColumnSize (true); // Largest to smallest, smallest at high indices
 
-        // Step 2: Build row index
-        RowSigns<T> rowIndex(colsB, false);  // All non-zero rows
+      // Step 2: Build row index
+      RowSigns<T> rowIndex (colsB, false);  // All non-zero rows
 
-        // Step 3: Process vectors
-        MatrixCol<T> basis(colsB.getRowCount());
-        std::cout << "Starting minimization loop with " << colsB.getColumnCount() << " columns\n";
+      // Step 3: Process vectors
+      MatrixCol<T> basis (colsB.getRowCount ());
+      std::cout << "Starting minimization loop with " << colsB.getColumnCount ()
+          << " columns\n";
 
-        for (ssize_t lastVictim = colsB.getColumnCount() - 1; lastVictim >= 0; --lastVictim) {
-            // Skip if column is empty
-            if (colsB.getColumn(lastVictim).size() == 0) {                
-                continue;
-            }
-
-if (DEBUG) {
-            // Adopt vector
-            std::cout << "Adopting column " << lastVictim << " with support size "
-                      << colsB.getColumn(lastVictim).size() << ": " << colsB.getColumn(lastVictim) << "\n";
-                      }
-            basis.appendColumn(colsB.getColumn(lastVictim));  // Copy
-
-            // Compute intersection
-            const SparseArray<T>& currentCol = colsB.getColumn(lastVictim);
-            SparseBoolArray intersectingCols = rowIndex.get(currentCol.keyAt(0)).pPlus;
-            for (size_t i = 1; i < currentCol.size(); ++i) {
-                size_t row = currentCol.keyAt(i);
-                intersectingCols.restrict(rowIndex.get(row).pPlus);
-            }
-            if (DEBUG) {
-            std::cout << "Intersection for column " << lastVictim << " contains "
-                      << intersectingCols.size() << " columns: "; 
-            for (size_t j = 0; j < intersectingCols.size(); ++j) {
-                std::cout << intersectingCols.keyAt(j) << " ";
-            }
-            std::cout << "\n";
-            }
-
-            // Discard redundant vectors (including self) in decreasing order
-            for (ssize_t j = intersectingCols.size() - 1; j >= 0; --j) {
-                size_t colIdx = intersectingCols.keyAt(j);
-                const SparseArray<T>& candidateCol = colsB.getColumn(colIdx);
-                if (DEBUG && candidateCol.size() >= 0) {
-                    std::cout << "Eliminating column " << colIdx << " (" << candidateCol
-                              << ") because it is dominated by adopted column " << lastVictim
-                              << " (" << currentCol << ")\n";
-                }
-                InvariantCalculator<T>::clearColumn(colIdx, colsB, rowIndex);
-            }
+      for (ssize_t lastVictim = colsB.getColumnCount () - 1; lastVictim >= 0;
+          --lastVictim) {
+        // Skip if column is empty
+        if (colsB.getColumn (lastVictim).size () == 0) {
+          continue;
         }
 
-        // Step 4: Finalize and return
-        auto endTime = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-        std::cout << "Minimization complete. Basis size: " << basis.getColumnCount()
-                  << ". Time: " << duration.count() << " ms\n";
+        if (DEBUG) {
+          // Adopt vector
+          std::cout << "Adopting column " << lastVictim << " with support size "
+              << colsB.getColumn (lastVictim).size () << ": "
+              << colsB.getColumn (lastVictim) << "\n";
+        }
+        basis.appendColumn (colsB.getColumn (lastVictim));  // Copy
 
-        return basis;
+        // Compute intersection
+        const SparseArray<T> &currentCol = colsB.getColumn (lastVictim);
+        SparseBoolArray intersectingCols =
+            rowIndex.get (currentCol.keyAt (0)).pPlus;
+        for (size_t i = 1; i < currentCol.size (); ++i) {
+          size_t row = currentCol.keyAt (i);
+          intersectingCols.restrict (rowIndex.get (row).pPlus);
+        }
+        if (DEBUG) {
+          std::cout << "Intersection for column " << lastVictim << " contains "
+              << intersectingCols.size () << " columns: ";
+          for (size_t j = 0; j < intersectingCols.size (); ++j) {
+            std::cout << intersectingCols.keyAt (j) << " ";
+          }
+          std::cout << "\n";
+        }
+
+        // Discard redundant vectors (including self) in decreasing order
+        for (ssize_t j = intersectingCols.size () - 1; j >= 0; --j) {
+          size_t colIdx = intersectingCols.keyAt (j);
+          const SparseArray<T> &candidateCol = colsB.getColumn (colIdx);
+          if (DEBUG && candidateCol.size () >= 0) {
+            std::cout << "Eliminating column " << colIdx << " (" << candidateCol
+                << ") because it is dominated by adopted column " << lastVictim
+                << " (" << currentCol << ")\n";
+          }
+          InvariantCalculator<T>::clearColumn (colIdx, colsB, rowIndex);
+        }
+      }
+
+      // Step 4: Finalize and return
+      auto endTime = std::chrono::high_resolution_clock::now ();
+      auto duration = std::chrono::duration_cast < std::chrono::milliseconds
+          > (endTime - startTime);
+      std::cout << "Minimization complete. Basis size: "
+          << basis.getColumnCount () << ". Time: " << duration.count ()
+          << " ms\n";
+
+      return basis;
     }
 
     static MatrixCol<T> minimizeBasisWithSupport2 (MatrixCol<T> &colsB)
@@ -477,11 +488,13 @@ if (DEBUG) {
      * @param semiFlows Output set of minimal semiflows.
      */
     // Hash functor for std::pair<size_t, size_t> to use in unordered_map
-    struct PairHash {
-        std::size_t operator()(const std::pair<size_t, size_t>& p) const {
-            // Simple hash combination: shift first and XOR with second
-            return (p.first << 16) ^ p.second;
-        }
+    struct PairHash
+    {
+      std::size_t operator() (const std::pair<size_t, size_t> &p) const
+      {
+        // Simple hash combination: shift first and XOR with second
+        return (p.first << 16) ^ p.second;
+      }
     };
 
     static MatrixCol<T> minimizeBasis (MatrixCol<T> &colsB)
@@ -639,199 +652,210 @@ if (DEBUG) {
      * @param colsB     The basis matrix (modified in place).
      * @param rowSigns  Bookkeeping of row signs (updated during elimination).
      */
-    static void eliminateRowFME(ssize_t targetRow, MatrixCol<T>& colsB,
-                                RowSignsDomination<T>& rowSigns,
-                                std::unordered_set<size_t>& basisIndices,
-                                const EliminationHeuristic& heur,
-                                size_t& filteredCount) {
-        const auto& rs = rowSigns.get(targetRow);
-        if (DEBUG) {
-            std::cout << "Eliminating row " << targetRow << " with "
-                      << rs.pPlus.size() << " plus and " << rs.pMinus.size()
-                      << " minus columns\n";
-            std::cout << rs << "\n";
-            for (size_t i = 0, ie = rs.pPlus.size(); i < ie; i++) {
-                std::cout << "P+ " << rs.pPlus.keyAt(i) << " : "
-                          << colsB.getColumn(rs.pPlus.keyAt(i)) << "\n";
-            }
-            for (size_t i = 0, ie = rs.pMinus.size(); i < ie; i++) {
-                std::cout << "P- " << rs.pMinus.keyAt(i) << " : "
-                          << colsB.getColumn(rs.pMinus.keyAt(i)) << "\n";
-            }
-            std::cout << std::flush;
-        }
-
-        if (rs.pPlus.size() == 0) {
-            SparseBoolArray toVisit = rs.pMinus;
-            for (size_t i = 0; i < toVisit.size(); ++i) {
-                clearColumn(toVisit.keyAt(i), colsB, rowSigns);
-            }
-            if (DEBUG) {
-                std::cout << "Cleared row " << targetRow << "\n";
-            }
-            return;
-        }
-
-        ssize_t purePos = -1;
-        if (!heur.useQPlusBasis() && rs.pPlus.size() > 1) {
-            for (size_t i = 0; i < rs.pPlus.size(); ++i) {
-                size_t candCol = rs.pPlus.keyAt(i);
-                const auto& col = colsB.getColumn(candCol);
-                if (col.isPurePositive()) {
-                    if (purePos == -1 || colsB.getColumn(purePos).size() > col.size()) {
-                        purePos = candCol;
-                    }
-                }
-            }
-        }
-        if (DEBUG && purePos != -1) {
-            std::cout << "Using pure positive column " << purePos << " as pivot\n";
-        }
-
-        for (size_t j = 0; j < rs.pPlus.size(); ++j) {
-            auto jindex = (purePos != -1) ? purePos : rs.pPlus.keyAt(j);
-            if (purePos != -1) {
-                j = rs.pPlus.size();
-            }
-            for (size_t k = 0; k < rs.pMinus.size(); ++k) {
-                SparseArray<T>& colj = colsB.getColumn(jindex);
-                size_t kindex = rs.pMinus.keyAt(k);
-                SparseArray<T>& colk = colsB.getColumn(kindex);
-                T alpha = -colk.get(targetRow);
-                T beta = colj.get(targetRow);
-                T gcdt = std::gcd(alpha, beta);
-                alpha /= gcdt;
-                beta /= gcdt;
-
-                if (DEBUG) {
-                    std::cout << "Computing " << beta << " * " << colk << " + " << alpha
-                              << " * " << colj << "\n";
-                }
-
-                if (purePos != -1 || j == rs.pPlus.size() - 1) {
-                    // In-place update
-                    auto changed = sumProdInto(beta, colk, alpha, colj);
-                    normalize(colk);
-                    if (DEBUG) {
-                        std::cout << "Built (emplaced at " << kindex << ") " << colk << "\n";
-                        std::cout << "Changed reported " << changed << "\n";
-                    }
-
-                    if (heur.useQPlusBasis() && colk.isPurePositive()) {
-                        auto [isMinimal, dominated] = hasMinimalSupport(colk, colsB, basisIndices, rowSigns);
-                        if (isMinimal) {
-                            // Update RowSigns for new vector
-                            for (size_t ind = 0; ind < changed.size(); ++ind) {
-                                size_t key = changed[ind].first;
-                                rowSigns.setValue(key, kindex, changed[ind].second);
-                            }
-                            // Clear dominated vectors
-                            for (size_t domIdx : dominated) {
-                                clearColumn(domIdx, colsB, rowSigns);
-                                basisIndices.erase(domIdx);
-                                if (DEBUG) {
-                                    std::cout << "Cleared dominated vector at " << domIdx << "\n";
-                                }
-                            }
-                            basisIndices.insert(kindex);
-                            if (DEBUG) {
-                                std::cout << "Added minimal in-place vector at " << kindex
-                                          << ": " << colk << "\n";
-                            }
-                        } else {
-                            // Non-minimal: Reset RowSigns and clear
-                            for (size_t ind = 0; ind < changed.size(); ++ind) {
-                                size_t key = changed[ind].first;
-                                rowSigns.setValue(key, kindex, 0);
-                            }
-                            for (size_t ind = 0; ind < colk.size(); ++ind) {
-                                size_t key = colk.keyAt(ind);
-                                rowSigns.setValue(key, kindex, 0);
-                            }
-                            clearColumn(kindex, colsB, rowSigns);
-                            filteredCount++;
-                            if (DEBUG) {
-                                std::cout << "Cleared non-minimal in-place vector at "
-                                          << kindex << ": " << colk << "\n";
-                            }
-                        }
-                    } else {
-                        for (size_t ind = 0; ind < changed.size(); ++ind) {
-                            size_t key = changed[ind].first;
-                            rowSigns.setValue(key, kindex, changed[ind].second);
-                        }
-                    }
-                } else {
-                    // New column
-                    auto newCol = sumProd(beta, colk, alpha, colj);
-                    normalize(newCol);
-                    if (newCol.size() > 0) {
-                        size_t newColIndex = colsB.getColumnCount();
-                        if (heur.useQPlusBasis()) {
-                            if (!newCol.isPurePositive()) {
-                                for (size_t ind = 0; ind < newCol.size(); ++ind) {
-                                    rowSigns.setValue(newCol.keyAt(ind), newColIndex,
-                                                      newCol.valueAt(ind));
-                                }
-                                colsB.appendColumn(std::move(newCol));
-                                if (DEBUG) {
-                                    std::cout << "Built (appended at " << newColIndex << ") "
-                                              << newCol << "\n";
-                                }
-                            } else {
-                                auto [isMinimal, dominated] = hasMinimalSupport(newCol, colsB, basisIndices, rowSigns);
-                                if (isMinimal) {
-                                    for (size_t ind = 0; ind < newCol.size(); ++ind) {
-                                        rowSigns.setValue(newCol.keyAt(ind), newColIndex,
-                                                          newCol.valueAt(ind));
-                                    }
-                                    // Clear dominated vectors
-                                    for (size_t domIdx : dominated) {
-                                        clearColumn(domIdx, colsB, rowSigns);
-                                        basisIndices.erase(domIdx);
-                                        if (DEBUG) {
-                                            std::cout << "Cleared dominated vector at " << domIdx << "\n";
-                                        }
-                                    }
-                                    colsB.appendColumn(std::move(newCol));
-                                    basisIndices.insert(newColIndex);
-                                    if (DEBUG) {
-                                        std::cout << "Added minimal vector at " << newColIndex
-                                                  << ": " << newCol << "\n";
-                                    }
-                                } else {
-                                    filteredCount++;
-                                    if (DEBUG) {
-                                        std::cout << "Filtered non-minimal vector: " << newCol << "\n";
-                                    }
-                                }
-                            }
-                        } else {
-                            for (size_t ind = 0; ind < newCol.size(); ++ind) {
-                                rowSigns.setValue(newCol.keyAt(ind), newColIndex,
-                                                  newCol.valueAt(ind));
-                            }
-                            colsB.appendColumn(std::move(newCol));
-                            if (DEBUG) {
-                                std::cout << "Built (appended at " << newColIndex << ") "
-                                          << newCol << "\n";
-                            }
-                        }
-                    }
-                }
-                if (DEBUG) {
-                    std::cout << "Obtained rowsign " << rowSigns.get(targetRow)
-                              << " for row " << targetRow << "\n";
-                }
-            }
-        }
-    }
-
-    static void eliminateRowFME2 (ssize_t targetRow, MatrixCol<T> &colsB,
+    static void eliminateRowFME (ssize_t targetRow, MatrixCol<T> &colsB,
                                  RowSignsDomination<T> &rowSigns,
                                  std::unordered_set<size_t> &basisIndices,
                                  const EliminationHeuristic &heur,
                                  size_t &filteredCount)
+    {
+      const auto &rs = rowSigns.get (targetRow);
+      if (DEBUG) {
+        std::cout << "Eliminating row " << targetRow << " with "
+            << rs.pPlus.size () << " plus and " << rs.pMinus.size ()
+            << " minus columns\n";
+        std::cout << rs << "\n";
+        for (size_t i = 0, ie = rs.pPlus.size (); i < ie; i++) {
+          std::cout << "P+ " << rs.pPlus.keyAt (i) << " : "
+              << colsB.getColumn (rs.pPlus.keyAt (i)) << "\n";
+        }
+        for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
+          std::cout << "P- " << rs.pMinus.keyAt (i) << " : "
+              << colsB.getColumn (rs.pMinus.keyAt (i)) << "\n";
+        }
+        std::cout << std::flush;
+      }
+
+      if (rs.pPlus.size () == 0) {
+        SparseBoolArray toVisit = rs.pMinus;
+        for (size_t i = 0; i < toVisit.size (); ++i) {
+          clearColumn (toVisit.keyAt (i), colsB, rowSigns);
+        }
+        if (DEBUG) {
+          std::cout << "Cleared row " << targetRow << "\n";
+        }
+        return;
+      }
+
+      ssize_t purePos = -1;
+      if (!heur.useQPlusBasis () && rs.pPlus.size () > 1) {
+        for (size_t i = 0; i < rs.pPlus.size (); ++i) {
+          size_t candCol = rs.pPlus.keyAt (i);
+          const auto &col = colsB.getColumn (candCol);
+          if (col.isPurePositive ()) {
+            if (purePos == -1
+                || colsB.getColumn (purePos).size () > col.size ()) {
+              purePos = candCol;
+            }
+          }
+        }
+      }
+      if (DEBUG && purePos != -1) {
+        std::cout << "Using pure positive column " << purePos << " as pivot\n";
+      }
+
+      for (size_t j = 0; j < rs.pPlus.size (); ++j) {
+        auto jindex = (purePos != -1) ? purePos : rs.pPlus.keyAt (j);
+        if (purePos != -1) {
+          j = rs.pPlus.size ();
+        }
+        for (size_t k = 0; k < rs.pMinus.size (); ++k) {
+          SparseArray<T> &colj = colsB.getColumn (jindex);
+          size_t kindex = rs.pMinus.keyAt (k);
+          SparseArray<T> &colk = colsB.getColumn (kindex);
+          T alpha = -colk.get (targetRow);
+          T beta = colj.get (targetRow);
+          T gcdt = std::gcd (alpha, beta);
+          alpha /= gcdt;
+          beta /= gcdt;
+
+          if (DEBUG) {
+            std::cout << "Computing " << beta << " * " << colk << " + " << alpha
+                << " * " << colj << "\n";
+          }
+
+          if (purePos != -1 || j == rs.pPlus.size () - 1) {
+            // In-place update
+            auto changed = sumProdInto (beta, colk, alpha, colj);
+            normalize (colk);
+            if (DEBUG) {
+              std::cout << "Built (emplaced at " << kindex << ") " << colk
+                  << "\n";
+              std::cout << "Changed reported " << changed << "\n";
+            }
+
+            if (heur.useQPlusBasis () && colk.isPurePositive ()) {
+              auto [isMinimal, dominated] = hasMinimalSupport (colk, colsB,
+                                                               basisIndices,
+                                                               rowSigns);
+              if (isMinimal) {
+                // Update RowSigns for new vector
+                for (size_t ind = 0; ind < changed.size (); ++ind) {
+                  size_t key = changed[ind].first;
+                  rowSigns.setValue (key, kindex, changed[ind].second);
+                }
+                // Clear dominated vectors
+                for (size_t domIdx : dominated) {
+                  clearColumn (domIdx, colsB, rowSigns);
+                  basisIndices.erase (domIdx);
+                  if (DEBUG) {
+                    std::cout << "Cleared dominated vector at " << domIdx
+                        << "\n";
+                  }
+                }
+                basisIndices.insert (kindex);
+                if (DEBUG) {
+                  std::cout << "Added minimal in-place vector at " << kindex
+                      << ": " << colk << "\n";
+                }
+              } else {
+                // Non-minimal: Reset RowSigns and clear
+                for (size_t ind = 0; ind < changed.size (); ++ind) {
+                  size_t key = changed[ind].first;
+                  rowSigns.setValue (key, kindex, 0);
+                }
+                for (size_t ind = 0; ind < colk.size (); ++ind) {
+                  size_t key = colk.keyAt (ind);
+                  rowSigns.setValue (key, kindex, 0);
+                }
+                clearColumn (kindex, colsB, rowSigns);
+                filteredCount++;
+                if (DEBUG) {
+                  std::cout << "Cleared non-minimal in-place vector at "
+                      << kindex << ": " << colk << "\n";
+                }
+              }
+            } else {
+              for (size_t ind = 0; ind < changed.size (); ++ind) {
+                size_t key = changed[ind].first;
+                rowSigns.setValue (key, kindex, changed[ind].second);
+              }
+            }
+          } else {
+            // New column
+            auto newCol = sumProd (beta, colk, alpha, colj);
+            normalize (newCol);
+            if (newCol.size () > 0) {
+              size_t newColIndex = colsB.getColumnCount ();
+              if (heur.useQPlusBasis ()) {
+                if (!newCol.isPurePositive ()) {
+                  for (size_t ind = 0; ind < newCol.size (); ++ind) {
+                    rowSigns.setValue (newCol.keyAt (ind), newColIndex,
+                                       newCol.valueAt (ind));
+                  }
+                  colsB.appendColumn (std::move (newCol));
+                  if (DEBUG) {
+                    std::cout << "Built (appended at " << newColIndex << ") "
+                        << newCol << "\n";
+                  }
+                } else {
+                  auto [isMinimal, dominated] = hasMinimalSupport (newCol,
+                                                                   colsB,
+                                                                   basisIndices,
+                                                                   rowSigns);
+                  if (isMinimal) {
+                    for (size_t ind = 0; ind < newCol.size (); ++ind) {
+                      rowSigns.setValue (newCol.keyAt (ind), newColIndex,
+                                         newCol.valueAt (ind));
+                    }
+                    // Clear dominated vectors
+                    for (size_t domIdx : dominated) {
+                      clearColumn (domIdx, colsB, rowSigns);
+                      basisIndices.erase (domIdx);
+                      if (DEBUG) {
+                        std::cout << "Cleared dominated vector at " << domIdx
+                            << "\n";
+                      }
+                    }
+                    colsB.appendColumn (std::move (newCol));
+                    basisIndices.insert (newColIndex);
+                    if (DEBUG) {
+                      std::cout << "Added minimal vector at " << newColIndex
+                          << ": " << newCol << "\n";
+                    }
+                  } else {
+                    filteredCount++;
+                    if (DEBUG) {
+                      std::cout << "Filtered non-minimal vector: " << newCol
+                          << "\n";
+                    }
+                  }
+                }
+              } else {
+                for (size_t ind = 0; ind < newCol.size (); ++ind) {
+                  rowSigns.setValue (newCol.keyAt (ind), newColIndex,
+                                     newCol.valueAt (ind));
+                }
+                colsB.appendColumn (std::move (newCol));
+                if (DEBUG) {
+                  std::cout << "Built (appended at " << newColIndex << ") "
+                      << newCol << "\n";
+                }
+              }
+            }
+          }
+          if (DEBUG) {
+            std::cout << "Obtained rowsign " << rowSigns.get (targetRow)
+                << " for row " << targetRow << "\n";
+          }
+        }
+      }
+    }
+
+    static void eliminateRowFME2 (ssize_t targetRow, MatrixCol<T> &colsB,
+                                  RowSignsDomination<T> &rowSigns,
+                                  std::unordered_set<size_t> &basisIndices,
+                                  const EliminationHeuristic &heur,
+                                  size_t &filteredCount)
     {
       const auto &rs = rowSigns.get (targetRow);
       if (DEBUG) {
@@ -1018,7 +1042,7 @@ if (DEBUG) {
      * @param heur        Heuristic settings for pivot selection.
      */
     static void applyRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
-                                     RowSigns<T> &rowSigns,
+    RowSigns<T> &rowSigns,
                                      std::pair<size_t, size_t> &counts,
                                      bool onlyPositive,
                                      const EliminationHeuristic &heur)
@@ -1195,222 +1219,224 @@ if (DEBUG) {
       }
     }
 
-    template <typename RS>
-    static PivotChoice findBestPivot (const MatrixCol<T> &matC,
-                                      const RS &rowSigns,
-                                      bool onlyPositive, size_t loopLimit)
-    {
-      // We'll assume there's at least one non-empty column; otherwise we can't pivot.
-      // If you want to handle an all-empty matrix, you can do so by checking further.
+    template<typename RS>
+      static PivotChoice findBestPivot (const MatrixCol<T> &matC,
+                                        const RS &rowSigns, bool onlyPositive,
+                                        size_t loopLimit)
+      {
+        // We'll assume there's at least one non-empty column; otherwise we can't pivot.
+        // If you want to handle an all-empty matrix, you can do so by checking further.
 
-      size_t bestColSize = std::numeric_limits<size_t>::max ();
-      std::vector<size_t> candidateCols;
-      candidateCols.reserve (matC.getColumnCount ());
+        size_t bestColSize = std::numeric_limits<size_t>::max ();
+        std::vector<size_t> candidateCols;
+        candidateCols.reserve (matC.getColumnCount ());
 
-      // 1) Find the columns that have the minimal nonzero size in one pass.
-      for (size_t c = 0; c < matC.getColumnCount (); c++) {
-        size_t s = matC.getColumn (c).size ();
-        if (s == 0) {
-          continue; // skip empty columns
-        }
-        if (s < bestColSize) {
-          bestColSize = s;
-          candidateCols.clear ();
-          candidateCols.push_back (c);
-        } else if (s == bestColSize) {
-          candidateCols.push_back (c);
-        }
-        if (candidateCols.size () >= loopLimit) {
-          break; // early exit if we have enough candidates
-        }
-      }
-      // Here we have a list of columns whose size is 'bestColSize'.
-
-      // 2) Among those columns, find the best (row,col) pivot by row heuristics:
-      //    - smallest rowSize = pPlus.size() + pMinus.size()
-      //    - tie-break on absolute value
-      //    - early break if rowSize <= 2 and absVal == 1
-      ssize_t bestRow = 0;
-      ssize_t bestCol = candidateCols[0];       // default
-      size_t bestRowSz = std::numeric_limits<size_t>::max ();
-      T bestAbsVal = std::numeric_limits<T>::max ();
-      bool foundPivot = false;
-
-      // For each candidate column, iterate over its nonzero entries
-      for (size_t c : candidateCols) {
-        const SparseArray<T> &colData = matC.getColumn (c);
-        for (size_t i = 0, ie = colData.size (); i < ie; i++) {
-          size_t r = colData.keyAt (i);
-          T val = colData.valueAt (i);
-          // We assume val != 0 in a properly stored SparseArray.
-
-          // Row size in rowSigns
-          const auto &rs = rowSigns.get (r);
-
-          if (onlyPositive
-              && (rs.pMinus.size () == 0 || rs.pPlus.size () == 0)) {
-            // We can't pivot on a row that has all positive or all negative entries.
-            return PivotChoice (r, c);
+        // 1) Find the columns that have the minimal nonzero size in one pass.
+        for (size_t c = 0; c < matC.getColumnCount (); c++) {
+          size_t s = matC.getColumn (c).size ();
+          if (s == 0) {
+            continue; // skip empty columns
           }
-          size_t rowSz = rs.pPlus.size () + rs.pMinus.size ();
-          T absVal = (val < 0) ? -val : val;
+          if (s < bestColSize) {
+            bestColSize = s;
+            candidateCols.clear ();
+            candidateCols.push_back (c);
+          } else if (s == bestColSize) {
+            candidateCols.push_back (c);
+          }
+          if (candidateCols.size () >= loopLimit) {
+            break; // early exit if we have enough candidates
+          }
+        }
+        // Here we have a list of columns whose size is 'bestColSize'.
 
-          // Compare to see if it's better:
-          //   - pick the pivot that has the smaller rowSz
-          //   - tie-break on smaller absVal
-          if (!foundPivot || (rowSz < bestRowSz)
-              || (rowSz == bestRowSz && absVal < bestAbsVal)) {
-            foundPivot = true;
-            bestRow = r;
-            bestCol = c;
-            bestRowSz = rowSz;
-            bestAbsVal = absVal;
+        // 2) Among those columns, find the best (row,col) pivot by row heuristics:
+        //    - smallest rowSize = pPlus.size() + pMinus.size()
+        //    - tie-break on absolute value
+        //    - early break if rowSize <= 2 and absVal == 1
+        ssize_t bestRow = 0;
+        ssize_t bestCol = candidateCols[0];       // default
+        size_t bestRowSz = std::numeric_limits<size_t>::max ();
+        T bestAbsVal = std::numeric_limits<T>::max ();
+        bool foundPivot = false;
 
-            // Early‐exit if (rowSz <= 2) and (absVal == 1).
-            if (rowSz <= 2 && absVal == 1) {
-              // Immediately return this pivot.
-              return PivotChoice
-                { bestRow, bestCol };
+        // For each candidate column, iterate over its nonzero entries
+        for (size_t c : candidateCols) {
+          const SparseArray<T> &colData = matC.getColumn (c);
+          for (size_t i = 0, ie = colData.size (); i < ie; i++) {
+            size_t r = colData.keyAt (i);
+            T val = colData.valueAt (i);
+            // We assume val != 0 in a properly stored SparseArray.
+
+            // Row size in rowSigns
+            const auto &rs = rowSigns.get (r);
+
+            if (onlyPositive
+                && (rs.pMinus.size () == 0 || rs.pPlus.size () == 0)) {
+              // We can't pivot on a row that has all positive or all negative entries.
+              return PivotChoice (r, c);
+            }
+            size_t rowSz = rs.pPlus.size () + rs.pMinus.size ();
+            T absVal = (val < 0) ? -val : val;
+
+            // Compare to see if it's better:
+            //   - pick the pivot that has the smaller rowSz
+            //   - tie-break on smaller absVal
+            if (!foundPivot || (rowSz < bestRowSz)
+                || (rowSz == bestRowSz && absVal < bestAbsVal)) {
+              foundPivot = true;
+              bestRow = r;
+              bestCol = c;
+              bestRowSz = rowSz;
+              bestAbsVal = absVal;
+
+              // Early‐exit if (rowSz <= 2) and (absVal == 1).
+              if (rowSz <= 2 && absVal == 1) {
+                // Immediately return this pivot.
+                return PivotChoice
+                  { bestRow, bestCol };
+              }
             }
           }
         }
+
+        // If we found no pivot at all, that means all columns might have size 0
+        // or we never had nonzero entries. But in practice we do handle above.
+        // So we finalize the best we found:
+        return foundPivot ? PivotChoice
+          { bestRow, bestCol } :
+                            PivotChoice ();  // an unset pivot
       }
 
-      // If we found no pivot at all, that means all columns might have size 0
-      // or we never had nonzero entries. But in practice we do handle above.
-      // So we finalize the best we found:
-      return foundPivot ? PivotChoice
-        { bestRow, bestCol } :
-                          PivotChoice ();  // an unset pivot
-    }
+    template<typename RS>
+      static ssize_t findBestFMERow (const MatrixCol<T> &matB,
+                                     const RS &rowSigns, size_t loopLimit)
+      {
+        ssize_t minRow = -1;
+        ssize_t minRowWeight = std::numeric_limits<ssize_t>::max ();
+        ssize_t minRefinedRowWeight = std::numeric_limits<ssize_t>::max ();
+        size_t seen = 0;
+        for (const auto &rs : rowSigns) {
+          size_t pps = rs.pPlus.size ();
+          size_t ppm = rs.pMinus.size ();
 
-    template <typename RS>
-    static ssize_t findBestFMERow (const MatrixCol<T> &matB,
-                                   const RS &rowSigns,
-                                   size_t loopLimit)
-    {
-      ssize_t minRow = -1;
-      ssize_t minRowWeight = std::numeric_limits<ssize_t>::max ();
-      ssize_t minRefinedRowWeight = std::numeric_limits<ssize_t>::max ();
-      size_t seen = 0;
-      for (const auto &rs : rowSigns) {
-        size_t pps = rs.pPlus.size ();
-        size_t ppm = rs.pMinus.size ();
-
-        if (seen++ > loopLimit && minRow != -1) {
-          break;
-        }
-
-        if (pps == 0)
-        // a pure negative row => we need to clear all related columns
-        return rs.row;
-
-        // number of columns in result
-        ssize_t weight = pps * ppm - pps - ppm;
-
-        if (minRow == -1 || minRowWeight > weight) {
-          ssize_t refinedweight = 0;
-          for (size_t i = 0, ie = rs.pPlus.size (); i < ie; i++) {
-            refinedweight += matB.getColumn (rs.pPlus.keyAt (i)).size ();
+          if (seen++ > loopLimit && minRow != -1) {
+            break;
           }
-          for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
-            refinedweight += matB.getColumn (rs.pMinus.keyAt (i)).size ();
-          }
-          if (minRow == -1 || minRefinedRowWeight > refinedweight) {
-            minRow = rs.row;
-            minRowWeight = weight;
-            minRefinedRowWeight = refinedweight;
+
+          if (pps == 0)
+          // a pure negative row => we need to clear all related columns
+          return rs.row;
+
+          // number of columns in result
+          ssize_t weight = pps * ppm - pps - ppm;
+
+          if (minRow == -1 || minRowWeight > weight) {
+            ssize_t refinedweight = 0;
+            for (size_t i = 0, ie = rs.pPlus.size (); i < ie; i++) {
+              refinedweight += matB.getColumn (rs.pPlus.keyAt (i)).size ();
+            }
+            for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
+              refinedweight += matB.getColumn (rs.pMinus.keyAt (i)).size ();
+            }
+            if (minRow == -1 || minRefinedRowWeight > refinedweight) {
+              minRow = rs.row;
+              minRowWeight = weight;
+              minRefinedRowWeight = refinedweight;
+            }
           }
         }
+
+        if (DEBUG) {
+          if (minRow != -1) {
+            std::cout << "Selected row " << minRow << " with weight "
+                << minRowWeight << " and refined weight " << minRefinedRowWeight
+                << std::endl;
+          } else {
+            std::cout << "No row selected from " << rowSigns << " with matB= "
+                << matB << std::endl;
+          }
+        }
+
+        return minRow;
       }
 
-      if (DEBUG) {
-        if (minRow != -1) {
-          std::cout << "Selected row " << minRow << " with weight "
-              << minRowWeight << " and refined weight " << minRefinedRowWeight
-              << std::endl;
-        } else {
-          std::cout << "No row selected from " << rowSigns << " with matB= "
-              << matB << std::endl;
-        }
-      }
-
-      return minRow;
-    }
-
-    template <typename RS>
-    static std::pair<bool, std::vector<size_t>> hasMinimalSupport(
-        const SparseArray<T>& newCol, const MatrixCol<T>& basis,
-        const std::unordered_set<size_t>& basisIndices, const RS& rowSigns) {
-        std::vector<size_t> counts(basis.getColumnCount(), 0);  // Pre-allocate
-        size_t newColSize = newCol.size();
+    template<typename RS>
+      static std::pair<bool, std::vector<size_t>> hasMinimalSupport (
+          const SparseArray<T> &newCol, const MatrixCol<T> &basis,
+          const std::unordered_set<size_t> &basisIndices, const RS &rowSigns)
+      {
+        std::vector<size_t> counts (basis.getColumnCount (), 0); // Pre-allocate
+        size_t newColSize = newCol.size ();
 
         // Check if newCol is dominated
-        for (size_t i = 0; i < newCol.size(); ++i) {
-          size_t row = newCol.keyAt(i);
-          const RowSign<T>& rs = rowSigns.get(row);
-          for (size_t j = 0; j < rs.pPlus.size(); ++j) {
-            size_t colIdx = rs.pPlus.keyAt(j);
+        for (size_t i = 0; i < newCol.size (); ++i) {
+          size_t row = newCol.keyAt (i);
+          const RowSign<T> &rs = rowSigns.get (row);
+          for (size_t j = 0; j < rs.pPlus.size (); ++j) {
+            size_t colIdx = rs.pPlus.keyAt (j);
 
-            if (++counts[colIdx] == basis.getColumn(colIdx).size()  && basisIndices.count(colIdx) > 0) {
+            if (++counts[colIdx] == basis.getColumn (colIdx).size ()
+                && basisIndices.count (colIdx) > 0) {
               if (DEBUG) {
-                std::cout << "Vector " << newCol << " dominated by basis column "
-                    << colIdx << " (" << basis.getColumn(colIdx).size() << ")\n";
+                std::cout << "Vector " << newCol
+                    << " dominated by basis column " << colIdx << " ("
+                    << basis.getColumn (colIdx).size () << ")\n";
               }
               return {false, {}};
             }
           }
         }
 
-
         // Check if newCol dominates any basis vectors
         std::vector<size_t> dominated;
         for (size_t colIdx : basisIndices) {
-            if (counts[colIdx] == newColSize && basis.getColumn(colIdx).size() > newColSize) {
-                if (DEBUG) {
-                    std::cout << "Vector " << newCol << " dominates basis column " << colIdx
-                              << " (" << basis.getColumn(colIdx).size() << ")\n";
-                }
-                dominated.push_back(colIdx);
+          if (counts[colIdx] == newColSize
+              && basis.getColumn (colIdx).size () > newColSize) {
+            if (DEBUG) {
+              std::cout << "Vector " << newCol << " dominates basis column "
+                  << colIdx << " (" << basis.getColumn (colIdx).size ()
+                  << ")\n";
             }
+            dominated.push_back (colIdx);
+          }
         }
 
         return {true, dominated};
-    }
+      }
 
-    template <typename RS>
-    static bool hasMinimalSupport2 (
-        const SparseArray<T> &newCol, const MatrixCol<T> &basis,
-        const std::unordered_set<size_t> &basisIndices,
-        const RS &rowSigns)
-    {
-      std::unordered_map<size_t, size_t> counts;  // colIdx -> overlap count
+    template<typename RS>
+      static bool hasMinimalSupport2 (
+          const SparseArray<T> &newCol, const MatrixCol<T> &basis,
+          const std::unordered_set<size_t> &basisIndices, const RS &rowSigns)
+      {
+        std::unordered_map<size_t, size_t> counts;  // colIdx -> overlap count
 
-      // Iterate over newCol's support rows
-      for (size_t i = 0; i < newCol.size (); ++i) {
-        size_t row = newCol.keyAt (i);
-        const RowSign<T> &rs = rowSigns.get (row);
-        // Check basis vectors touching this row via pPlus
-        for (size_t j = 0; j < rs.pPlus.size (); ++j) {
-          size_t colIdx = rs.pPlus.keyAt (j);
-          if (basisIndices.count (colIdx) > 0) {
-            // Use insert for efficient update
-            auto [it, inserted] = counts.insert (
-              { colIdx, 1 });
-            if (!inserted) {
-              it->second++;
-            }
-            // If overlap equals basis vector's support size, newCol is dominated
-            if (it->second == basis.getColumn (colIdx).size ()) {
-              if (DEBUG) {
-                std::cout << "Vector dominated by basis column " << colIdx
-                    << " (support size " << it->second << ")\n";
+        // Iterate over newCol's support rows
+        for (size_t i = 0; i < newCol.size (); ++i) {
+          size_t row = newCol.keyAt (i);
+          const RowSign<T> &rs = rowSigns.get (row);
+          // Check basis vectors touching this row via pPlus
+          for (size_t j = 0; j < rs.pPlus.size (); ++j) {
+            size_t colIdx = rs.pPlus.keyAt (j);
+            if (basisIndices.count (colIdx) > 0) {
+              // Use insert for efficient update
+              auto [it, inserted] = counts.insert (
+                { colIdx, 1 });
+              if (!inserted) {
+                it->second++;
               }
-              return false;
+              // If overlap equals basis vector's support size, newCol is dominated
+              if (it->second == basis.getColumn (colIdx).size ()) {
+                if (DEBUG) {
+                  std::cout << "Vector dominated by basis column " << colIdx
+                      << " (support size " << it->second << ")\n";
+                }
+                return false;
+              }
             }
           }
         }
-      }
 //      std::cout << "vector " << newCol << " is minimal\n";
 //      std::cout << "base counts :" ;
 //      for (auto &c : counts) {
@@ -1418,8 +1444,8 @@ if (DEBUG) {
 //      }
 //      std::cout << std::endl;
 
-      return true;  // Minimal support relative to basis
-    }
+        return true;  // Minimal support relative to basis
+      }
 
   public:
 
@@ -1436,17 +1462,16 @@ if (DEBUG) {
       matB.getColumn (tCol).clear ();
     }
 
-    template <typename RS>
-    static void clearColumn (size_t tCol, MatrixCol<T> &matB,
-    RS &rowSigns)
-    {
-      // delete from the extended matrix the column of index k
-      SparseArray<T> &colk = matB.getColumn (tCol);
-      for (size_t i = 0, ie = colk.size (); i < ie; i++) {
-        rowSigns.setValue (colk.keyAt (i), tCol, 0);
+    template<typename RS>
+      static void clearColumn (size_t tCol, MatrixCol<T> &matB, RS &rowSigns)
+      {
+        // delete from the extended matrix the column of index k
+        SparseArray<T> &colk = matB.getColumn (tCol);
+        for (size_t i = 0, ie = colk.size (); i < ie; i++) {
+          rowSigns.setValue (colk.keyAt (i), tCol, 0);
+        }
+        colk.clear ();
       }
-      colk.clear ();
-    }
 
   };
 
