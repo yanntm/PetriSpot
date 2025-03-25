@@ -378,9 +378,6 @@ if (DEBUG) {
             // Discard redundant vectors (including self) in decreasing order
             for (ssize_t j = intersectingCols.size() - 1; j >= 0; --j) {
                 size_t colIdx = intersectingCols.keyAt(j);
-                if (colIdx == static_cast<size_t>(lastVictim)) {
-                    continue; // Don’t clear the vector we just adopted
-                }
                 const SparseArray<T>& candidateCol = colsB.getColumn(colIdx);
                 if (DEBUG && candidateCol.size() >= 0) {
                     std::cout << "Eliminating column " << colIdx << " (" << candidateCol
