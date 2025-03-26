@@ -277,6 +277,10 @@ template<typename T>
       this->iCols++;
     }
 
+    size_t appendRow () {
+      return iRows++;
+    }
+
     /**
      * Checks if this matrix only contains of components equal to zero.
      * @return true if this matrix has just components equal to zero.
