@@ -144,6 +144,11 @@ template<typename T>
       std::cout << "// Phase 2 : computing semi flows from basis of "
           << matB.getColumnCount () << " invariants " << std::endl;
 
+	/* FACTORIZATION, WIP */
+//      auto [perms, colsB] = factorizeBasis (matB);
+
+//      matB = colsB;
+
       phase2Pipe (matB, heur);
 
       return matB;
@@ -251,88 +256,90 @@ template<typename T>
      * @param semiFlows   Output set of semiflows.
      * @param heur        Heuristic settings for row selection.
      */
-    static void phase2Pipe(MatrixCol<T>& colsB,
-                           const EliminationHeuristic& heur)
+    static void phase2Pipe (MatrixCol<T> &colsB,
+                            const EliminationHeuristic &heur)
     {
-        RowSignsDomination<T> rowSigns(colsB);
-        std::unordered_set<size_t> basisIndices;
-        MixedSignsUniqueTable<T> msut(colsB);  // Initialize MSUT regardless, but only seed in Q+
-        size_t filteredCount = 0;
+      RowSignsDomination<T> rowSigns (colsB);
+      std::unordered_set<size_t> basisIndices;
+      MixedSignsUniqueTable<T> msut (colsB); // Initialize MSUT regardless, but only seed in Q+
+      size_t filteredCount = 0;
 
-        // Step 1: Remove rows with only negative entries, as they cannot contribute to semiflows.
-        {
-            std::unordered_set<size_t> tokill;
-            for (const auto& rs : rowSigns) {
-                if (rs.pPlus.size() == 0) {
-                    for (size_t i = 0, ie = rs.pMinus.size(); i < ie; i++) {
-                        tokill.insert(rs.pMinus.keyAt(i));
-                    }
-                }
+      // Step 1: Remove rows with only negative entries, as they cannot contribute to semiflows.
+      {
+        std::unordered_set<size_t> tokill;
+        for (const auto &rs : rowSigns) {
+          if (rs.pPlus.size () == 0) {
+            for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
+              tokill.insert (rs.pMinus.keyAt (i));
             }
-            if (tokill.size() > 0) {
-                for (const auto& col : tokill) {
-                    clearColumn(col, colsB, rowSigns);
-                }
-                if (DEBUG) {
-                    std::cout << "Cleared " << tokill.size()
-                              << " cols due to row with only negative entries\n";
-                }
-            }
+          }
         }
+        if (tokill.size () > 0) {
+          for (const auto &col : tokill) {
+            clearColumn (col, colsB, rowSigns);
+          }
+          if (DEBUG) {
+            std::cout << "Cleared " << tokill.size ()
+                << " cols due to row with only negative entries\n";
+          }
+        }
+      }
 
-        // Step 2: Seed basisIndices with all-positive vectors and msut with mixed-sign vectors (Q+ only)
-        if (heur.useQPlusBasis()) {
-            std::cout << "Seeding basis and mixed-sign table with "
-                      << colsB.getColumnCount() << " columns\n";
-            for (size_t i = 0; i < colsB.getColumnCount(); ++i) {
-                if (colsB.getColumn(i).isPurePositive()) {
-                    basisIndices.insert(i);
-                } else {
-                    msut.insert(i);
-                }
-            }
-            if (DEBUG) {
-                std::cout << "Initial basis size: " << basisIndices.size() << "\n";
-                for (const auto& index : basisIndices) {
-                    std::cout << index << " :" << colsB.getColumn(index) << "\n";
-                }
-                std::cout << "Initial mixed-sign unique table size: " << msut.size() << "\n";
-                std::cout << "End of initial seeding" << std::endl;
-            }
+      // Step 2: Seed basisIndices with all-positive vectors and msut with mixed-sign vectors (Q+ only)
+      if (heur.useQPlusBasis ()) {
+        std::cout << "Seeding basis and mixed-sign table with "
+            << colsB.getColumnCount () << " columns\n";
+        for (size_t i = 0; i < colsB.getColumnCount (); ++i) {
+          if (colsB.getColumn (i).isPurePositive ()) {
+            basisIndices.insert (i);
+          } else {
+            msut.insert (i);
+          }
         }
+        if (DEBUG) {
+          std::cout << "Initial basis size: " << basisIndices.size () << "\n";
+          for (const auto &index : basisIndices) {
+            std::cout << index << " :" << colsB.getColumn (index) << "\n";
+          }
+          std::cout << "Initial mixed-sign unique table size: " << msut.size ()
+              << "\n";
+          std::cout << "End of initial seeding" << std::endl;
+        }
+      }
 
-        // Step 3: Iteratively eliminate rows to ensure all coefficients are non-negative.
-        while (true) {
-            ssize_t tRow = rowSigns.findSingleSignRow(heur.getLoopLimit());
-            if (tRow == -1) {
-                // look for a "small" row
-                tRow = findBestFMERow(colsB, rowSigns, heur.getLoopLimit());
-            }
-            if (tRow == -1) {
-                break;
-            }
-            eliminateRowFME(tRow, colsB, rowSigns, basisIndices, heur,
-                            filteredCount, msut);  // Pass msut always
+      // Step 3: Iteratively eliminate rows to ensure all coefficients are non-negative.
+      while (true) {
+        ssize_t tRow = rowSigns.findSingleSignRow (heur.getLoopLimit ());
+        if (tRow == -1) {
+          // look for a "small" row
+          tRow = findBestFMERow (colsB, rowSigns, heur.getLoopLimit ());
         }
+        if (tRow == -1) {
+          break;
+        }
+        eliminateRowFME (tRow, colsB, rowSigns, basisIndices, heur,
+                         filteredCount, msut);  // Pass msut always
+      }
 
-        // Step 4: Stats and finalize
-        std::cout << "After removing all negative signs "
-                  << colsB.getColumnCount() << " entries in matrix.\n";
-        if (heur.useQPlusBasis()) {
-            std::cout << "Q+ minimal vectors: " << basisIndices.size()
-                      << ", filtered " << filteredCount << " non-minimal vectors\n";
-            std::cout << "Mixed-sign stats - attempted insertions: " << msut.getAttemptedInsertions()
-                      << ", successful insertions: " << msut.getSuccessfulInsertions() << "\n";
-            colsB.dropEmptyColumns();
-            std::cout << "After minimization with support: "
-                      << colsB.getColumnCount() << " semiflows\n";
-        } else if (heur.useMinimization()) {
-            colsB = minimizeBasis(colsB);
-        } else {
-            colsB.normalizeAndReduce(true);
-        }
-        std::cout << "Final semi flow basis size: " << colsB.getColumnCount()
-                  << "\n";
+      // Step 4: Stats and finalize
+      std::cout << "After removing all negative signs "
+          << colsB.getColumnCount () << " entries in matrix.\n";
+      if (heur.useQPlusBasis ()) {
+        std::cout << "Q+ minimal vectors: " << basisIndices.size ()
+            << ", filtered " << filteredCount << " non-minimal vectors\n";
+        std::cout << "Mixed-sign stats - attempted insertions: "
+            << msut.getAttemptedInsertions () << ", successful insertions: "
+            << msut.getSuccessfulInsertions () << "\n";
+        colsB.dropEmptyColumns ();
+        std::cout << "After minimization with support: "
+            << colsB.getColumnCount () << " semiflows\n";
+      } else if (heur.useMinimization ()) {
+        colsB = minimizeBasis (colsB);
+      } else {
+        colsB.normalizeAndReduce (true);
+      }
+      std::cout << "Final semi flow basis size: " << colsB.getColumnCount ()
+          << "\n";
     }
 
     static MatrixCol<T> minimizeBasisWithSupport (MatrixCol<T> &colsB)
@@ -1161,10 +1168,10 @@ template<typename T>
         size_t newColSize = newCol.size ();
 
         // Check if newCol is dominated
-        for (size_t i = 0; i < newCol.size (); ++i) {
+        for (size_t i = 0; i < newColSize; ++i) {
           size_t row = newCol.keyAt (i);
           const RowSign<T> &rs = rowSigns.get (row);
-          for (size_t j = 0; j < rs.pPlus.size (); ++j) {
+          for (size_t j = 0, je = rs.pPlus.size (); j < je; ++j) {
             size_t colIdx = rs.pPlus.keyAt (j);
 
             if (++counts[colIdx] == basis.getColumn (colIdx).size ()
@@ -1195,6 +1202,232 @@ template<typename T>
 
         return {true, dominated};
       }
+
+    // Permutation struct for symmetry axes
+    struct Permutation
+    {
+      size_t index;                    // New row index (e.g., perm_42)
+      std::vector<SparseArray<T>> positiveVectors; // Positive terms (e.g., {p1}, {2p3 + p4})
+
+      Permutation (size_t idx, const std::vector<SparseArray<T>> &pv)
+          : index (idx), positiveVectors (pv)
+      {
+      }
+    };
+
+    static std::pair<std::vector<Permutation>, MatrixCol<T>> factorizeBasis (
+        MatrixCol<T> &colsB)
+    {
+      auto startTime = std::chrono::high_resolution_clock::now ();
+
+      // Step 0: Normalize input
+      std::cout << "Normalizing flow basis matrix with "
+          << colsB.getColumnCount () << " columns\n";
+      colsB.normalizeAndReduce (true);
+      std::cout << "Produced matrix with " << colsB.getColumnCount ()
+          << " columns\n";
+
+      // Step 1: Sort by size (descending, largest first)
+      colsB.sortByColumnSize (true);
+
+      // Step 2: Build row index, basic version no indexes, no positive treatment
+      RowSigns<T> rowSigns (colsB, false, false);
+
+      // Step 3: Factorize
+      std::vector<Permutation> permutations;
+
+      std::cout << "Starting factorization with " << colsB.getColumnCount ()
+          << " columns\n";
+      prefilterAndFactorize (colsB, rowSigns, permutations);
+
+      // Step 4: Finalize reduced basis
+      if (permutations.size () > 0) colsB.normalizeAndReduce (true);
+
+      // Step 5: Report
+      auto endTime = std::chrono::high_resolution_clock::now ();
+      auto duration = std::chrono::duration_cast < std::chrono::milliseconds
+          > (endTime - startTime);
+      std::cout << "Factorization complete. Permutations: "
+          << permutations.size () << ", Reduced basis size: "
+          << colsB.getColumnCount () << ". Time: " << duration.count ()
+          << " ms\n";
+
+      return {permutations, colsB};
+    }
+
+    static void prefilterAndFactorize (MatrixCol<T> &colsB,
+                                       RowSigns<T> &rowSigns,
+                                       std::vector<Permutation> &permutations)
+    {
+      std::vector<bool> isNonFactorizable (colsB.getColumnCount (), false);
+
+      for (size_t fIdx = colsB.getColumnCount (); fIdx-- > 0;) {
+        if (isNonFactorizable[fIdx]) continue;
+        const SparseArray<T> &F = colsB.getColumn (fIdx);
+
+        // Skip fully positive vectors
+        if (F.size () == 0 || F.isPurePositive ()) continue;
+
+        std::unordered_set<size_t> targets;
+        // Trivial equality check : size=2 and not pure positive and weights are +-1
+        if (F.size () == 2 && std::abs (F.valueAt (0)) == 1
+            && std::abs (F.valueAt (1)) == 1) {
+          // these ones are ALWAYS factorizable
+          for (size_t j = 0; j < 2; ++j) {
+            const auto &rs = rowSigns.get (F.keyAt (j));
+            for (size_t i = 0; i < rs.pPlus.size (); ++i) {
+              targets.insert (rs.pPlus.keyAt (i));
+            }
+            for (size_t i = 0; i < rs.pMinus.size (); ++i) {
+              targets.insert (rs.pMinus.keyAt (i));
+            }
+          }
+        } else {
+          targets = prefilterFactorizability (fIdx, colsB, rowSigns,
+                                              isNonFactorizable);
+          if (targets.empty () || isNonFactorizable[fIdx]) continue;
+        }
+
+        // at this stage, F is at least possibly factorizable
+        // and we have a list of targets to check for existence of coefficients k+,k-
+
+        // to store the k+,k- we find
+        std::map<size_t, std::pair<T, T>> coefficients;
+        for (const auto &target : targets) {
+          auto [success, kpkm] = SparseArray<T>::isFactorizable (
+              F, colsB.getColumn (target));
+          if (success) {
+            coefficients[target] = kpkm;
+          } else {
+            isNonFactorizable[target] = true;
+            isNonFactorizable[fIdx] = true;
+          }
+        }
+        // coefficients didn't line up
+        if (isNonFactorizable[fIdx]) continue;
+
+        // Factorize
+        permutations.push_back (
+            rewriteBasis (fIdx, coefficients, colsB, rowSigns));
+      }
+    }
+
+    static Permutation rewriteBasis (
+        ssize_t fIdx, std::map<size_t, std::pair<T, T>> &coefficients,
+        MatrixCol<T> &colsB, RowSigns<T> &rowSigns)
+    {
+      const SparseArray<T> &F = colsB.getColumn (fIdx);
+
+      std::cout << "Found factorizable flow " << F << " at index " << fIdx << std::endl;
+
+      SparseArray<T> Fplus, Fminus;
+      std::vector<size_t> toDel;
+      for (size_t i = 0, ie = F.size (); i < ie; ++i) {
+        size_t row = F.keyAt (i);
+        T val = F.valueAt (i);
+        if (val > 0) Fplus.append (row, val);
+        else Fminus.append (row, -val);
+        toDel.push_back (row);
+      }
+
+      // Create permutation
+      size_t newIdx = colsB.appendRow ();
+      Permutation perm (newIdx,
+        { Fplus, Fminus });
+
+      // Rewrite basis
+      // 1. Clear all rows in F
+      // sort todel greatest to smallest index
+      std::sort (toDel.begin (), toDel.end (),
+                 [] (auto &a, auto &b) {return a < b;});
+      for (size_t i = 0, ie = colsB.getColumnCount (); i < ie; ++i) {
+        auto &col = colsB.getColumn (i);
+        for (const auto &row : toDel) {
+          col.put (row, 0);
+        }
+      }
+      // cleanup RowSigns :
+      for (auto row : toDel) {
+        rowSigns.clearRow (row);
+      }
+
+      for (const auto& [j, kpkm] : coefficients) {
+        SparseArray<T> &Fprime = colsB.getColumn (j);
+
+        T k = kpkm.first + kpkm.second;
+        if (k == 0) continue;
+
+        Fprime.append (newIdx, -k);
+        rowSigns.setValue (newIdx, j, -k);
+      }
+
+      // check nullified F
+      if (colsB.getColumn (fIdx).size () != 0) {
+        std::cerr << "Error: Factorization failed, F not nullified\n" << colsB.getColumn (fIdx) << std::endl;
+
+        exit (1);
+      }
+
+      return perm;
+    }
+
+    static std::unordered_set<size_t> prefilterFactorizability (
+        size_t fIdx, MatrixCol<T> &colsB,
+        RowSigns<T> &rowSigns,
+        std::vector<bool> &isNonFactorizable)
+    {
+      const SparseArray<T> &F = colsB.getColumn (fIdx);
+      std::vector<int> pos (colsB.getColumnCount (), 0), neg (
+          colsB.getColumnCount (), 0);
+
+      size_t fplusSize = 0, fminusSize = 0;
+      // Count overlaps
+      for (size_t i = 0, ie = F.size (); i < ie; ++i) {
+        size_t row = F.keyAt (i);
+        bool isPos = F.valueAt (i) > 0;
+        if (isPos) fplusSize++;
+        else fminusSize++;
+        const auto &rs = rowSigns.get (row);
+
+        for (size_t j = 0, je = rs.pPlus.size (); j < je; ++j) {
+          size_t colIdx = rs.pPlus.keyAt (j);
+          auto &pn = isPos ? pos : neg;
+          if (pn[colIdx] < 0) {
+            isNonFactorizable[colIdx] = isNonFactorizable[fIdx] = true;
+          } else {
+            pn[colIdx]++;
+          }
+        }
+        for (size_t j = 0, je = rs.pMinus.size (); j < je; ++j) {
+          size_t colIdx = rs.pMinus.keyAt (j);
+          auto &pn = isPos ? pos : neg;
+          if (pn[colIdx] > 0) {
+            isNonFactorizable[colIdx] = isNonFactorizable[fIdx] = true;
+          } else {
+            pn[colIdx]--;
+          }
+        }
+      }
+
+      // Check partial overlaps
+      std::unordered_set<size_t> targets;
+      for (size_t i = 0, ie = colsB.getColumnCount (); i < ie; ++i) {
+        // Check if the target is a candidate for factorization
+        size_t p = std::abs (pos[i]), n = std::abs (neg[i]);
+        // no intersection
+        if (p == 0 && n == 0) continue;
+        // bad intersection
+        if ((p != 0 && p != fplusSize) || (n != 0 && n != fminusSize)) {
+          isNonFactorizable[i] = isNonFactorizable[fIdx] = true;
+        } else {
+          targets.insert (i);
+        }
+      }
+
+      if (isNonFactorizable[fIdx]) return {};
+
+      return targets;
+    }
 
   public:
 
