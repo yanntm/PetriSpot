@@ -697,6 +697,105 @@ public:
         }
     }
 
+
+    /**
+     * For a flow \( F \in \{ F_1, \ldots, F_r \} \), define:
+     - Positive part: \( \forall 0 \leq i < m, F^+[i] = F[i] \) if \( F[i] > 0 \), else 0,
+     - Negative part: \( \forall 0 \leq i < m, F^-[i] = -F[i] \) if \( F[i] < 0 \), else 0,
+     - \( F = F^+ - F^- \),
+     - Support: \( |\mathbf{F}| = \{ i \mid F[i] \neq 0 \} \).
+   - \( F \) is **factorizable** with respect to another flow \( F' \) if:
+     - \( A \in \mathbb{Z}^m \) is the projection of \( F' \) outside \( F \)’s support, defined as \( A[i] = F'[i] \) for \( i \notin |\mathbf{F}| \) and \( A[i] = 0 \) for \( i \in |\mathbf{F}| \),
+     - There exist \( k^+, k^- \in \mathbb{Z} \) such that:
+       \[
+       F' + k^+ F^+ + k^- F^- = A,
+       \]
+     */
+      static std::pair<bool, std::pair<T, T>> isFactorizable (const SparseArray<T> &A,
+                                                       const SparseArray<T> &B)
+      {
+        T k_plus = 0;
+        T k_minus = 0;
+        bool k_plus_set = false;
+        bool k_minus_set = false;
+        size_t i = 0;
+        size_t j = 0;
+
+        while (i < A.size () && j < B.size ()) {
+          size_t a_key = A.keyAt (i);
+          size_t b_key = B.keyAt (j);
+
+          if (a_key == b_key) {
+            T a_val = A.valueAt (i);
+            T b_val = B.valueAt (j);
+            if (b_val % a_val != 0) {
+              return {false, {0, 0}};
+            }
+            T k = -b_val / a_val;  // Negate for F' + k^+ F^+ + k^- F^- = 0
+            if (a_val > 0) {
+              if (k_plus_set && k_plus != k) {
+                return {false, {0, 0}};
+              }
+              k_plus = k;
+              k_plus_set = true;
+            } else {  // a_val < 0
+              if (k_minus_set && k_minus != k) {
+                return {false, {0, 0}};
+              }
+              k_minus = k;
+              k_minus_set = true;
+            }
+            i++;
+            j++;
+          } else if (a_key < b_key) {
+            T a_val = A.valueAt (i);
+            if (a_val > 0) {
+              if (k_plus_set && k_plus != 0) {
+                return {false, {0, 0}};
+              }
+              k_plus = 0;
+              k_plus_set = true;
+            } else {
+              if (k_minus_set && k_minus != 0) {
+                return {false, {0, 0}};
+              }
+              k_minus = 0;
+              k_minus_set = true;
+            }
+            i++;
+          } else {  // b_key < a_key
+            // Binary search to skip B keys < A.key(i)
+            ssize_t new_j = binarySearch (B.mKeys, a_key, j + 1, B.size () - 1);
+            if (new_j < 0) {  // No match found, jump to end
+              j = B.size ();
+            } else {
+              j = new_j;
+            }
+          }
+        }
+
+        // Handle remaining A keys (B exhausted)
+        for (; i < A.size (); i++) {
+          T a_val = A.valueAt (i);
+          if (a_val > 0) {
+            if (k_plus_set && k_plus != 0) {
+              return {false, {0, 0}};
+            }
+            k_plus = 0;
+            k_plus_set = true;
+          } else {
+            if (k_minus_set && k_minus != 0) {
+              return {false, {0, 0}};
+            }
+            k_minus = 0;
+            k_minus_set = true;
+          }
+        }
+
+        return {true, {k_plus, -k_minus}};
+      }
+
+
 private:
     static ssize_t binarySearch(const size_t *const array, size_t sz, size_t value) {
         ssize_t lo = 0;
