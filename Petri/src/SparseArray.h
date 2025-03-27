@@ -699,46 +699,64 @@ public:
 
 
     /**
-     * For a flow \( F \in \{ F_1, \ldots, F_r \} \), define:
-     - Positive part: \( \forall 0 \leq i < m, F^+[i] = F[i] \) if \( F[i] > 0 \), else 0,
-     - Negative part: \( \forall 0 \leq i < m, F^-[i] = -F[i] \) if \( F[i] < 0 \), else 0,
-     - \( F = F^+ - F^- \),
-     - Support: \( |\mathbf{F}| = \{ i \mid F[i] \neq 0 \} \).
-   - \( F \) is **factorizable** with respect to another flow \( F' \) if:
-     - \( A \in \mathbb{Z}^m \) is the projection of \( F' \) outside \( F \)’s support, defined as \( A[i] = F'[i] \) for \( i \notin |\mathbf{F}| \) and \( A[i] = 0 \) for \( i \in |\mathbf{F}| \),
-     - There exist \( k^+, k^- \in \mathbb{Z} \) such that:
-       \[
-       F' + k^+ F^+ + k^- F^- = A,
-       \]
+     * @brief Tests if flow A is factorizable with respect to flow B, finding k+ and k-.
+     * A flow F is factorizable with respect to another flow F' iff. there exists k+,k- in Z, such that
+     * F' + k+ F+ + k- F- = A holds, with A the projection of F' outside the support of F.
+     * So the goal is to test whether this is feasible, and return k+, k- if they exist.
+     * @param A potential factor we test (F in the definitions).
+     * @param B a typically larger vector (F' in the definitions), whose support should not partially intersect with A+ or A- for it to possibly work
+     * (see prefilter operations in InvariantCalculator).
+     * @return Pair of (success, (k+, k-)) where success is true if we passed the factorizable test, and
+     *         and k+, k- are the coefficients if found. Returns (false, {0, 0}) if not factorizable.
+     *
+     * Runs a merge-like scan over A and B’s keys to compute consistent k+ and k-.
      */
       static std::pair<bool, std::pair<T, T>> isFactorizable (const SparseArray<T> &A,
                                                        const SparseArray<T> &B)
       {
+        // Our goal is to find these factors.
         T k_plus = 0;
         T k_minus = 0;
+        // initially unset until we find an intersection between A and B
         bool k_plus_set = false;
         bool k_minus_set = false;
+
+        // pair of indexes for iterating over A and B in tandem.
         size_t i = 0;
         size_t j = 0;
 
+        // a while loop is more comfortable than a for,
+        // just this once because i and j are conditionally updated in the loop,
+        // and i reused outside the loop.
         while (i < A.size () && j < B.size ()) {
           size_t a_key = A.keyAt (i);
           size_t b_key = B.keyAt (j);
 
           if (a_key == b_key) {
+            // Keys match, we intersect.
+            // end by shifting both i and j
             T a_val = A.valueAt (i);
             T b_val = B.valueAt (j);
+
+            // we are not a multiple of each other
+            // k+/k- constrained to Z, we'd need Q.
             if (b_val % a_val != 0) {
               return {false, {0, 0}};
             }
+
+            // compute the factor k between the two
             T k = -b_val / a_val;  // Negate for F' + k^+ F^+ + k^- F^- = 0
+
             if (a_val > 0) {
+              // it's positive, so we want to update k+
               if (k_plus_set && k_plus != k) {
+                // inconsistency across parts of F+
                 return {false, {0, 0}};
               }
               k_plus = k;
               k_plus_set = true;
-            } else {  // a_val < 0
+            } else {
+              // a_val < 0, update k-
               if (k_minus_set && k_minus != k) {
                 return {false, {0, 0}};
               }
@@ -748,6 +766,8 @@ public:
             i++;
             j++;
           } else if (a_key < b_key) {
+            // Case 2: A has a key that B does not, A’s value must cancel to 0.
+            // increment only i
             T a_val = A.valueAt (i);
             if (a_val > 0) {
               if (k_plus_set && k_plus != 0) {
@@ -764,7 +784,10 @@ public:
             }
             i++;
           } else {  // b_key < a_key
+            // Case 3: B has a key A doesn’t ; we don't care about these
+            // they are part of "A" the projection of F' outside the support of F.
             // Binary search to skip B keys < A.key(i)
+            // this is better than an increment when B is large in front of A.
             ssize_t new_j = binarySearch (B.mKeys, a_key, j + 1, B.size () - 1);
             if (new_j < 0) {  // No match found, jump to end
               j = B.size ();
