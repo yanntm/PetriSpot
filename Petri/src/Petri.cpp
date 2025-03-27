@@ -28,7 +28,7 @@ const string MINFLOWS = "--minBasis";
 const string EXPORT_MATRIX = "--exportAsMatrix";
 const string NORMALIZE_PNML = "--normalizePNML";
 const string USEQPLUS = "--useQPlusBasis";
-
+const string USECOMPRESSION = "--useCompression";
 
 #define DEFAULT_TIMEOUT 150
 
@@ -61,6 +61,7 @@ void usage ()
       << DEFAULT_TIMEOUT << "s).\n"
       << "  --noSingleSignRow    Disable single sign row heuristic in invariant computation.\n"
       << "  --noTrivialCull      Disable test for equal or empty columns before algorithm.\n"
+      << "  --useCompression     Enable compression for the basis of semiflows.\n"
       << "  --pivot=<strategy>   Set pivot strategy for elimination heuristic:\n"
       << "                       - best: Optimize for best pivot (default).\n"
       << "                       - worst: Use worst pivot (for testing).\n"
@@ -108,6 +109,7 @@ int main (int argc, char *argv[])
       EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = -1;
   bool doUseQPlusBasis = false;
+  bool doUseCompression = false;
 
   if (argc == 1) {
     usage ();
@@ -139,6 +141,8 @@ int main (int argc, char *argv[])
       draw = true;
     } else if (argv[i] == USEQPLUS) {
       doUseQPlusBasis = true;
+    } else if (argv[i] == USECOMPRESSION) {
+      doUseCompression = true;
     } else if (std::string (argv[i]) == "--noSingleSignRow") {
       useSingleSignRow = false;
     } else if (std::string (argv[i]) == "--noTrivialCull") {
@@ -182,7 +186,7 @@ int main (int argc, char *argv[])
   }
 
   EliminationHeuristic heur (useSingleSignRow, pivotStrategy, loopLimit,
-                             useCulling, minimizeFlows, doUseQPlusBasis);
+                             useCulling, minimizeFlows, doUseQPlusBasis, doUseCompression);
 
   if (pflows && psemiflows) {
     std::cout << "Cannot compute P flows and P semi-flows at the same time."

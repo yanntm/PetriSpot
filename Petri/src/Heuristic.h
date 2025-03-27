@@ -3,7 +3,6 @@
 
 #include <limits>
 #include <cstddef> // for size_t
-// Note: ssize_t is assumed available. On non-POSIX systems, use an appropriate signed type.
 
 namespace petri {
 
@@ -20,14 +19,16 @@ public:
            ssize_t loopLimit = -1,
            bool useCulling = true,
            bool minimize = false,
-           bool useQPlusBasis=false)
+           bool useQPlusBasis=false,
+           bool useCompression=false)
         : useSingleSignRow_(useSingleSignRow),
           pivotStrategy_(pivotStrategy),
           loopLimit_((loopLimit == -1) ? std::numeric_limits<size_t>::max()
                                       : static_cast<size_t>(loopLimit)),
                                         useCulling_(useCulling),
                                         minimize_(minimize),
-                                        useQPlusBasis_(useQPlusBasis)
+                                        useQPlusBasis_(useQPlusBasis),
+                                        useCompression_(useQPlusBasis_)
     {}
 
     bool useSingleSignRow() const { return useSingleSignRow_; }
@@ -36,6 +37,7 @@ public:
     bool useCulling() const { return useCulling_; }
     bool useMinimization() const { return minimize_; }
     bool useQPlusBasis() const { return useQPlusBasis_; }
+    bool useCompression() const { return useCompression_; }
 private:
     const bool useSingleSignRow_;
     const PivotStrategy pivotStrategy_;
@@ -43,6 +45,7 @@ private:
     const bool useCulling_;
     const bool minimize_;
     const bool useQPlusBasis_;
+    const bool useCompression_;
 };
 
 } // namespace petri
