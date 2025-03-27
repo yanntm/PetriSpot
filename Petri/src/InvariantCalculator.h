@@ -1310,16 +1310,39 @@ template<typename T>
       }
     }
 
+    /**
+     * @brief Rewrites the basis by factorizing flow F at fIdx, introducing a new representative.
+     * @param fIdx Index of flow F in colsB to factorize out.
+     * @param coefficients Map of column indices to (k+, k-) pairs for each affected flow F', computed earlier.
+     * @param colsB Basis of flows as sparse column vectors, modified in-place to reflect factorization.
+     * @param rowSigns Sign index with pPlus (positive) and pMinus (negative) per row, updated with new rep.
+     * @return Permutation object with new row index and F+/F- as positive vectors.
+     *
+     * Given a factorizable F, for each F' in colsB F' + k+ F+ + k- F- = A holds:
+     * - A is F' outside F’s support (A[i] = F'[i] if i not in |F|, else 0).
+     * - We introduce rep_i = F+ - F- and rewrite F' = A - (k+ + k-) rep_i.
+     * - F itself becomes rep_i - rep_i = 0, nullified and cleared.
+     * Updates colsB and rowSigns accordingly, adding rep_i as a new row and
+     * returning the new permutation induced by F.
+     */
     static Permutation rewriteBasis (
         ssize_t fIdx, std::map<size_t, std::pair<T, T>> &coefficients,
         MatrixCol<T> &colsB, RowSigns<T> &rowSigns)
     {
+      // F is the factorizable flow to rewrite out of the basis.
       const SparseArray<T> &F = colsB.getColumn (fIdx);
 
-      std::cout << "Found factorizable flow " << F << " at index " << fIdx
-          << std::endl;
+      // NB: all conditions are met, "coefficients"'s keys are the vector
+      // indexes we need to rewrite, and each comes with its k+/k- coefficients.
+      if (DEBUG) {
+        std::cout << "Found factorizable flow " << F << " at index " << fIdx
+            << std::endl;
+      }
 
+      // Collect the F+ and F- components to prepare the permutation object we return.
+      // We need to copy them before clearing all those rows in the whole matrix
       SparseArray<T> Fplus, Fminus;
+      // rows to delete : support of F
       std::vector<size_t> toDel;
       for (size_t i = 0, ie = F.size (); i < ie; ++i) {
         size_t row = F.keyAt (i);
@@ -1329,14 +1352,18 @@ template<typename T>
         toDel.push_back (row);
       }
 
-      // Create permutation
+      // Create permutation with F+ and F- as its terms
+      // and as index a newly created row in the basis
       size_t newIdx = colsB.appendRow ();
       Permutation perm (newIdx,
         { Fplus, Fminus });
 
       // Rewrite basis
       // 1. Clear all rows in F
-      // sort todel greatest to smallest index
+
+      // sort todel greatest to smallest index :
+      // deleting from end (higher indexes) is more
+      // efficient on SparseArray, less shifting.
       std::sort (toDel.begin (), toDel.end (),
                  [] (auto &a, auto &b) {return a < b;});
       for (size_t i = 0, ie = colsB.getColumnCount (); i < ie; ++i) {
@@ -1345,18 +1372,24 @@ template<typename T>
           col.put (row, 0);
         }
       }
-      // cleanup RowSigns :
+      // Also cleanup RowSigns, which must stay synchronized with colsB
+      // for the next call
       for (auto row : toDel) {
         rowSigns.clearRow (row);
       }
 
+      // Step 2: Rewrite each F' = A - (k+ + k-) rep_i.
+      // A is F' outside |F|, already handled by clearing |F|.
       for (const auto& [j, kpkm] : coefficients) {
         SparseArray<T> &Fprime = colsB.getColumn (j);
-
+        // Total coefficient for rep_i.
         T k = kpkm.first + kpkm.second;
+        // No change if k+ + k- = 0 ; This happens for instance for F itself.
         if (k == 0) continue;
 
+        // Add -(k+ + k-) at rep_i’s row, completing F' = A - (k+ + k-) rep_i.
         Fprime.append (newIdx, -k);
+        // keep row index in sync
         rowSigns.setValue (newIdx, j, -k);
       }
 
@@ -1364,8 +1397,7 @@ template<typename T>
       if (colsB.getColumn (fIdx).size () != 0) {
         std::cerr << "Error: Factorization failed, F not nullified\n"
             << colsB.getColumn (fIdx) << std::endl;
-
-        exit (1);
+        assert(false);
       }
 
       return perm;
