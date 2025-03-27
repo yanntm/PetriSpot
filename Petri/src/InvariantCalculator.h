@@ -1365,7 +1365,7 @@ template<typename T>
       // deleting from end (higher indexes) is more
       // efficient on SparseArray, less shifting.
       std::sort (toDel.begin (), toDel.end (),
-                 [] (auto &a, auto &b) {return a < b;});
+                 [] (auto &a, auto &b) {return a > b;});
       for (size_t i = 0, ie = colsB.getColumnCount (); i < ie; ++i) {
         auto &col = colsB.getColumn (i);
         for (const auto &row : toDel) {
