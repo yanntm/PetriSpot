@@ -1371,36 +1371,82 @@ template<typename T>
       return perm;
     }
 
+    /**
+     * @brief Prefilters columns that could be factorized with flow F at fIdx.
+     * @param fIdx Index of flow F in colsB to test against others.
+     * @param colsB Basis of flows as sparse column vectors (modified in-place elsewhere).
+     * @param rowSigns Sign index with pPlus (positive) and pMinus (negative) per row.
+     * @param isNonFactorizable Boolean vector, set to true for non-factorizable columns detected during the prefiltering.
+     * @return A set of column indices that might factorize with F, empty if F is not factorizable.
+     * Coefficient values are not checked, so these columns still need to pass the true SparseArray::isFactorizable test.
+     * Also updates the tags in isNonFactorizable (sets some to true).
+     *
+     * Checks sign consistency and full overlap of other flows F' with F+ and F-.
+     * Uses pos/neg counters to track polarity and detect conflicts.
+     */
     static std::unordered_set<size_t> prefilterFactorizability (
         size_t fIdx, MatrixCol<T> &colsB,
         RowSigns<T> &rowSigns,
         std::vector<bool> &isNonFactorizable)
     {
+      // F is the target candidate flow to factorize, extract from colsB.
       const SparseArray<T> &F = colsB.getColumn (fIdx);
-      std::vector<int> pos (colsB.getColumnCount (), 0), neg (
-          colsB.getColumnCount (), 0);
 
+      // pos, neg: count intersections of all flows F' with the F+ (resp. F-) component of F.
+      // Positive value means F' entries are positive, negative means negative.
+      // preallocated and zeroed out to number of flows in colsB.
+      std::vector<int> pos (colsB.getColumnCount (), 0);
+      std::vector<int> neg (colsB.getColumnCount (), 0);
+
+      // to compute the sizes of |F+| and |F-| as we go
       size_t fplusSize = 0, fminusSize = 0;
-      // Count overlaps
+
+      // Count overlaps of F with other flows F' in colsB
       for (size_t i = 0, ie = F.size (); i < ie; ++i) {
         size_t row = F.keyAt (i);
         bool isPos = F.valueAt (i) > 0;
-        if (isPos) fplusSize++;
-        else fminusSize++;
+
+        // update our size counts for F+/F-
+        if (isPos) {
+          fplusSize++;
+        } else {
+          fminusSize++;
+        }
+
+        // depending on isPos, we inc/decrement the pos or neg counters
+        auto &pn = isPos ? pos : neg;
+
+        // the current row's sign information
+        // efficient per row access
         const auto &rs = rowSigns.get (row);
 
+        // iterate over both parts of rowsign
+        // so first rs.pPlus then rs.pMinus
         for (size_t j = 0, je = rs.pPlus.size (); j < je; ++j) {
+          // flow F'
           size_t colIdx = rs.pPlus.keyAt (j);
-          auto &pn = isPos ? pos : neg;
+          // before incrementing, check that we don't have a conflict
           if (pn[colIdx] < 0) {
-            isNonFactorizable[colIdx] = isNonFactorizable[fIdx] = true;
+            // Conflict: F' was negative before, now positive.
+            // Example: F = p0 + p1 - p2, F' = p0 - p1 +...
+            // so signs of p0 and p1 in F are inconsistent with F'+
+
+            // Both vectors are now tagged as non-factorizable :
+            // its a global property wrt to the whole basis that isNonFactorizable tracks.
+            isNonFactorizable[fIdx] = true;
+            isNonFactorizable[colIdx] = true;
+
+            // no break, we want to tag more columns F' if we can
+            // using the current (small at start) F
           } else {
+            // update the counter, we intersect F+ => pos
+            // and we are in rs.pPlus so we increment
             pn[colIdx]++;
           }
         }
+        // symmetric/dual case for pMinus
         for (size_t j = 0, je = rs.pMinus.size (); j < je; ++j) {
           size_t colIdx = rs.pMinus.keyAt (j);
-          auto &pn = isPos ? pos : neg;
           if (pn[colIdx] > 0) {
             isNonFactorizable[colIdx] = isNonFactorizable[fIdx] = true;
           } else {
@@ -1409,7 +1455,12 @@ template<typename T>
         }
       }
 
+      // no break or return, we still want to tag more columns F' if we can
+      // we've only tagged sign conflicts so far
+
       // Check partial overlaps
+      // it's forbidden to have a partial overlap with |F+| or |F-|
+      // you either contain it whole or not at all.
       std::unordered_set<size_t> targets;
       for (size_t i = 0, ie = colsB.getColumnCount (); i < ie; ++i) {
         // Check if the target is a candidate for factorization
@@ -1418,14 +1469,22 @@ template<typename T>
         if (p == 0 && n == 0) continue;
         // bad intersection
         if ((p != 0 && p != fplusSize) || (n != 0 && n != fminusSize)) {
+          // this is a partial overlap
+          // due to the way we don't increment counters in sign conflicts
+          // it will also (re) tag them
           isNonFactorizable[i] = isNonFactorizable[fIdx] = true;
         } else {
+          // F' matches our "full containment or no overlap" requirement
+          // with both F+ and F-
           targets.insert (i);
         }
       }
 
       if (isNonFactorizable[fIdx]) return {};
 
+      // a side effect of the test is that F's index fIdx itself is selected by this filter
+      // this is by design, it will factorize itself out to 0 if we actually
+      // go through with factorizing F
       return targets;
     }
 
