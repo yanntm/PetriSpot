@@ -28,7 +28,7 @@ public:
                                         useCulling_(useCulling),
                                         minimize_(minimize),
                                         useQPlusBasis_(useQPlusBasis),
-                                        useCompression_(useQPlusBasis_)
+                                        useCompression_(useCompression)
     {}
 
     bool useSingleSignRow() const { return useSingleSignRow_; }

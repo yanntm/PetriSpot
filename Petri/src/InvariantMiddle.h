@@ -35,6 +35,9 @@ template<typename T>
   public:
     static const int DEBUG = 0;
 
+    using Permutations = typename InvariantCalculator<T>::Permutations;
+    using Invariants = std::pair<MatrixCol<T>, Permutations>;
+
     /**
      * Guaranteed polynomial runtime, returns flows (with positive AND negative
      * coefficients)
@@ -54,15 +57,77 @@ template<typename T>
      */
 
     static void printInvariant (const MatrixCol<T> &invariants,
+                                const Permutations &permutations,
                                 const std::vector<std::string> &pnames,
                                 const std::vector<T> &initial,
                                 std::ostream &out)
     {
+      std::vector<std::string> moreNames;
+      std::vector<T> moreInitials;
+
+      size_t firstPerm = pnames.size ();
+
+      if (!permutations.empty ()) {
+        out << "Permutations : " << std::endl;
+
+        // generate names
+        moreNames.reserve (pnames.size () * permutations.size ());
+        std::copy (pnames.begin (), pnames.end (), std::back_inserter (moreNames));
+        moreInitials.reserve (pnames.size () * permutations.size ());
+        std::copy (initial.begin (), initial.end (), std::back_inserter (moreInitials));
+
+        // Now print the permutations
+        for (size_t i = 0; i < permutations.size (); i++) {
+
+          // format is :
+          // r0 : [ p0 + 2*p1 = 2 ] , [ p3 = 1 ] ;
+          auto name = "r" + std::to_string (i);
+          moreNames.push_back(name);
+          moreInitials.push_back(0);
+          out << name << " : ";
+
+          const auto & perm = permutations[i];
+          bool first = true;
+          for (const auto &term : perm.elements) {
+            if (!first) {
+              out << ", ";
+            } else {
+              first = false;
+            }
+            out << "[ " ;
+            std::stringstream sb;
+            auto sum = printEquation (term, moreInitials, moreNames, sb);
+            out << sb.str () << " = " << sum << " ]";
+          }
+          out << " ;" << std::endl;
+        }
+      }
+      // Declare and initialize names and initials conditionally
+      const std::vector<std::string> &names = permutations.empty() ? pnames : moreNames;
+      const std::vector<T> &initials = permutations.empty() ? initial : moreInitials;
+
+      out << "Invariants : \n" ;
       for (const auto &rv : invariants.getColumns ()) {
         std::stringstream sb;
         try {
-          auto sum = printEquation (rv, initial, pnames, sb);
-          out << "inv : " << sb.str () << " = " << sum << "\n";
+          auto sum = printEquation (rv, initials, names, sb);
+          out << "inv : " << sb.str () << " = " << sum ;
+
+          if (!permutations.empty ()) {
+            // we need to add constants to right hand side
+            for (size_t i = rv.size (); i-->0 ;) {
+              size_t key = rv.keyAt (i);
+              if (key < firstPerm) {
+                break;
+              } else {
+                T val = rv.valueAt (i);
+                out << (val < 0 ? " - " : " + ") << (std::abs(val)==1?"":std::to_string(val)+"*") << "kr" << (key-firstPerm);
+              }
+            }
+            out << "\n";
+          } else {
+            out << "\n";
+          }
         } catch (std::overflow_error &e) {
           std::cerr
               << "Overflow of 'int' when computing constant for invariant."
@@ -74,10 +139,11 @@ template<typename T>
     }
 
     static void printInvariant (const MatrixCol<T> &invariants,
+                                const Permutations &permutations,
                                 const std::vector<std::string> &pnames,
                                 const std::vector<T> &initial)
     {
-      printInvariant (invariants, pnames, initial, std::cout);
+      printInvariant (invariants, permutations, pnames, initial, std::cout);
     }
 
     static T printEquation (const SparseArray<T> &inv,
@@ -134,16 +200,16 @@ template<typename T>
           << message << std::endl;
     }
 
-    static MatrixCol<T> computePInvariants (const MatrixCol<T> &pn)
+    static Invariants computePInvariants (const MatrixCol<T> &pn)
     {
       return computePInvariants (pn, false, 120);
     }
 
-    static MatrixCol<T> computePInvariants (
+    static Invariants computePInvariants (
         MatrixCol<T> &pn, bool onlyPositive, int timeout,
         const EliminationHeuristic &heuristic = EliminationHeuristic ())
     {
-      std::promise<MatrixCol<T> > promise;
+      std::promise<Invariants> promise;
       auto future = promise.get_future ();
 
       std::thread thread ( [&] () {
@@ -161,29 +227,29 @@ template<typename T>
         writeToLog (
             "Time Limit : exiting after meeting timeout of "
                 + std::to_string (timeout) + " seconds.");
-        return MatrixCol<T> ();
+        return {MatrixCol<T> (),{}};
       }
     }
 
   public:
 
-    static MatrixCol<T> computePInvariants (
+    static Invariants computePInvariants (
         MatrixCol<T> &pn, bool onlyPositive,
         const EliminationHeuristic &heuristic = EliminationHeuristic ())
     {
       auto startTime = std::chrono::steady_clock::now ();
       try {
         auto tpn = pn.transpose ();
-        auto mat = petri::InvariantCalculator<T>::calcInvariantsPIPE (
+        auto inv = petri::InvariantCalculator<T>::calcInvariantsPIPE (
             tpn, onlyPositive, heuristic);
         std::string logMessage = "Computed "
-            + std::to_string (mat.getColumnCount ()) + " invariants in "
+            + std::to_string (inv.first.getColumnCount ()) + " invariants in "
             + std::to_string (
                 std::chrono::duration_cast<std::chrono::milliseconds> (
                     std::chrono::steady_clock::now () - startTime).count ())
             + " ms";
         writeToLog (logMessage);
-        return mat;
+        return inv;
       } catch (std::overflow_error &e) {
         std::cerr << e.what () << std::endl;
         std::string logMessage = "Invariants computation overflowed in "
@@ -192,7 +258,7 @@ template<typename T>
                     std::chrono::steady_clock::now () - startTime).count ())
             + " ms";
         writeToLog (logMessage);
-        return MatrixCol<T> ();
+        return {MatrixCol<T> (),{}};
       }
     }
 

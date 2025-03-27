@@ -229,7 +229,7 @@ int main (int argc, char *argv[])
       std::string filename = FlowPrinter<VAL>::drawNet (
           *pn, title, std::set<size_t> (), std::set<size_t> (),
           std::numeric_limits<size_t>::max ());
-      std::string targetFile = pn->getName () + ".dot";
+      std::string targetFile = modelPath + ".dot";
       if (std::rename (filename.c_str (), targetFile.c_str ()) == 0) {
         std::cout << "Renamed output to " << targetFile << std::endl;
       } else {
@@ -268,16 +268,19 @@ int main (int argc, char *argv[])
         MatrixCol<VAL> sumMatrix = MatrixCol<VAL>::sumProd (-1,
                                                             pn->getFlowPT (), 1,
                                                             pn->getFlowTP ());
-        auto invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix,
+        auto [mat,perms] = InvariantMiddle<VAL>::computePInvariants (sumMatrix,
                                                                psemiflows,
                                                                timeout, heur);
-        std::cout << "Computed " << invar.getColumnCount () << " P "
-            << (psemiflows ? "semi" : "") << "flows in "
-            << std::chrono::duration_cast<std::chrono::milliseconds> (
+        std::cout << "Computed " << mat.getColumnCount () << " P "
+            << (psemiflows ? "semi" : "") << "flows " ;
+        if (!perms.empty()) {
+          std::cout << "with " << perms.size() << "permutations";
+        }
+        std::cout << " in " << std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now () - time).count () << " ms."
             << std::endl;
         if (!quiet) {
-          InvariantMiddle<VAL>::printInvariant (invar, pn->getPnames (),
+          InvariantMiddle<VAL>::printInvariant (mat, perms, pn->getPnames (),
                                                 (*pn).getMarks ());
         }
       }
@@ -285,17 +288,20 @@ int main (int argc, char *argv[])
         auto time = std::chrono::steady_clock::now ();
         MatrixCol<VAL> sumMatrix =
             MatrixCol<VAL>::sumProd (-1, pn->getFlowPT (), 1, pn->getFlowTP ()).transpose ();
-        auto invar = InvariantMiddle<VAL>::computePInvariants (sumMatrix,
+        auto [mat,perms] = InvariantMiddle<VAL>::computePInvariants (sumMatrix,
                                                                tsemiflows,
                                                                timeout, heur);
-        std::cout << "Computed " << invar.getColumnCount () << " T "
-            << (tsemiflows ? "semi" : "") << "flows in "
-            << std::chrono::duration_cast<std::chrono::milliseconds> (
+        std::cout << "Computed " << mat.getColumnCount () << " T "
+            << (tsemiflows ? "semi" : "") << "flows ";
+        if (!perms.empty()) {
+          std::cout << "with " << perms.size() << "permutations";
+        }
+        std::cout << " in " << std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now () - time).count () << " ms."
             << std::endl;
         if (!quiet) {
-          std::vector<VAL> emptyVector;
-          InvariantMiddle<VAL>::printInvariant (invar, pn->getTnames (),
+          std::vector<VAL> emptyVector (pn->getTnames ().size (), 0);
+          InvariantMiddle<VAL>::printInvariant (mat,perms, pn->getTnames (),
                                                 emptyVector);
         }
       }

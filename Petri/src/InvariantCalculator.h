@@ -72,17 +72,29 @@ namespace petri
 template<typename T>
   class InvariantCalculator
   {
-
     // Enable for verbose debugging output during development.
     static inline const bool DEBUG = false;
 
-  private:
     /**
      * Hidden constructor
      */
     InvariantCalculator ()
     {
     }
+  public:
+
+    // Permutation struct for symmetry axes
+    struct Permutation
+    {
+      size_t index;                    // New row index (e.g., perm_42)
+      std::vector<SparseArray<T>> elements; // Positive terms (e.g., {p1}, {2p3 + p4})
+
+      Permutation (size_t idx, const std::vector<SparseArray<T>> &pv)
+          : index (idx), elements (pv)
+      {
+      }
+    };
+    using Permutations = std::vector<Permutation>;
 
     /**
      * @brief Computes a generating set of invariants (flows or semiflows) from a Petri net incidence matrix.
@@ -100,14 +112,13 @@ template<typename T>
      * @param heur         Heuristic settings for row elimination and pivot selection (default: EliminationHeuristic()).
      * @return An unordered set of SparseArray<T> representing the invariants.
      */
-  public:
-    static MatrixCol<T> calcInvariantsPIPE (MatrixCol<T> &mat,
+    static std::pair<MatrixCol<T>,Permutations> calcInvariantsPIPE (MatrixCol<T> &mat,
                                             bool onlyPositive,
                                             const EliminationHeuristic &heur =
                                                 EliminationHeuristic ())
     {
       if (mat.getColumnCount () == 0 || mat.getRowCount () == 0) {
-        return MatrixCol<T> ();
+        return {MatrixCol<T> (),{}};
       }
 
       // while it's not classical, we actually work with columns in the algorithm
@@ -137,19 +148,25 @@ template<typename T>
       matB.normalizeAndReduce (true);
 
       if (!onlyPositive) {
-        return matB;
+        return {matB,{}};
       }
 
       // phase 2
       std::cout << "// Phase 2 : computing semi flows from basis of "
           << matB.getColumnCount () << " invariants " << std::endl;
 
-      /* FACTORIZATION, WIP */
-//      auto [perms, colsB] = factorizeBasis (matB);
-//      matB = colsB;
-      phase2Pipe (matB, heur);
+      /* FACTORIZATION */
+      if (heur.useCompression()) {
+        /* FACTORIZATION */
+        auto [perms, colsB] = factorizeBasis (matB);
+        matB = colsB;
+        phase2Pipe (matB, heur);
+        return {matB,perms};
+      } else {
+        phase2Pipe (matB, heur);
+        return {matB, {}};
+      }
 
-      return matB;
     }
 
   private:
@@ -1200,18 +1217,6 @@ template<typename T>
 
         return {true, dominated};
       }
-
-    // Permutation struct for symmetry axes
-    struct Permutation
-    {
-      size_t index;                    // New row index (e.g., perm_42)
-      std::vector<SparseArray<T>> positiveVectors; // Positive terms (e.g., {p1}, {2p3 + p4})
-
-      Permutation (size_t idx, const std::vector<SparseArray<T>> &pv)
-          : index (idx), positiveVectors (pv)
-      {
-      }
-    };
 
     static std::pair<std::vector<Permutation>, MatrixCol<T>> factorizeBasis (
         MatrixCol<T> &colsB)
