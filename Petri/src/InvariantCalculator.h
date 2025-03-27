@@ -144,11 +144,9 @@ template<typename T>
       std::cout << "// Phase 2 : computing semi flows from basis of "
           << matB.getColumnCount () << " invariants " << std::endl;
 
-	/* FACTORIZATION, WIP */
+      /* FACTORIZATION, WIP */
 //      auto [perms, colsB] = factorizeBasis (matB);
-
 //      matB = colsB;
-
       phase2Pipe (matB, heur);
 
       return matB;
@@ -1256,7 +1254,7 @@ template<typename T>
     }
 
     static void prefilterAndFactorize (MatrixCol<T> &colsB,
-                                       RowSigns<T> &rowSigns,
+    RowSigns<T> &rowSigns,
                                        std::vector<Permutation> &permutations)
     {
       std::vector<bool> isNonFactorizable (colsB.getColumnCount (), false);
@@ -1318,7 +1316,8 @@ template<typename T>
     {
       const SparseArray<T> &F = colsB.getColumn (fIdx);
 
-      std::cout << "Found factorizable flow " << F << " at index " << fIdx << std::endl;
+      std::cout << "Found factorizable flow " << F << " at index " << fIdx
+          << std::endl;
 
       SparseArray<T> Fplus, Fminus;
       std::vector<size_t> toDel;
@@ -1363,7 +1362,8 @@ template<typename T>
 
       // check nullified F
       if (colsB.getColumn (fIdx).size () != 0) {
-        std::cerr << "Error: Factorization failed, F not nullified\n" << colsB.getColumn (fIdx) << std::endl;
+        std::cerr << "Error: Factorization failed, F not nullified\n"
+            << colsB.getColumn (fIdx) << std::endl;
 
         exit (1);
       }
