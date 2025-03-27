@@ -93,6 +93,15 @@ template<typename T>
           : index (idx), elements (pv)
       {
       }
+
+      friend std::ostream& operator<< (std::ostream &os, const Permutation &p)
+      {
+        os << "Permutation " << p.index << " : ";
+        for (const auto &el : p.elements) {
+          os << el << " ";
+        }
+        return os;
+      }
     };
     using Permutations = std::vector<Permutation>;
 
@@ -1275,6 +1284,10 @@ template<typename T>
         // Trivial equality check : size=2 and not pure positive and weights are +-1
         if (F.size () == 2 && std::abs (F.valueAt (0)) == 1
             && std::abs (F.valueAt (1)) == 1) {
+          if (DEBUG) {
+            std::cout << "Trivially factorizable flow " << F << " at index "
+                << fIdx << "\n";
+          }
           // these ones are ALWAYS factorizable
           for (size_t j = 0; j < 2; ++j) {
             const auto &rs = rowSigns.get (F.keyAt (j));
@@ -1288,7 +1301,17 @@ template<typename T>
         } else {
           targets = prefilterFactorizability (fIdx, colsB, rowSigns,
                                               isNonFactorizable);
-          if (targets.empty () || isNonFactorizable[fIdx]) continue;
+        }
+        if (targets.empty () || isNonFactorizable[fIdx]) continue;
+
+        if (DEBUG) {
+          std::cout << "Prefiltered to obtain " << targets.size ()
+              << " possible factorizable columns with F " << F << "at " << fIdx << "\n";
+          std::cout << "Targets :\n";
+          for (auto & t : targets) {
+            std::cout << t << " ";
+          }
+          std::cout << std::endl;
         }
 
         // at this stage, F is at least possibly factorizable
@@ -1309,9 +1332,27 @@ template<typename T>
         // coefficients didn't line up
         if (isNonFactorizable[fIdx]) continue;
 
+        if (DEBUG) {
+          std::cout << "Before rewriting :" << colsB << std::endl;
+          std::cout << "Targets :" ;
+          for (auto &t : targets) {
+            std::cout << t << " ";
+          }
+
+          std::cout << "\nCoefficients :\n" ;
+          for (const auto& [j, kpkm] : coefficients) {
+            std::cout << j << " : " << kpkm.first << " " << kpkm.second
+                << std::endl;
+          }
+        }
         // Factorize
         permutations.push_back (
             rewriteBasis (fIdx, coefficients, colsB, rowSigns));
+
+        if (DEBUG) {
+          std::cout << "After rewriting using " << permutations[permutations.size()-1]  << " obtained :\n" << colsB << std::endl;
+        }
+
       }
     }
 
@@ -1387,10 +1428,16 @@ template<typename T>
       // A is F' outside |F|, already handled by clearing |F|.
       for (const auto& [j, kpkm] : coefficients) {
         SparseArray<T> &Fprime = colsB.getColumn (j);
+
         // Total coefficient for rep_i.
-        T k = kpkm.first + kpkm.second;
+        T k = -kpkm.first + kpkm.second;
         // No change if k+ + k- = 0 ; This happens for instance for F itself.
         if (k == 0) continue;
+
+        if (DEBUG) {
+                  std::cout << "Rewriting flow " << Fprime << " with k+ " << kpkm.first
+                      << " and k-" << kpkm.second << " using rep " << newIdx << std::endl;
+                }
 
         // Add -(k+ + k-) at rep_i’s row, completing F' = A - (k+ + k-) rep_i.
         Fprime.append (newIdx, -k);
@@ -1517,7 +1564,13 @@ template<typename T>
         }
       }
 
-      if (isNonFactorizable[fIdx]) return {};
+      if (isNonFactorizable[fIdx]) {
+        if (DEBUG) {
+          std::cout << "Non-factorizable flow " << F << " at index " << fIdx
+              << std::endl;
+        }
+        return {};
+      }
 
       // a side effect of the test is that F's index fIdx itself is selected by this filter
       // this is by design, it will factorize itself out to 0 if we actually

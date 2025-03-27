@@ -714,6 +714,7 @@ public:
       static std::pair<bool, std::pair<T, T>> isFactorizable (const SparseArray<T> &A,
                                                        const SparseArray<T> &B)
       {
+        // std::cout << "Testing factorizability of " << A << " with respect to " << B << std::endl;
         // Our goal is to find these factors.
         T k_plus = 0;
         T k_minus = 0;
@@ -745,7 +746,7 @@ public:
             }
 
             // compute the factor k between the two
-            T k = -b_val / a_val;  // Negate for F' + k^+ F^+ + k^- F^- = 0
+            T k = b_val / a_val;
 
             if (a_val > 0) {
               // it's positive, so we want to update k+
@@ -786,14 +787,19 @@ public:
           } else {  // b_key < a_key
             // Case 3: B has a key A doesn’t ; we don't care about these
             // they are part of "A" the projection of F' outside the support of F.
+            j++;
+
+
+            // Unfortunately this binary search is too hopeful : the next key in A might be absent in B,
+            // that just means the coeff of that one is zero, and we should move on.
             // Binary search to skip B keys < A.key(i)
             // this is better than an increment when B is large in front of A.
-            ssize_t new_j = binarySearch (B.mKeys, a_key, j + 1, B.size () - 1);
-            if (new_j < 0) {  // No match found, jump to end
-              j = B.size ();
-            } else {
-              j = new_j;
-            }
+//            ssize_t new_j = binarySearch (B.mKeys, a_key, j , B.size () - 1);
+//            if (new_j < 0) {  // No match found, jump to end
+//              j = B.size ();
+//            } else {
+//              j = new_j;
+//            }
           }
         }
 
@@ -815,7 +821,8 @@ public:
           }
         }
 
-        return {true, {k_plus, -k_minus}};
+        // std::cout << "A is factorizable with respect to B, k+ = " << k_plus << ", k- = " << k_minus << std::endl;
+        return {true, {k_plus, k_minus}};
       }
 
 
