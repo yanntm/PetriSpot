@@ -48,6 +48,7 @@
 #include "Arithmetic.hpp"
 #include "InvariantHelpers.h"
 #include "RowSigns.h"
+#include "RowSignDomination.h"
 #include "InvariantsTrivial.h"
 #include "Heuristic.h"
 #include "MixedSignsUniqueTable.h"
@@ -73,7 +74,7 @@ template<typename T>
   class InvariantCalculator
   {
     // Enable for verbose debugging output during development.
-    static inline const bool DEBUG = false;
+    static inline const bool DEBUG = true;
 
     /**
      * Hidden constructor
@@ -121,13 +122,12 @@ template<typename T>
      * @param heur         Heuristic settings for row elimination and pivot selection (default: EliminationHeuristic()).
      * @return An unordered set of SparseArray<T> representing the invariants.
      */
-    static std::pair<MatrixCol<T>,Permutations> calcInvariantsPIPE (MatrixCol<T> &mat,
-                                            bool onlyPositive,
-                                            const EliminationHeuristic &heur =
-                                                EliminationHeuristic ())
+    static std::pair<MatrixCol<T>, Permutations> calcInvariantsPIPE (
+        MatrixCol<T> &mat, bool onlyPositive, const EliminationHeuristic &heur =
+            EliminationHeuristic ())
     {
       if (mat.getColumnCount () == 0 || mat.getRowCount () == 0) {
-        return {MatrixCol<T> (),{}};
+        return {MatrixCol<T> (), {}};
       }
 
       // while it's not classical, we actually work with columns in the algorithm
@@ -157,7 +157,7 @@ template<typename T>
       matB.normalizeAndReduce (true);
 
       if (!onlyPositive) {
-        return {matB,{}};
+        return {matB, {}};
       }
 
       // phase 2
@@ -165,7 +165,7 @@ template<typename T>
           << matB.getColumnCount () << " invariants " << std::endl;
 
       /* FACTORIZATION */
-      if (heur.useCompression()) {
+      if (heur.useCompression ()) {
         /* FACTORIZATION */
         auto [perms, colsB] = factorizeBasis (matB);
         matB = colsB;
@@ -331,9 +331,14 @@ template<typename T>
         }
       }
 
+      int iter = 0;
       // Step 3: Iteratively eliminate rows to ensure all coefficients are non-negative.
       while (true) {
-        ssize_t tRow = rowSigns.findSingleSignRow (heur.getLoopLimit ());
+        ssize_t tRow = -1;
+        if (heur.useSingleSignRow ()) {
+          rowSigns.findSingleSignRow (heur.getLoopLimit ());
+        }
+
         if (tRow == -1) {
           // look for a "small" row
           tRow = findBestFMERow (colsB, rowSigns, heur.getLoopLimit ());
@@ -343,6 +348,17 @@ template<typename T>
         }
         eliminateRowFME (tRow, colsB, rowSigns, basisIndices, heur,
                          filteredCount, msut);  // Pass msut always
+
+        if (DEBUG && ++iter /*(++iter % 10 == 0)*/) {
+          std::cout << "Iteration "<< iter << "Basis size: " << basisIndices.size () << "\n";
+          for (const auto &index : basisIndices) {
+            std::cout << index << " " /*" :" << colsB.getColumn (index) << "\n"*/;
+          }
+          std::cout << "\nMixed-sign unique table size: " << msut.size () << "\n";
+          std::cout << "Mixed-sign stats - attempted insertions: "
+                      << msut.getAttemptedInsertions () << ", successful insertions: "
+                      << msut.getSuccessfulInsertions () << "\n";
+        }
       }
 
       // Step 4: Stats and finalize
@@ -354,7 +370,9 @@ template<typename T>
         std::cout << "Mixed-sign stats - attempted insertions: "
             << msut.getAttemptedInsertions () << ", successful insertions: "
             << msut.getSuccessfulInsertions () << "\n";
+
         colsB.dropEmptyColumns ();
+        colsB = minimizeBasis (colsB);
         std::cout << "After minimization with support: "
             << colsB.getColumnCount () << " semiflows\n";
       } else if (heur.useMinimization ()) {
@@ -607,6 +625,316 @@ template<typename T>
       normalize (*colj);
       return true;
     }
+    
+    
+    
+    /**
+     * @brief Eliminates a target row in Phase 2 using Fourier Motzkin Elimination (FME) variant.
+     *
+     * Combines columns from P+ (positive entries) and P- (negative entries) in the target row to produce new columns
+     * with non-negative coefficients. If a pure positive column exists, it is used as a pivot to avoid introducing
+     * new negatives. The resulting columns are normalized and appended or updated in place.
+     *
+     * @param targetRow The row to eliminate.
+     * @param colsB     The basis matrix (modified in place).
+     * @param rowSigns  Bookkeeping of row signs (updated during elimination).
+     */
+    static void eliminateRowFME(ssize_t targetRow, MatrixCol<T> &colsB,
+                            RowSignsDomination<T> &rowSigns,
+                            std::unordered_set<size_t> &basisIndices,
+                            const EliminationHeuristic &heur,
+                            size_t &filteredCount,
+                            MixedSignsUniqueTable<T> &msut)
+{
+  const auto &rs = rowSigns.get(targetRow);
+  if (DEBUG) {
+    std::cout << "Current basis indexes " << basisIndices.size() << "\n";
+
+    std::cout << "Eliminating row " << targetRow << " with "
+              << rs.pPlus.size() << " plus and " << rs.pMinus.size()
+              << " minus columns\n";
+    std::cout << rs << "\n";
+    for (size_t i = 0, ie = rs.pPlus.size(); i < ie; i++) {
+      std::cout << "P+ " << rs.pPlus.keyAt(i) << " : "
+                << colsB.getColumn(rs.pPlus.keyAt(i)) << "\n";
+    }
+    for (size_t i = 0, ie = rs.pMinus.size(); i < ie; i++) {
+      std::cout << "P- " << rs.pMinus.keyAt(i) << " : "
+                << colsB.getColumn(rs.pMinus.keyAt(i)) << "\n";
+      if (colsB.getColumn(rs.pMinus.keyAt(i)).size() == 0) {
+        std::cout << "Empty column detected\n";
+        exit(2);
+      }
+    }
+
+    std::cout << std::flush;
+  }
+
+  if (rs.pPlus.size() == 0) {
+    SparseBoolArray toVisit = rs.pMinus;
+    for (size_t i = 0; i < toVisit.size(); ++i) {
+      msut.erase(i);
+      clearColumnWithBasis(i, colsB, rowSigns, false); // Non-basis by default
+    }
+    if (DEBUG) {
+      std::cout << "Cleared row " << targetRow << "\n";
+    }
+    return;
+  }
+
+  ssize_t purePos = -1;
+  if (!heur.useQPlusBasis() && rs.pPlus.size() > 1) {
+    for (size_t i = 0; i < rs.pPlus.size(); ++i) {
+      size_t candCol = rs.pPlus.keyAt(i);
+      const auto &col = colsB.getColumn(candCol);
+      if (col.isPurePositive()) {
+        if (purePos == -1
+            || colsB.getColumn(purePos).size() > col.size()) {
+          purePos = candCol;
+        }
+      }
+    }
+  }
+  if (DEBUG && purePos != -1) {
+    std::cout << "Using pure positive column " << purePos << " as pivot\n";
+  }
+
+  auto pos = rs.pPlus;
+  auto neg = rs.pMinus;
+      std::cout << "Preparing to treat row " << targetRow << " with "
+          << pos.size () << " positive of which " << pos.basis.size() << " basis and " << neg.size ()
+          << " negative columns for a max of " << (pos.size() * neg.size())  <<" new columns.\n";
+  for (size_t j = 0, je = pos.size(); j < je; ++j) {
+    auto jindex = (purePos != -1) ? purePos : pos.keyAt(j);
+    if (purePos != -1) {
+      j = pos.size();
+    }
+    for (size_t k = 0, ke = neg.size(); k < ke; ++k) {
+      SparseArray<T> &colj = colsB.getColumn(jindex);
+      size_t kindex = neg.keyAt(k);
+      SparseArray<T> &colk = colsB.getColumn(kindex);
+      T alpha = -colk.get(targetRow);
+      T beta = colj.get(targetRow);
+      T gcdt = std::gcd(alpha, beta);
+      alpha /= gcdt;
+      beta /= gcdt;
+
+      if (DEBUG) {
+        std::cout << "Computing " << beta << " * " << colk << " + " << alpha
+                  << " * " << colj << "\n";
+      }
+
+      if (purePos != -1 || j == pos.size() - 1) {
+        // In-place update
+        msut.erase(kindex);  // Erase before modifying colk (mixed-sign)
+        auto changed = sumProdInto(beta, colk, alpha, colj);
+        normalize(colk);
+        if (colk.size() == 0) {
+          for (size_t ind = 0; ind < changed.size(); ++ind) {
+            size_t key = changed[ind].first;
+            rowSigns.setValue(key, kindex, changed[ind].second, false); // Non-basis
+          }
+          clearColumnWithBasis(kindex, colsB, rowSigns, false); // Non-basis
+          if (DEBUG) {
+            std::cout << "Cleared empty in-place vector at " << kindex
+                      << "\n";
+          }
+          continue;  // Skip further processing for this column
+        }
+        if (DEBUG) {
+          std::cout << "Built (emplaced at " << kindex << ") " << colk
+                    << "\n";
+          std::cout << "Changed reported " << changed << "\n";
+        }
+
+        if (heur.useQPlusBasis()) {
+          if (colk.isPurePositive()) {
+            // New case: Insert pure positive columns into MSUT
+            if (msut.insert(kindex)) {
+              auto [isMinimal, dominated] = hasMinimalSupport(colk, colsB,
+                                                              basisIndices,
+                                                              rowSigns);
+              if (isMinimal) {
+                // Move to basis: clear from non-basis, then set as basis
+                for (size_t ind = 0; ind < changed.size(); ++ind) {
+                  size_t key = changed[ind].first;
+                  rowSigns.setValue(key, kindex, 0, false); // Clear non-basis
+                  rowSigns.setValue(key, kindex, changed[ind].second, true); // Set basis
+                }
+                for (size_t domIdx : dominated) {
+                  msut.erase(domIdx);  // Clear dominated columns from MSUT
+                  clearColumnWithBasis(domIdx, colsB, rowSigns, true); // Basis column
+                  basisIndices.erase(domIdx);
+                  if (DEBUG) {
+                    std::cout << "Cleared dominated vector at " << domIdx
+                              << "\n";
+                  }
+                }
+                basisIndices.insert(kindex);
+                if (DEBUG) {
+                  std::cout << "Added minimal in-place vector at " << kindex
+                            << ": " << colk << "\n";
+                }
+              } else {
+                msut.erase(kindex);  // Remove non-minimal column from MSUT
+                for (size_t ind = 0; ind < changed.size(); ++ind) {
+                  size_t key = changed[ind].first;
+                  rowSigns.setValue(key, kindex, changed[ind].second, false); // Non-basis
+                }
+                clearColumnWithBasis(kindex, colsB, rowSigns, false); // Non-basis
+                filteredCount++;
+                if (DEBUG) {
+                  std::cout << "Cleared non-minimal in-place vector at "
+                            << kindex << ": " << colk << "\n";
+                }
+              }
+            } else {
+              // Duplicate pure positive column detected
+              for (size_t ind = 0; ind < changed.size(); ++ind) {
+                size_t key = changed[ind].first;
+                rowSigns.setValue(key, kindex, 0, false); // Non-basis
+              }
+              clearColumnWithBasis(kindex, colsB, rowSigns, false); // Non-basis
+              if (DEBUG) {
+                std::cout << "Cleared duplicate pure positive vector at "
+                          << kindex << ": " << colk << "\n";
+              }
+            }
+          } else {
+            // Existing mixed-sign column logic
+            if (msut.insert(kindex)) {
+              for (size_t ind = 0; ind < changed.size(); ++ind) {
+                size_t key = changed[ind].first;
+                rowSigns.setValue(key, kindex, changed[ind].second, false); // Non-basis
+              }
+              if (DEBUG) {
+                std::cout << "Updated unique mixed-sign vector at "
+                          << kindex << ": " << colk << "\n";
+              }
+            } else {
+              for (size_t ind = 0; ind < changed.size(); ++ind) {
+                size_t key = changed[ind].first;
+                rowSigns.setValue(key, kindex, 0, false); // Non-basis
+              }
+              clearColumnWithBasis(kindex, colsB, rowSigns, false); // Non-basis
+              if (DEBUG) {
+                std::cout << "Cleared duplicate mixed-sign vector at "
+                          << kindex << ": " << colk << "\n";
+              }
+            }
+          }
+        } else {
+          for (size_t ind = 0; ind < changed.size(); ++ind) {
+            size_t key = changed[ind].first;
+            rowSigns.setValue(key, kindex, changed[ind].second, false); // Non-basis default
+          }
+        }
+      } else {
+        // New column
+        auto newCol = sumProd(beta, colk, alpha, colj);
+        normalize(newCol);
+        if (newCol.size() == 0) {
+          if (DEBUG) {
+            std::cout << "Skipped empty new vector\n";
+          }
+          continue;  // Skip appending and further processing
+        }
+        size_t newColIndex = colsB.getColumnCount();
+        colsB.appendColumn(std::move(newCol));  // Temporarily append
+        if (heur.useQPlusBasis()) {
+          if (!colsB.getColumn(newColIndex).isPurePositive()) {
+            if (msut.insert(newColIndex)) {
+              for (size_t ind = 0;
+                   ind < colsB.getColumn(newColIndex).size(); ++ind) {
+                rowSigns.setValue(
+                    colsB.getColumn(newColIndex).keyAt(ind), newColIndex,
+                    colsB.getColumn(newColIndex).valueAt(ind), false); // Non-basis
+              }
+              if (DEBUG) {
+                std::cout << "Built (appended unique mixed-sign at "
+                          << newColIndex << ") " << colsB.getColumn(newColIndex)
+                          << "\n";
+              }
+            } else {
+              colsB.deleteColumn(newColIndex);  // Remove if duplicate
+              if (DEBUG) {
+                std::cout << "Filtered duplicate mixed-sign vector: "
+                          << newCol << "\n";
+              }
+            }
+          } else {
+            // New case: Insert pure positive columns into MSUT
+            if (msut.insert(newColIndex)) {
+              auto [isMinimal, dominated] = hasMinimalSupport(
+                  colsB.getColumn(newColIndex), colsB, basisIndices,
+                  rowSigns);
+              if (isMinimal) {
+                // Move to basis: clear from non-basis, then set as basis
+                for (size_t ind = 0;
+                     ind < colsB.getColumn(newColIndex).size(); ++ind) {
+                  rowSigns.setValue(colsB.getColumn(newColIndex).keyAt(ind),
+                                    newColIndex, 0, false); // Clear non-basis
+                  rowSigns.setValue(colsB.getColumn(newColIndex).keyAt(ind),
+                                    newColIndex,
+                                    colsB.getColumn(newColIndex).valueAt(ind),
+                                    true); // Set basis
+                }
+                for (size_t domIdx : dominated) {
+                  msut.erase(domIdx);  // Clear dominated columns from MSUT
+                  clearColumnWithBasis(domIdx, colsB, rowSigns, true); // Basis column
+                  basisIndices.erase(domIdx);
+                  if (DEBUG) {
+                    std::cout << "Cleared dominated vector at " << domIdx
+                              << "\n";
+                  }
+                }
+                basisIndices.insert(newColIndex);
+                if (DEBUG) {
+                  std::cout << "Added minimal vector at " << newColIndex
+                            << ": " << colsB.getColumn(newColIndex) << "\n";
+                }
+              } else {
+                msut.erase(newColIndex); // Remove non-minimal column from MSUT
+                colsB.deleteColumn(newColIndex);  // Remove if non-minimal
+                filteredCount++;
+                if (DEBUG) {
+                  std::cout << "Filtered non-minimal vector: " << newCol
+                            << "\n";
+                }
+              }
+            } else {
+              // Duplicate pure positive column detected
+              colsB.deleteColumn(newColIndex);  // Remove if duplicate
+              if (DEBUG) {
+                std::cout << "Filtered duplicate pure positive vector: "
+                          << newCol << "\n";
+              }
+            }
+          }
+        } else {
+          for (size_t ind = 0; ind < colsB.getColumn(newColIndex).size();
+               ++ind) {
+            rowSigns.setValue(colsB.getColumn(newColIndex).keyAt(ind),
+                              newColIndex,
+                              colsB.getColumn(newColIndex).valueAt(ind),
+                              false); // Non-basis
+          }
+          if (DEBUG) {
+            std::cout << "Built (appended at " << newColIndex << ") "
+                      << colsB.getColumn(newColIndex) << "\n";
+          }
+        }
+      }
+    }
+  }
+  if (DEBUG) {
+    std::cout << "Obtained rowsign " << rowSigns.get(targetRow)
+              << " for row " << targetRow << "\n";
+  }
+  if (rowSigns.get(targetRow).pMinus.size() != 0) {
+    exit(2);
+  }
+}
 
     /**
      * @brief Eliminates a target row in Phase 2 using Full Matrix Elimination (FME).
@@ -619,7 +947,7 @@ template<typename T>
      * @param colsB     The basis matrix (modified in place).
      * @param rowSigns  Bookkeeping of row signs (updated during elimination).
      */
-    static void eliminateRowFME (ssize_t targetRow, MatrixCol<T> &colsB,
+    static void eliminateRowFME2 (ssize_t targetRow, MatrixCol<T> &colsB,
                                  RowSignsDomination<T> &rowSigns,
                                  std::unordered_set<size_t> &basisIndices,
                                  const EliminationHeuristic &heur,
@@ -628,6 +956,8 @@ template<typename T>
     {
       const auto &rs = rowSigns.get (targetRow);
       if (DEBUG) {
+        std::cout << "Current basis indexes " << basisIndices.size () << "\n";
+
         std::cout << "Eliminating row " << targetRow << " with "
             << rs.pPlus.size () << " plus and " << rs.pMinus.size ()
             << " minus columns\n";
@@ -639,13 +969,19 @@ template<typename T>
         for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
           std::cout << "P- " << rs.pMinus.keyAt (i) << " : "
               << colsB.getColumn (rs.pMinus.keyAt (i)) << "\n";
+          if (colsB.getColumn (rs.pMinus.keyAt (i)).size () == 0) {
+            std::cout << "Empty column detected\n";
+            exit (2);
+          }
         }
+
         std::cout << std::flush;
       }
 
       if (rs.pPlus.size () == 0) {
         SparseBoolArray toVisit = rs.pMinus;
         for (size_t i = 0; i < toVisit.size (); ++i) {
+          msut.erase (i);
           clearColumn (toVisit.keyAt (i), colsB, rowSigns);
         }
         if (DEBUG) {
@@ -671,14 +1007,16 @@ template<typename T>
         std::cout << "Using pure positive column " << purePos << " as pivot\n";
       }
 
-      for (size_t j = 0; j < rs.pPlus.size (); ++j) {
-        auto jindex = (purePos != -1) ? purePos : rs.pPlus.keyAt (j);
+      auto pos = rs.pPlus;
+      auto neg = rs.pMinus;
+      for (size_t j = 0, je = pos.size (); j < je; ++j) {
+        auto jindex = (purePos != -1) ? purePos : pos.keyAt (j);
         if (purePos != -1) {
-          j = rs.pPlus.size ();
+          j = pos.size ();
         }
-        for (size_t k = 0; k < rs.pMinus.size (); ++k) {
+        for (size_t k = 0, ke = neg.size (); k < ke; ++k) {
           SparseArray<T> &colj = colsB.getColumn (jindex);
-          size_t kindex = rs.pMinus.keyAt (k);
+          size_t kindex = neg.keyAt (k);
           SparseArray<T> &colk = colsB.getColumn (kindex);
           T alpha = -colk.get (targetRow);
           T beta = colj.get (targetRow);
@@ -691,11 +1029,23 @@ template<typename T>
                 << " * " << colj << "\n";
           }
 
-          if (purePos != -1 || j == rs.pPlus.size () - 1) {
+          if (purePos != -1 || j == pos.size () - 1) {
             // In-place update
             msut.erase (kindex);  // Erase before modifying colk (mixed-sign)
             auto changed = sumProdInto (beta, colk, alpha, colj);
             normalize (colk);
+            if (colk.size () == 0) {
+              for (size_t ind = 0; ind < changed.size (); ++ind) {
+                size_t key = changed[ind].first;
+                rowSigns.setValue (key, kindex, changed[ind].second);
+              }
+              clearColumn (kindex, colsB, rowSigns);
+              if (DEBUG) {
+                std::cout << "Cleared empty in-place vector at " << kindex
+                    << "\n";
+              }
+              continue;  // Skip further processing for this column
+            }
             if (DEBUG) {
               std::cout << "Built (emplaced at " << kindex << ") " << colk
                   << "\n";
@@ -704,40 +1054,57 @@ template<typename T>
 
             if (heur.useQPlusBasis ()) {
               if (colk.isPurePositive ()) {
-                auto [isMinimal, dominated] = hasMinimalSupport (colk, colsB,
-                                                                 basisIndices,
-                                                                 rowSigns);
-                if (isMinimal) {
-                  for (size_t ind = 0; ind < changed.size (); ++ind) {
-                    size_t key = changed[ind].first;
-                    rowSigns.setValue (key, kindex, changed[ind].second);
-                  }
-                  for (size_t domIdx : dominated) {
-                    clearColumn (domIdx, colsB, rowSigns);
-                    basisIndices.erase (domIdx);
+                // New case: Insert pure positive columns into MSUT
+                if (msut.insert (kindex)) {
+                  auto [isMinimal, dominated] = hasMinimalSupport (colk, colsB,
+                                                                   basisIndices,
+                                                                   rowSigns);
+                  if (isMinimal) {
+                    for (size_t ind = 0; ind < changed.size (); ++ind) {
+                      size_t key = changed[ind].first;
+                      rowSigns.setValue (key, kindex, changed[ind].second);
+                    }
+                    for (size_t domIdx : dominated) {
+                      msut.erase (domIdx);  // Clear dominated columns from MSUT
+                      clearColumn (domIdx, colsB, rowSigns);
+                      basisIndices.erase (domIdx);
+                      if (DEBUG) {
+                        std::cout << "Cleared dominated vector at " << domIdx
+                            << "\n";
+                      }
+                    }
+                    basisIndices.insert (kindex);
                     if (DEBUG) {
-                      std::cout << "Cleared dominated vector at " << domIdx
-                          << "\n";
+                      std::cout << "Added minimal in-place vector at " << kindex
+                          << ": " << colk << "\n";
+                    }
+                  } else {
+                    msut.erase (kindex);  // Remove non-minimal column from MSUT
+                    for (size_t ind = 0; ind < changed.size (); ++ind) {
+                      size_t key = changed[ind].first;
+                      rowSigns.setValue (key, kindex, changed[ind].second);
+                    }
+                    clearColumn (kindex, colsB, rowSigns);
+                    filteredCount++;
+                    if (DEBUG) {
+                      std::cout << "Cleared non-minimal in-place vector at "
+                          << kindex << ": " << colk << "\n";
                     }
                   }
-                  basisIndices.insert (kindex);
-                  if (DEBUG) {
-                    std::cout << "Added minimal in-place vector at " << kindex
-                        << ": " << colk << "\n";
-                  }
                 } else {
+                  // Duplicate pure positive column detected
                   for (size_t ind = 0; ind < changed.size (); ++ind) {
                     size_t key = changed[ind].first;
                     rowSigns.setValue (key, kindex, 0);
                   }
                   clearColumn (kindex, colsB, rowSigns);
-                  filteredCount++;
                   if (DEBUG) {
-                    std::cout << "Cleared non-minimal in-place vector at "
+                    std::cout << "Cleared duplicate pure positive vector at "
                         << kindex << ": " << colk << "\n";
                   }
                 }
               } else {
+                // Existing mixed-sign column logic
                 if (msut.insert (kindex)) {
                   for (size_t ind = 0; ind < changed.size (); ++ind) {
                     size_t key = changed[ind].first;
@@ -769,32 +1136,38 @@ template<typename T>
             // New column
             auto newCol = sumProd (beta, colk, alpha, colj);
             normalize (newCol);
-            if (newCol.size () > 0) {
-              size_t newColIndex = colsB.getColumnCount ();
-              colsB.appendColumn (std::move (newCol));  // Temporarily append
-              if (heur.useQPlusBasis ()) {
-                if (!colsB.getColumn (newColIndex).isPurePositive ()) {
-                  if (msut.insert (newColIndex)) {
-                    for (size_t ind = 0;
-                        ind < colsB.getColumn (newColIndex).size (); ++ind) {
-                      rowSigns.setValue (
-                          colsB.getColumn (newColIndex).keyAt (ind),
-                          newColIndex,
-                          colsB.getColumn (newColIndex).valueAt (ind));
-                    }
-                    if (DEBUG) {
-                      std::cout << "Built (appended unique mixed-sign at "
-                          << newColIndex << ") "
-                          << colsB.getColumn (newColIndex) << "\n";
-                    }
-                  } else {
-                    colsB.deleteColumn (newColIndex);  // Remove if duplicate
-                    if (DEBUG) {
-                      std::cout << "Filtered duplicate mixed-sign vector: "
-                          << newCol << "\n";
-                    }
+            if (newCol.size () == 0) {
+              if (DEBUG) {
+                std::cout << "Skipped empty new vector\n";
+              }
+              continue;  // Skip appending and further processing
+            }
+            size_t newColIndex = colsB.getColumnCount ();
+            colsB.appendColumn (std::move (newCol));  // Temporarily append
+            if (heur.useQPlusBasis ()) {
+              if (!colsB.getColumn (newColIndex).isPurePositive ()) {
+                if (msut.insert (newColIndex)) {
+                  for (size_t ind = 0;
+                      ind < colsB.getColumn (newColIndex).size (); ++ind) {
+                    rowSigns.setValue (
+                        colsB.getColumn (newColIndex).keyAt (ind), newColIndex,
+                        colsB.getColumn (newColIndex).valueAt (ind));
+                  }
+                  if (DEBUG) {
+                    std::cout << "Built (appended unique mixed-sign at "
+                        << newColIndex << ") " << colsB.getColumn (newColIndex)
+                        << "\n";
                   }
                 } else {
+                  colsB.deleteColumn (newColIndex);  // Remove if duplicate
+                  if (DEBUG) {
+                    std::cout << "Filtered duplicate mixed-sign vector: "
+                        << newCol << "\n";
+                  }
+                }
+              } else {
+                // New case: Insert pure positive columns into MSUT
+                if (msut.insert (newColIndex)) {
                   auto [isMinimal, dominated] = hasMinimalSupport (
                       colsB.getColumn (newColIndex), colsB, basisIndices,
                       rowSigns);
@@ -807,6 +1180,7 @@ template<typename T>
                           colsB.getColumn (newColIndex).valueAt (ind));
                     }
                     for (size_t domIdx : dominated) {
+                      msut.erase (domIdx);  // Clear dominated columns from MSUT
                       clearColumn (domIdx, colsB, rowSigns);
                       basisIndices.erase (domIdx);
                       if (DEBUG) {
@@ -820,6 +1194,7 @@ template<typename T>
                           << ": " << colsB.getColumn (newColIndex) << "\n";
                     }
                   } else {
+                    msut.erase (newColIndex); // Remove non-minimal column from MSUT
                     colsB.deleteColumn (newColIndex);  // Remove if non-minimal
                     filteredCount++;
                     if (DEBUG) {
@@ -827,26 +1202,36 @@ template<typename T>
                           << "\n";
                     }
                   }
+                } else {
+                  // Duplicate pure positive column detected
+                  colsB.deleteColumn (newColIndex);  // Remove if duplicate
+                  if (DEBUG) {
+                    std::cout << "Filtered duplicate pure positive vector: "
+                        << newCol << "\n";
+                  }
                 }
-              } else {
-                for (size_t ind = 0;
-                    ind < colsB.getColumn (newColIndex).size (); ++ind) {
-                  rowSigns.setValue (
-                      colsB.getColumn (newColIndex).keyAt (ind), newColIndex,
-                      colsB.getColumn (newColIndex).valueAt (ind));
-                }
-                if (DEBUG) {
-                  std::cout << "Built (appended at " << newColIndex << ") "
-                      << colsB.getColumn (newColIndex) << "\n";
-                }
+              }
+            } else {
+              for (size_t ind = 0; ind < colsB.getColumn (newColIndex).size ();
+                  ++ind) {
+                rowSigns.setValue (colsB.getColumn (newColIndex).keyAt (ind),
+                                   newColIndex,
+                                   colsB.getColumn (newColIndex).valueAt (ind));
+              }
+              if (DEBUG) {
+                std::cout << "Built (appended at " << newColIndex << ") "
+                    << colsB.getColumn (newColIndex) << "\n";
               }
             }
           }
-          if (DEBUG) {
-            std::cout << "Obtained rowsign " << rowSigns.get (targetRow)
-                << " for row " << targetRow << "\n";
-          }
         }
+      }
+      if (DEBUG) {
+        std::cout << "Obtained rowsign " << rowSigns.get (targetRow)
+            << " for row " << targetRow << "\n";
+      }
+      if (rowSigns.get (targetRow).pMinus.size () != 0) {
+        exit (2);
       }
     }
 
@@ -1194,9 +1579,9 @@ template<typename T>
         // Check if newCol is dominated
         for (size_t i = 0; i < newColSize; ++i) {
           size_t row = newCol.keyAt (i);
-          const RowSign<T> &rs = rowSigns.get (row);
-          for (size_t j = 0, je = rs.pPlus.size (); j < je; ++j) {
-            size_t colIdx = rs.pPlus.keyAt (j);
+          const auto &rs = rowSigns.get (row);
+          for (size_t j = 0, je = rs.pPlus.basis.size (); j < je; ++j) {
+            size_t colIdx = rs.pPlus.basis.keyAt (j);
 
             if (++counts[colIdx] == basis.getColumn (colIdx).size ()
                 && basisIndices.count (colIdx) > 0) {
@@ -1306,9 +1691,10 @@ template<typename T>
 
         if (DEBUG) {
           std::cout << "Prefiltered to obtain " << targets.size ()
-              << " possible factorizable columns with F " << F << "at " << fIdx << "\n";
+              << " possible factorizable columns with F " << F << "at " << fIdx
+              << "\n";
           std::cout << "Targets :\n";
-          for (auto & t : targets) {
+          for (auto &t : targets) {
             std::cout << t << " ";
           }
           std::cout << std::endl;
@@ -1334,12 +1720,12 @@ template<typename T>
 
         if (DEBUG) {
           std::cout << "Before rewriting :" << colsB << std::endl;
-          std::cout << "Targets :" ;
+          std::cout << "Targets :";
           for (auto &t : targets) {
             std::cout << t << " ";
           }
 
-          std::cout << "\nCoefficients :\n" ;
+          std::cout << "\nCoefficients :\n";
           for (const auto& [j, kpkm] : coefficients) {
             std::cout << j << " : " << kpkm.first << " " << kpkm.second
                 << std::endl;
@@ -1350,7 +1736,9 @@ template<typename T>
             rewriteBasis (fIdx, coefficients, colsB, rowSigns));
 
         if (DEBUG) {
-          std::cout << "After rewriting using " << permutations[permutations.size()-1]  << " obtained :\n" << colsB << std::endl;
+          std::cout << "After rewriting using "
+              << permutations[permutations.size () - 1] << " obtained :\n"
+              << colsB << std::endl;
         }
 
       }
@@ -1435,9 +1823,10 @@ template<typename T>
         if (k == 0) continue;
 
         if (DEBUG) {
-                  std::cout << "Rewriting flow " << Fprime << " with k+ " << kpkm.first
-                      << " and k-" << kpkm.second << " using rep " << newIdx << std::endl;
-                }
+          std::cout << "Rewriting flow " << Fprime << " with k+ " << kpkm.first
+              << " and k-" << kpkm.second << " using rep " << newIdx
+              << std::endl;
+        }
 
         // Add -(k+ + k-) at rep_i’s row, completing F' = A - (k+ + k-) rep_i.
         Fprime.append (newIdx, -k);
@@ -1603,6 +1992,16 @@ template<typename T>
         }
         colk.clear ();
       }
+
+    template<typename RS>
+    static void clearColumnWithBasis(size_t tCol, MatrixCol<T> &matB, RS &rowSigns, bool inBasis) {
+      // Delete from the extended matrix the column of index tCol
+      SparseArray<T> &colk = matB.getColumn(tCol);
+      for (size_t i = 0, ie = colk.size(); i < ie; i++) {
+        rowSigns.setValue(colk.keyAt(i), tCol, 0, inBasis);
+      }
+      colk.clear();
+    }
 
   };
 
