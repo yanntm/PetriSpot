@@ -16,6 +16,10 @@ template<typename T>
     {
     }
 
+    void clear() {
+      table.clear ();
+    }
+
     void erase (size_t index)
     {
       table.erase (index);
