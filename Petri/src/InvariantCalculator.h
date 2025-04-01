@@ -74,7 +74,7 @@ template<typename T>
   class InvariantCalculator
   {
     // Enable for verbose debugging output during development.
-    static inline const bool DEBUG = true;
+    static inline const bool DEBUG = false;
 
     /**
      * Hidden constructor
@@ -316,9 +316,8 @@ template<typename T>
         for (size_t i = 0; i < colsB.getColumnCount (); ++i) {
           if (colsB.getColumn (i).isPurePositive ()) {
             basisIndices.insert (i);
-          } else {
-            msut.insert (i);
           }
+          msut.insert (i);
         }
         if (DEBUG) {
           std::cout << "Initial basis size: " << basisIndices.size () << "\n";
@@ -331,10 +330,18 @@ template<typename T>
         }
       }
 
+      std::unordered_set<size_t> posRows;
+      for (size_t row = 0; row < colsB.getRowCount (); row++) {
+        if (rowSigns.get (row).pMinus.size () == 0) {
+          posRows.insert (row);
+        }
+      }
+
       int iter = 0;
       // Step 3: Iteratively eliminate rows to ensure all coefficients are non-negative.
       while (true) {
         ssize_t tRow = -1;
+
         if (heur.useSingleSignRow ()) {
           rowSigns.findSingleSignRow (heur.getLoopLimit ());
         }
@@ -347,7 +354,7 @@ template<typename T>
           break;
         }
         eliminateRowFME (tRow, colsB, rowSigns, basisIndices, heur,
-                         filteredCount, msut);  // Pass msut always
+                         filteredCount, msut, posRows);  // Pass msut always
 
         if (DEBUG && ++iter /*(++iter % 10 == 0)*/) {
           std::cout << "Iteration " << iter << "Basis size: "
@@ -375,11 +382,10 @@ template<typename T>
             << msut.getSuccessfulInsertions () << "\n";
 
         colsB.dropEmptyColumns ();
-        colsB = minimizeBasis (colsB);
         std::cout << "After minimization with support: "
             << colsB.getColumnCount () << " semiflows\n";
       } else if (heur.useMinimization ()) {
-        colsB = minimizeBasis (colsB);
+        colsB = minimizeBasisWithSupport(colsB);
       } else {
         colsB.normalizeAndReduce (true);
       }
@@ -645,7 +651,8 @@ template<typename T>
                                  std::unordered_set<size_t> &basisIndices,
                                  const EliminationHeuristic &heur,
                                  size_t &filteredCount,
-                                 MixedSignsUniqueTable<T> &msut)
+                                 MixedSignsUniqueTable<T> &msut,
+                                 std::unordered_set<size_t> &posRows)
     {
       const auto &rs = rowSigns.get (targetRow);
       if (DEBUG) {
@@ -937,8 +944,106 @@ template<typename T>
             << " for row " << targetRow << "\n";
       }
       if (rowSigns.get (targetRow).pMinus.size () != 0) {
+        std::cout << "Unexpected rowsign " << rowSigns.get (targetRow)
+                    << " for row " << targetRow << "\n";
         exit (2);
       }
+      posRows.insert (targetRow);
+
+      testPureBasisDominance(colsB, rowSigns, basisIndices, msut, posRows);
+    }
+
+
+    static void testPureBasisDominance (MatrixCol<T> &colsB,
+      RowSignsDomination<T> &rowSigns,
+      std::unordered_set<size_t> &basisIndices,
+      MixedSignsUniqueTable<T> &msut,
+      std::unordered_set<size_t> &posRows)
+    {
+      // now look at basis vectors that use this row => are they only touching pure positive rows ?
+      std::vector<size_t> pureBasis;
+      for (size_t coli : basisIndices) {
+        auto & col = colsB.getColumn (coli);
+        for (size_t j=0;j<col.size();j++) {
+          if (posRows.find (col.keyAt (j)) == posRows.end ()) {
+            break;
+          }
+          if (j == col.size () - 1) {
+            pureBasis.push_back (coli);
+          }
+        }
+      }
+      if (! pureBasis.empty()) {
+        if (DEBUG) {
+          std::cout << "Found pure basis composed of  "<< pureBasis.size () << " vectors\n";
+          for (size_t i = 0; i < pureBasis.size (); i++) {
+            size_t coli = pureBasis[i];
+            auto &col = colsB.getColumn (coli);
+            std::cout << "Pure basis vector " << coli << " : " << col << "\n";
+          }
+        }
+        // sort new pure basis by size, increasing
+        std::sort (
+            pureBasis.begin (), pureBasis.end (),
+            [&colsB] (size_t a, size_t b) {
+              return colsB.getColumn (a).size () < colsB.getColumn (b).size ();
+            });
+        std::unordered_set<size_t> toClear;
+        // check domination of *any* vector
+        for (size_t bindex : pureBasis) {
+          const auto &currentCol = colsB.getColumn (bindex);
+          auto intersectingCols =
+              rowSigns.get (currentCol.keyAt (0)).pPlus.nonBasis;
+          // std::cout << "starting inter with " << intersectingCols << "\n";
+          for (size_t i = 1; i < currentCol.size (); ++i) {
+            size_t row = currentCol.keyAt (i);
+            intersectingCols.restrict (
+                rowSigns.get (row).pPlus.nonBasis);
+            // std::cout << "after refine with " << rowSigns.get (row).pPlus.nonBasis << "current inter " << intersectingCols << "\n";
+            if (intersectingCols.size () == 0) {
+              break;
+            }
+          }
+
+          if (DEBUG) {
+            std::cout << "Intersection for column " << bindex << " contains "
+                << intersectingCols.size () << " columns: ";
+            for (size_t j = 0; j < intersectingCols.size (); ++j) {
+              std::cout << intersectingCols.keyAt (j) << " ";
+            }
+            std::cout << "\n";
+          }
+          if (DEBUG && !intersectingCols.size()==0) {
+            std::cout << "Eliminating vectors dominated by pure basis vector " << bindex << ":" << colsB.getColumn(bindex) << " Total "
+                << intersectingCols.size () << " columns\n";
+          }
+          for (size_t k = intersectingCols.size () ; k-->0;) {
+            size_t colIdx = intersectingCols.keyAt (k);
+            toClear.insert (colIdx);
+          }
+        }
+
+        if (! toClear.empty()) {
+          std::cout << "Eliminating " << toClear.size () << " columns dominated by pure basis vectors\n";
+          for (size_t colIdx : toClear) {
+            colsB.getColumn (colIdx).clear();
+          }
+          colsB.dropEmptyColumns ();
+          rowSigns = RowSignsDomination<T> (colsB);
+          msut.clear ();
+          basisIndices.clear ();
+
+          for (size_t i = 0; i < colsB.getColumnCount (); ++i) {
+            if (colsB.getColumn (i).isPurePositive ()) {
+              basisIndices.insert (i);
+            }
+            msut.insert (i);
+          }
+        }
+
+      }
+
+
     }
 
     /**
