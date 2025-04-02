@@ -56,4 +56,20 @@ template<typename T1, typename T2>
 
 } // namespace petri
 
+#include <iomanip>
+
+namespace std {
+std::ostream& operator<<(std::ostream& out, __uint128_t n) {
+  uint64_t high = n >> 64;
+  uint64_t low = n & 0xFFFFFFFFFFFFFFFFULL;
+  if (high > 0) {
+    out << high << std::setfill('0') << std::setw(19) << low;
+  } else {
+    out << low;
+  }
+  return out;
+
+}
+}
+
 #endif /* ARITHMETICOPERATIONS_H_ */
