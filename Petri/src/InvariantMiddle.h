@@ -55,7 +55,6 @@ template<typename T>
      * @return a set of invariants, i.e. coeffs for each variable such that the sum
      *         is constant in all markings/states.
      */
-
     static void printInvariant (const MatrixCol<T> &invariants,
                                 const Permutations &permutations,
                                 const std::vector<std::string> &pnames,
@@ -67,6 +66,7 @@ template<typename T>
 
       size_t firstPerm = pnames.size ();
 
+      std::unordered_map<size_t,size_t> repSizes;
       if (!permutations.empty ()) {
         out << "Permutations : " << std::endl;
 
@@ -78,7 +78,6 @@ template<typename T>
 
         // Now print the permutations
         for (size_t i = 0; i < permutations.size (); i++) {
-
           // format is :
           // r0 : [ p0 + 2*p1 = 2 ] , [ p3 = 1 ] ;
           auto name = "r" + std::to_string (i);
@@ -87,6 +86,8 @@ template<typename T>
           out << name << " : ";
 
           const auto & perm = permutations[i];
+          repSizes[perm.index] = perm.elements.size();
+
           bool first = true;
           for (const auto &term : perm.elements) {
             if (!first) {
@@ -107,12 +108,13 @@ template<typename T>
       const std::vector<T> &initials = permutations.empty() ? initial : moreInitials;
 
       out << "Invariants : \n" ;
+      __uint128_t decompressed = 0;
       for (const auto &rv : invariants.getColumns ()) {
         std::stringstream sb;
         try {
           auto sum = printEquation (rv, initials, names, sb);
           out << "inv : " << sb.str () << " = " << sum ;
-
+          __uint128_t represents = 1;
           if (!permutations.empty ()) {
             // we need to add constants to right hand side
             for (size_t i = rv.size (); i-->0 ;) {
@@ -122,20 +124,27 @@ template<typename T>
               } else {
                 T val = rv.valueAt (i);
                 out << (val < 0 ? " - " : " + ") << (std::abs(val)==1?"":std::to_string(val)+"*") << "kr" << (key-firstPerm);
+                represents = petri::multiplyExact(represents,repSizes[key]);
               }
             }
+            out << " (" << represents << ")";
             out << "\n";
           } else {
             out << "\n";
           }
+          decompressed = petri::addExact(decompressed,represents);
         } catch (std::overflow_error &e) {
           std::cerr
               << "Overflow of 'int' when computing constant for invariant."
               << std::endl;
         }
       }
-      out << "Total of " << invariants.getColumnCount () << " invariants."
+      out << "Total of " << invariants.getColumnCount () << (permutations.empty()?"":" compressed") << " invariants."
           << std::endl;
+      if (!permutations.empty ()) {
+        out << "Total of " << decompressed << " decompressed invariants."
+            << std::endl;
+      }
     }
 
     static void printInvariant (const MatrixCol<T> &invariants,
