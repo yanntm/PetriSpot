@@ -349,11 +349,8 @@ public:
      */
     void setValueAt(size_t index, T value) {
         assert(index < mSize);
+        assert(value != 0);
         mValues[index] = value;
-        // If setting to 0 and this was the last non-zero element, clear
-        if (value == 0 && mSize == 1) {
-            clear();
-        }
     }
 
     /**
