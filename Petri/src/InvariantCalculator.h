@@ -1460,7 +1460,74 @@ template<typename T>
           << colsB.getColumnCount () << ". Time: " << duration.count ()
           << " ms\n";
 
+      fusePermutations(permutations,colsB);
+
       return {permutations, colsB};
+    }
+
+
+    static void fusePermutations (std::vector<Permutation> &permutations,
+                                  MatrixCol<T> &colsB)
+    {
+      std::unordered_map<size_t, size_t> indexMap;
+      for (size_t i = 0; i < permutations.size (); i++) {
+        indexMap[permutations[i].index] = i;
+      }
+
+      bool needRewrite = false;
+      //iterate permutations in reverse order
+      for (size_t i = permutations.size (); i-- > 0;) {
+        auto &p = permutations[i];
+        // iterate parts
+        bool redo = true;
+        while (redo) {
+          redo = false;
+          for (size_t j = 0; j < p.elements.size() ; j++) {
+            auto &e = p.elements[j];
+            // for each key, is it in our set ?
+            for (size_t k = 0; k < e.size (); k++) {
+              auto key = e.keyAt (k);
+              auto it = indexMap.find (key);
+              if (it != indexMap.end ()) {
+                auto copy = e;
+                p.elements.erase (p.elements.begin () + j);
+                T coeff = copy.valueAt (k);
+                copy.put (key, 0);
+                for (auto &rep : permutations[it->second].elements) {
+                    p.elements.emplace_back(sumProd((T)1, copy, coeff, rep));
+                }
+                redo = true;
+                needRewrite = true;
+                break;
+              }
+            }
+            if (redo)
+              break;
+          }
+        }
+      }
+
+
+      if (needRewrite) {
+        size_t pindex = colsB.getRowCount() - permutations.size();
+        std::vector<Permutation> newperms;
+        auto trans = colsB.transpose ();
+        std::vector<size_t> todel;
+        for (auto & p : permutations) {
+          if (trans.getColumn(p.index).size () == 0) {
+            todel.push_back(p.index);
+          } else {
+            p.index = pindex++;
+            newperms.push_back (p);
+          }
+        }
+        permutations = newperms;
+        std::sort (todel.begin (), todel.end (), std::greater<size_t>());
+        for (auto &d : todel) {
+          trans.deleteColumn (d);
+        }
+        colsB = trans.transpose();
+      }
     }
 
     static void prefilterAndFactorize (MatrixCol<T> &colsB,
