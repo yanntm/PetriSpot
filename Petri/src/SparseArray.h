@@ -785,18 +785,6 @@ public:
             // Case 3: B has a key A doesn’t ; we don't care about these
             // they are part of "A" the projection of F' outside the support of F.
             j++;
-
-
-            // Unfortunately this binary search is too hopeful : the next key in A might be absent in B,
-            // that just means the coeff of that one is zero, and we should move on.
-            // Binary search to skip B keys < A.key(i)
-            // this is better than an increment when B is large in front of A.
-//            ssize_t new_j = binarySearch (B.mKeys, a_key, j , B.size () - 1);
-//            if (new_j < 0) {  // No match found, jump to end
-//              j = B.size ();
-//            } else {
-//              j = new_j;
-//            }
           }
         }
 
