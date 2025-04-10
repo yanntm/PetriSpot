@@ -1594,7 +1594,7 @@ template<typename T>
         // and we have a list of targets to check for existence of coefficients k+,k-
 
         // to store the k+,k- we find
-        std::map<size_t, std::pair<T, T>> coefficients;
+        std::map<size_t, std::pair<Rational<T>, Rational<T>>> coefficients;
         for (const auto &target : targets) {
           auto [success, kpkm] = SparseArray<T>::isFactorizable (
               F, colsB.getColumn (target));
@@ -1650,7 +1650,7 @@ template<typename T>
      * returning the new permutation induced by F.
      */
     static Permutation rewriteBasis (
-        ssize_t fIdx, std::map<size_t, std::pair<T, T>> &coefficients,
+        ssize_t fIdx, std::map<size_t, std::pair<Rational<T>, Rational<T>>> &coefficients,
         MatrixCol<T> &colsB, RowSigns<T> &rowSigns)
     {
       // F is the factorizable flow to rewrite out of the basis.
@@ -1702,24 +1702,33 @@ template<typename T>
         rowSigns.clearRow (row);
       }
 
-      // Step 2: Rewrite each F' = A - (k+ + k-) rep_i.
+      // Step 2: Rewrite each F' = lcm(k+,k-) * (A - (k+ + k-) rep_i).
       // A is F' outside |F|, already handled by clearing |F|.
       for (const auto& [j, kpkm] : coefficients) {
         SparseArray<T> &Fprime = colsB.getColumn (j);
 
         // Total coefficient for rep_i.
-        T k = -kpkm.first + kpkm.second;
+        T lcm = std::lcm (kpkm.first.denominator, kpkm.second.denominator);
+        // rescale k+ and k- to integers
+        T k_plus = kpkm.first.numerator * lcm / kpkm.first.denominator;
+        T k_minus = kpkm.second.numerator * lcm / kpkm.second.denominator;
+        T k = -k_plus + k_minus;
         // No change if k+ + k- = 0 ; This happens for instance for F itself.
         if (k == 0) continue;
 
         if (DEBUG) {
-          std::cout << "Rewriting flow " << Fprime << " with k+ " << kpkm.first
-              << " and k-" << kpkm.second << " using rep " << newIdx
+          std::cout << "Rewriting flow " << Fprime << " with k+ " << k_plus
+              << " and k-" << k_minus  << " and lcm " << lcm << " using rep " << newIdx
               << std::endl;
         }
 
+        // multiply by lcm
+        if (lcm != 1) {
+          Fprime.scalarProduct(lcm);
+        }
         // Add -(k+ + k-) at rep_i’s row, completing F' = A - (k+ + k-) rep_i.
         Fprime.append (newIdx, -k);
+        normalizeWithSign(Fprime);
         // keep row index in sync
         rowSigns.setValue (newIdx, j, -k);
       }
