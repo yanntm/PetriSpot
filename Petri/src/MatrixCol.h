@@ -386,12 +386,9 @@ template<typename T>
 
     void print (std::ostream &os) const
     {
-      os << "Matrix{lCols=";
-      bool first = true;
-      for (const auto &col : lCols) {
-        if (first) first = false;
-        else os << ", ";
-        col.print (os);
+      os << "Matrix{lCols=\n";
+      for (size_t i = 0; i < iCols; i++) {
+        os << i << ":" << lCols[i] << ",\n";
       }
       os << '}';
     }
