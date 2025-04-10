@@ -28,6 +28,8 @@
 #include <limits>
 #include <concepts>
 
+#include "Rational.h"
+
 /**
  * @brief SparseArray maps integers to values of type T. Unlike a normal array,
  * there can be gaps in the indices. It is intended to be more memory efficient
@@ -694,10 +696,9 @@ public:
         }
     }
 
-
     /**
      * @brief Tests if flow A is factorizable with respect to flow B, finding k+ and k-.
-     * A flow F is factorizable with respect to another flow F' iff. there exists k+,k- in Z, such that
+     * A flow F is factorizable with respect to another flow F' iff. there exists k+,k- in Q, such that
      * F' + k+ F+ + k- F- = A holds, with A the projection of F' outside the support of F.
      * So the goal is to test whether this is feasible, and return k+, k- if they exist.
      * @param A potential factor we test (F in the definitions).
@@ -708,13 +709,13 @@ public:
      *
      * Runs a merge-like scan over A and B’s keys to compute consistent k+ and k-.
      */
-      static std::pair<bool, std::pair<T, T>> isFactorizable (const SparseArray<T> &A,
+      static std::pair<bool, std::pair<Rational<T>, Rational<T>>> isFactorizable (const SparseArray<T> &A,
                                                        const SparseArray<T> &B)
       {
         // std::cout << "Testing factorizability of " << A << " with respect to " << B << std::endl;
         // Our goal is to find these factors.
-        T k_plus = 0;
-        T k_minus = 0;
+        Rational<T> k_plus = 0;
+        Rational<T> k_minus = 0;
         // initially unset until we find an intersection between A and B
         bool k_plus_set = false;
         bool k_minus_set = false;
@@ -736,14 +737,9 @@ public:
             T a_val = A.valueAt (i);
             T b_val = B.valueAt (j);
 
-            // we are not a multiple of each other
-            // k+/k- constrained to Z, we'd need Q.
-            if (b_val % a_val != 0) {
-              return {false, {0, 0}};
-            }
 
             // compute the factor k between the two
-            T k = b_val / a_val;
+            Rational<T> k (b_val, a_val);
 
             if (a_val > 0) {
               // it's positive, so we want to update k+
