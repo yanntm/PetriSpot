@@ -368,6 +368,7 @@ template<typename T>
           std::cout << "Mixed-sign stats - attempted insertions: "
               << msut.getAttemptedInsertions () << ", successful insertions: "
               << msut.getSuccessfulInsertions () << "\n";
+          RowSignsDomination<T>::confrontIndex (colsB, rowSigns, basisIndices);
         }
       }
 
@@ -382,8 +383,13 @@ template<typename T>
             << msut.getSuccessfulInsertions () << "\n";
 
         colsB.dropEmptyColumns ();
-        std::cout << "After minimization with support: "
+        std::cout << "After dropping empty entries : "
             << colsB.getColumnCount () << " semiflows\n";
+        if (DEBUG) {
+	        colsB = minimizeBasisWithSupport(colsB);
+        	std::cout << "After minimization with support: "
+                    << colsB.getColumnCount () << " semiflows\n";
+	}
       } else if (heur.useMinimization ()) {
         colsB = minimizeBasisWithSupport(colsB);
       } else {
@@ -435,6 +441,7 @@ template<typename T>
         const SparseArray<T> &currentCol = colsB.getColumn (lastVictim);
         SparseBoolArray intersectingCols =
             rowIndex.get (currentCol.keyAt (0)).pPlus;
+        intersectingCols.put (lastVictim, false); // Remove self
         for (size_t i = 1; i < currentCol.size (); ++i) {
           size_t row = currentCol.keyAt (i);
           intersectingCols.restrict (rowIndex.get (row).pPlus);
@@ -448,11 +455,12 @@ template<typename T>
           std::cout << "\n";
         }
 
+        intersectingCols.put (lastVictim, true); // Readd self
         // Discard redundant vectors (including self) in decreasing order
         for (ssize_t j = intersectingCols.size () - 1; j >= 0; --j) {
           size_t colIdx = intersectingCols.keyAt (j);
           const SparseArray<T> &candidateCol = colsB.getColumn (colIdx);
-          if (DEBUG && candidateCol.size () >= 0) {
+          if (DEBUG && candidateCol.size () >= 0 && colIdx != lastVictim) {
             std::cout << "Eliminating column " << colIdx << " (" << candidateCol
                 << ") because it is dominated by adopted column " << lastVictim
                 << " (" << currentCol << ")\n";
@@ -770,6 +778,10 @@ template<typename T>
                       rowSigns.setValue (key, kindex, 0, false); // Clear non-basis
                       rowSigns.setValue (key, kindex, changed[ind].second,
                                          true); // Set basis
+                    }
+                    for (size_t ind = 0; ind < colk.size (); ++ind) {
+                      rowSigns.setValue (colk.keyAt(ind), kindex, 0, false); // Clear non-basis
+                      rowSigns.setValue (colk.keyAt(ind), kindex, colk.valueAt(ind), true); // Set basis
                     }
                     for (size_t domIdx : dominated) {
                       msut.erase (domIdx);  // Clear dominated columns from MSUT

@@ -239,6 +239,124 @@ public:
       os << rs << "\n";
     return os;
   }
+
+  static void confrontIndex(MatrixCol<T>& colsB, RowSignsDomination<T>& rowSigns, std::unordered_set<size_t>& basisIndices) {
+    // Step 1: Verify basisIndices against pure positive columns in colsB
+    std::unordered_set<size_t> trueBasisIndices;
+    for (size_t icol = 0; icol < colsB.getColumnCount(); ++icol) {
+      const SparseArray<T>& col = colsB.getColumn(icol);
+      if (col.isPurePositive() && col.size() > 0) {
+        trueBasisIndices.insert(icol);
+      }
+    }
+
+    // Check for columns in basisIndices that are not pure positive
+    bool basisMismatch = false;
+    for (size_t icol : basisIndices) {
+      if (trueBasisIndices.find(icol) == trueBasisIndices.end()) {
+        std::cout << "Error: Column " << icol << " is in basisIndices but not pure positive.\n";
+        std::cout << "Column " << icol << " contents: " << colsB.getColumn(icol) << "\n";
+        basisMismatch = true;
+      }
+    }
+
+    // Check for pure positive columns not in basisIndices
+    for (size_t icol : trueBasisIndices) {
+      if (basisIndices.find(icol) == basisIndices.end()) {
+        std::cout << "Error: Column " << icol << " is pure positive but not in basisIndices.\n";
+        std::cout << "Column " << icol << " contents: " << colsB.getColumn(icol) << "\n";
+        basisMismatch = true;
+      }
+    }
+
+    if (!basisMismatch) {
+      std::cout << "basisIndices is consistent with pure positive columns in colsB.\n";
+    } else {
+      std::cout << "colsB: " << colsB << "\n";
+      std::cout << "basisIndices: { ";
+      for (size_t idx : basisIndices) std::cout << idx << " ";
+      std::cout << "}\n";
+    }
+
+    // Step 2: Construct a fresh RowSignsDomination<T> using colsB and basisIndices
+    RowSignsDomination<T> freshRowSigns(colsB);
+
+    // Step 3: Compare freshRowSigns with existing rowSigns
+    bool rowSignsMismatch = false;
+
+    // Get row sets
+    std::unordered_set<size_t> freshRows, existingRows;
+    for (const auto& [row, _] : freshRowSigns.rows) freshRows.insert(row);
+    for (const auto& [row, _] : rowSigns.rows) existingRows.insert(row);
+
+    if (freshRows != existingRows) {
+      std::cout << "Mismatch in row sets between rowSigns and freshRowSigns:\n";
+      for (size_t row : freshRows) {
+        if (existingRows.count(row) == 0) {
+          std::cout << "Row " << row << " in freshRowSigns but not in rowSigns.\n";
+        }
+      }
+      for (size_t row : existingRows) {
+        if (freshRows.count(row) == 0) {
+          std::cout << "Row " << row << " in rowSigns but not in freshRowSigns.\n";
+        }
+      }
+      rowSignsMismatch = true;
+    }
+
+    // Compare each row's sign information
+    for (size_t row : freshRows) {
+      if (existingRows.count(row) == 0) continue; // Skip rows not in both
+      const RowSignBasis<T>& freshRS = freshRowSigns.get(row);
+      const RowSignBasis<T>& existingRS = rowSigns.get(row);
+
+      if (freshRS.pPlus.basis != existingRS.pPlus.basis) {
+        std::cout << "Mismatch in pPlus.basis for row " << row << ":\n";
+        std::cout << "Fresh: " << freshRS.pPlus.basis << "\n";
+        std::cout << "Existing: " << existingRS.pPlus.basis << "\n";
+        rowSignsMismatch = true;
+      }
+      if (freshRS.pPlus.nonBasis != existingRS.pPlus.nonBasis) {
+        std::cout << "Mismatch in pPlus.nonBasis for row " << row << ":\n";
+        std::cout << "Fresh: " << freshRS.pPlus.nonBasis << "\n";
+        std::cout << "Existing: " << existingRS.pPlus.nonBasis << "\n";
+        rowSignsMismatch = true;
+      }
+      if (freshRS.pMinus != existingRS.pMinus) {
+        std::cout << "Mismatch in pMinus for row " << row << ":\n";
+        std::cout << "Fresh: " << freshRS.pMinus << "\n";
+        std::cout << "Existing: " << existingRS.pMinus << "\n";
+        rowSignsMismatch = true;
+      }
+    }
+
+    // Compare rowsWithSomeNeg
+    std::unordered_set<size_t> freshRowsWithSomeNeg;
+    for (const auto& [row, rs] : freshRowSigns.rows) {
+      if (rs.pMinus.size() > 0) freshRowsWithSomeNeg.insert(row);
+    }
+    if (freshRowsWithSomeNeg != rowSigns.rowsWithSomeNeg) {
+      std::cout << "Mismatch in rowsWithSomeNeg:\n";
+      for (size_t row : freshRowsWithSomeNeg) {
+        if (rowSigns.rowsWithSomeNeg.count(row) == 0) {
+          std::cout << "Row " << row << " has negatives in freshRowSigns but not in rowSigns.\n";
+        }
+      }
+      for (size_t row : rowSigns.rowsWithSomeNeg) {
+        if (freshRowsWithSomeNeg.count(row) == 0) {
+          std::cout << "Row " << row << " has negatives in rowSigns but not in freshRowSigns.\n";
+        }
+      }
+      rowSignsMismatch = true;
+    }
+
+    if (!rowSignsMismatch) {
+      std::cout << "rowSigns is consistent with colsB and basisIndices.\n";
+    } else {
+      std::cout << "Full rowSigns: " << rowSigns << "\n";
+      std::cout << "Full freshRowSigns: " << freshRowSigns << "\n";
+    }
+  }
 };
 
 
