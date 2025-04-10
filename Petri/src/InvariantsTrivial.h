@@ -79,58 +79,94 @@ size_t cullConstantColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
 // @param matB       The transformation matrix.
 // @param trivialInv Vector accumulating trivial invariants.
 //---------------------------------------------------------------------
+// Helper function to generate a unique string key for a SparseArray based on GCD normalization
+template<typename T>
+std::string gcdString(const SparseArray<T>& v) {
+    if (v.size() == 0) {
+        return "empty";
+    }
+    // Compute GCD of absolute values
+    T gcd = std::abs(v.valueAt(0));
+    for (size_t i = 1; i < v.size(); ++i) {
+        gcd = std::gcd(gcd, std::abs(v.valueAt(i)));
+        if (gcd == 1) break;
+    }
+    if (gcd == 0) {
+        return "zero";
+    }
+    // Normalize sign based on the first non-zero value
+    T first_val = v.valueAt(0);
+    int sign = (first_val > 0) ? 1 : -1;
+    // Create string representation of normalized values
+    std::ostringstream oss;
+    for (size_t i = 0; i < v.size(); ++i) {
+        if (i > 0) oss << ",";
+        T normalized_val = (v.valueAt(i) / gcd) * sign;
+        oss << v.keyAt(i) << ":" << normalized_val;
+    }
+    return oss.str();
+}
+
+// Extended function to cull duplicate columns, including rational multiples
 template<typename T>
 size_t cullDuplicateColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
-                          std::vector<SparseArray<T>>& trivialInv)
+                            std::vector<SparseArray<T>>& trivialInv)
 {
     size_t colCount = matC.getColumnCount();
-    std::vector<size_t> duplicateIndexes;  // collect duplicate column indices
-    std::unordered_map<SparseArray<T>, size_t> repMap;
+    std::vector<size_t> duplicateIndexes;  // Collect duplicate column indices
+    std::unordered_map<std::string, size_t> repMap;  // Map from gcdString to representative index
 
-    // First pass: detect duplicates.
+    // First pass: detect duplicates up to rational multiples
     for (size_t col = 0; col < colCount; ++col) {
         const SparseArray<T>& columnC = matC.getColumn(col);
-        auto it = repMap.find(columnC);
+        std::string key = gcdString(columnC);
+        auto it = repMap.find(key);
         if (it == repMap.end()) {
-            repMap.insert({columnC, col});
+            repMap[key] = col;
         } else {
-            // Duplicate column found: record its index.
+            // Duplicate found (rational multiple)
             duplicateIndexes.push_back(col);
-            // Compute diff = matB(col) - matB(rep) using sumProd.
-            SparseArray<T> diff = SparseArray<T>::sumProd(1, matB.getColumn(col),
-                                                          -1, matB.getColumn(it->second));
+            size_t rep = it->second;
+            const SparseArray<T>& repColumnC = matC.getColumn(rep);
+            // Use first values as coefficients to compute difference
+            T a = columnC.valueAt(0);
+            T b = repColumnC.valueAt(0);
+            // Compute diff = b * matB(col) - a * matB(rep)
+            SparseArray<T> diff = SparseArray<T>::sumProd(b, matB.getColumn(col),
+                                                          -a, matB.getColumn(rep));
             trivialInv.push_back(std::move(diff));
         }
     }
 
     size_t tocull = duplicateIndexes.size();
-    // Only rebuild if we found duplicates.
+    // Rebuild matrices only if duplicates were found
     if (tocull > 0) {
-        std::cout << "Culling duplicate invariants: removing "
+        std::cout << "Culling duplicate invariants (modulo rational): removing "
                   << tocull << " columns." << std::endl;
 
-        // duplicateIndexes are produced in increasing order since col increases.
+        // Rebuild matC and matB, skipping duplicates
         std::vector<SparseArray<T>> newColsC;
         std::vector<SparseArray<T>> newColsB;
-        newColsC.reserve(colCount - duplicateIndexes.size());
-        newColsB.reserve(colCount - duplicateIndexes.size());
+        newColsC.reserve(colCount - tocull);
+        newColsB.reserve(colCount - tocull);
 
-        size_t dupPos = 0; // pointer into duplicateIndexes
+        size_t dupPos = 0; // Pointer into duplicateIndexes
         for (size_t col = 0; col < colCount; ++col) {
-            if (dupPos < duplicateIndexes.size() && duplicateIndexes[dupPos] == col) {
-                ++dupPos; // skip this duplicate column
+            if (dupPos < tocull && duplicateIndexes[dupPos] == col) {
+                ++dupPos; // Skip this duplicate column
             } else {
                 newColsC.push_back(std::move(matC.getColumn(col)));
                 newColsB.push_back(std::move(matB.getColumn(col)));
             }
         }
 
-        // Replace the old columns with the new (culled) ones.
+        // Update matrices with culled columns
         matC.setColumns(std::move(newColsC));
         matB.setColumns(std::move(newColsB));
     }
     return tocull;
 }
+
 
 } // namespace petri
 
