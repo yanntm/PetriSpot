@@ -458,7 +458,7 @@ template<typename T>
         intersectingCols.put (lastVictim, true); // Readd self
         // Discard redundant vectors (including self) in decreasing order
         for (ssize_t j = intersectingCols.size () - 1; j >= 0; --j) {
-          size_t colIdx = intersectingCols.keyAt (j);
+          ssize_t colIdx = intersectingCols.keyAt (j);
           const SparseArray<T> &candidateCol = colsB.getColumn (colIdx);
           if (DEBUG && candidateCol.size () >= 0 && colIdx != lastVictim) {
             std::cout << "Eliminating column " << colIdx << " (" << candidateCol
