@@ -60,7 +60,7 @@ template<typename T1, typename T2>
 
 namespace std {
 std::ostream& operator<<(std::ostream& out, __uint128_t n) {
-  uint64_t high = n >> 64;
+  uint64_t high = static_cast<uint64_t>(n >> 64);
   uint64_t low = n & 0xFFFFFFFFFFFFFFFFULL;
   if (high > 0) {
     out << high << std::setfill('0') << std::setw(19) << low;
