@@ -1496,6 +1496,22 @@ template<typename T>
           redo = false;
           for (size_t j = 0; j < p.elements.size() ; j++) {
             auto &e = p.elements[j];
+            // check condition : at most one expansion per term
+            int nbterms =0;
+            for (size_t k = 0; k < e.size (); k++) {
+              auto key = e.keyAt (k);
+              auto it = indexMap.find (key);
+              if (it != indexMap.end ()) {
+                nbterms++;
+                if (nbterms > 1) {
+                  break;
+                }
+              }
+            }
+            if (nbterms > 1) {
+              // skip these expansions
+              continue;
+            }
             // for each key, is it in our set ?
             for (size_t k = 0; k < e.size (); k++) {
               auto key = e.keyAt (k);
