@@ -132,7 +132,7 @@ size_t cullDuplicateColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
             T a = columnC.valueAt(0);
             T b = repColumnC.valueAt(0);
             // Compute diff = b * matB(col) - a * matB(rep)
-            SparseArray<T> diff = SparseArray<T>::sumProd(b, matB.getColumn(col),
+            SparseArray<T> diff = petri::sumProd(b, matB.getColumn(col),
                                                           -a, matB.getColumn(rep));
             trivialInv.push_back(std::move(diff));
         }
