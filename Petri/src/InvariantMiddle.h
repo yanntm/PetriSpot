@@ -66,7 +66,7 @@ template<typename T>
 
       size_t firstPerm = pnames.size ();
 
-      std::unordered_map<size_t,size_t> repSizes;
+      std::unordered_map<size_t,__uint128_t> repSizes;
       if (!permutations.empty ()) {
         out << "Permutations : " << std::endl;
 
@@ -79,17 +79,19 @@ template<typename T>
         // Now print the permutations
         for (size_t i = 0; i < permutations.size (); i++) {
           // format is :
-          // r0 : [ p0 + 2*p1 = 2 ] , [ p3 = 1 ] ;
+          // r0 : [ p0 + 2*p1 = 2 ] , [ p3 = 1 ] ; (2)
           auto name = "r" + std::to_string (i);
           moreNames.push_back(name);
           moreInitials.push_back(0);
           out << name << " : ";
 
           const auto & perm = permutations[i];
-          repSizes[perm.index] = perm.elements.size();
+
+          __uint128_t represents = 0;
 
           bool first = true;
           for (const auto &term : perm.elements) {
+
             if (!first) {
               out << ", ";
             } else {
@@ -99,8 +101,21 @@ template<typename T>
             std::stringstream sb;
             auto sum = printEquation (term, moreInitials, moreNames, sb);
             out << sb.str () << " = " << sum << " ]";
+            __uint128_t termrepresents = 1;
+            // we need to add constants to right hand side
+            for (size_t i = term.size (); i-->0 ;) {
+              size_t key = term.keyAt (i);
+              if (key < firstPerm) {
+                break;
+              } else {
+                termrepresents = petri::multiplyExact(termrepresents,repSizes[key]);
+              }
+            }
+            represents += termrepresents ;
           }
-          out << " ;" << std::endl;
+          repSizes[perm.index] = represents;
+
+          out << " ; (" << represents << ") \n";
         }
       }
       // Declare and initialize names and initials conditionally
@@ -146,6 +161,69 @@ template<typename T>
             << std::endl;
       }
     }
+
+    static __uint128_t countInvariant (const MatrixCol<T> &invariants,
+                                const Permutations &permutations)
+    {
+      if (permutations.empty ()) {
+        return invariants.getColumnCount ();
+      }
+
+      size_t firstPerm = invariants.getRowCount () - permutations.size ();
+
+      std::unordered_map<size_t,__uint128_t> repSizes;
+      if (!permutations.empty ()) {
+        // Now print the permutations
+        for (size_t i = 0; i < permutations.size (); i++) {
+          // format is :
+          // r0 : [ p0 + 2*p1 = 2 ] , [ p3 = 1 ] ; (2)
+          const auto & perm = permutations[i];
+
+          __uint128_t represents = 0;
+
+          for (const auto &term : perm.elements) {
+            __uint128_t termrepresents = 1;
+            // we need to add constants to right hand side
+            for (size_t i = term.size (); i-->0 ;) {
+              size_t key = term.keyAt (i);
+              if (key < firstPerm) {
+                break;
+              } else {
+                termrepresents = petri::multiplyExact(termrepresents,repSizes[key]);
+              }
+            }
+            represents += termrepresents ;
+          }
+          repSizes[perm.index] = represents;
+        }
+      }
+      __uint128_t decompressed = 0;
+      for (const auto &rv : invariants.getColumns ()) {
+        try {
+          __uint128_t represents = 1;
+          if (!permutations.empty ()) {
+            // we need to add constants to right hand side
+            for (size_t i = rv.size (); i-->0 ;) {
+              size_t key = rv.keyAt (i);
+              if (key < firstPerm) {
+                break;
+              } else {
+                represents = petri::multiplyExact(represents,repSizes[key]);
+              }
+            }
+          }
+          decompressed = petri::addExact(decompressed,represents);
+        } catch (std::overflow_error &e) {
+          std::cerr
+              << "Overflow of '128 bit unsigned int' when computing number of decompressed invariant."
+              << std::endl;
+        }
+      }
+
+      return decompressed;
+    }
+
+
 
     static void printInvariant (const MatrixCol<T> &invariants,
                                 const Permutations &permutations,
