@@ -1477,52 +1477,98 @@ template<typename T>
       return {permutations, colsB};
     }
 
+    static void fusePermutations(std::vector<Permutation> &permutations,
+                                 MatrixCol<T> &colsB) {
+      if (DEBUG) {
+        std::cout << "Entering fusePermutations\n";
+        std::cout << "Initial permutations size: " << permutations.size()
+                  << "\n";
+        for (const auto &p : permutations) {
+          std::cout << "Permutation index: " << p.index << ", elements: ";
+          for (const auto &e : p.elements) {
+            std::cout << e << " ";
+          }
+          std::cout << "\n";
+        }
+        std::cout << "Initial colsB:\n" << colsB << "\n";
+      }
 
-    static void fusePermutations (std::vector<Permutation> &permutations,
-                                  MatrixCol<T> &colsB)
-    {
+      size_t firstPermutationIndex = colsB.getRowCount() - permutations.size();
+      if (DEBUG) {
+        std::cout << "First permutation index: " << firstPermutationIndex
+                  << "\n";
+      }
       std::unordered_map<size_t, size_t> indexMap;
-      for (size_t i = 0; i < permutations.size (); i++) {
+      for (size_t i = 0; i < permutations.size(); i++) {
         indexMap[permutations[i].index] = i;
       }
 
+      if (DEBUG) {
+        std::cout << "Index map size: " << indexMap.size() << "\n";
+        for (const auto &pair : indexMap) {
+          std::cout << "  Index: " << pair.first
+                    << " -> Position: " << pair.second << "\n";
+        }
+      }
+
       bool needRewrite = false;
-      //iterate permutations in reverse order
-      for (size_t i = permutations.size (); i-- > 0;) {
+      for (size_t i = permutations.size(); i-- > 0;) {
         auto &p = permutations[i];
-        // iterate parts
+        if (DEBUG) {
+          std::cout << "Processing permutation at position " << i
+                    << ", index: " << p.index << "\n";
+        }
         bool redo = true;
         while (redo) {
           redo = false;
-          for (size_t j = 0; j < p.elements.size() ; j++) {
+          for (size_t j = 0; j < p.elements.size(); j++) {
             auto &e = p.elements[j];
-            // check condition : at most one expansion per term
-            int nbterms =0;
-            for (size_t k = 0; k < e.size (); k++) {
-              auto key = e.keyAt (k);
-              auto it = indexMap.find (key);
-              if (it != indexMap.end ()) {
+            if (DEBUG) {
+              std::cout << "  Examining element: " << e << "\n";
+            }
+            int nbterms = 0;
+            for (size_t k = e.size(); k-- > 0;) {
+              auto key = e.keyAt(k);
+              if (key >= firstPermutationIndex) {
                 nbterms++;
-                if (nbterms > 1) {
+                if (nbterms > 1)
                   break;
-                }
               }
             }
-            if (nbterms > 1) {
-              // skip these expansions
-              continue;
+            if (DEBUG) {
+              std::cout << "    Number of terms with matching keys: " << nbterms
+                        << "\n";
             }
-            // for each key, is it in our set ?
-            for (size_t k = 0; k < e.size (); k++) {
-              auto key = e.keyAt (k);
-              auto it = indexMap.find (key);
-              if (it != indexMap.end ()) {
+            if (nbterms > 1)
+              continue;
+
+            for (size_t k = 0; k < e.size(); k++) {
+              auto key = e.keyAt(k);
+              auto it = indexMap.find(key);
+              if (it != indexMap.end()) {
+                if (DEBUG) {
+                  std::cout << "    Found key " << key
+                            << " in indexMap at position " << it->second
+                            << "\n";
+                }
                 auto copy = e;
-                p.elements.erase (p.elements.begin () + j);
-                T coeff = copy.valueAt (k);
-                copy.put (key, 0);
+                p.elements.erase(p.elements.begin() + j);
+                T coeff = copy.valueAt(k);
+                copy.put(key, 0); // Removes the key
+                if (DEBUG) {
+                  std::cout << "    After removal, copy: " << copy
+                            << ", coefficient: " << coeff << "\n";
+                }
                 for (auto &rep : permutations[it->second].elements) {
-                    p.elements.emplace_back(sumProd((T)1, copy, coeff, rep));
+                  if (DEBUG) {
+                    std::cout << "      Substituting with: " << rep << "\n";
+                  }
+                  p.elements.emplace_back(sumProd((T)1, copy, coeff, rep));
+                  if (DEBUG) {
+                    std::cout
+                        << "      Added new element: " << p.elements.back()
+                        << "\n";
+                  }
                 }
                 redo = true;
                 needRewrite = true;
@@ -1535,26 +1581,82 @@ template<typename T>
         }
       }
 
-
       if (needRewrite) {
+        if (DEBUG) {
+          std::cout << "Rewrite required due to fusions\n";
+        }
         size_t pindex = colsB.getRowCount() - permutations.size();
         std::vector<Permutation> newperms;
-        auto trans = colsB.transpose ();
+        // collect permutations used in other permutations
+        std::unordered_set<size_t> referencedIndices;
+        for (const auto &p : permutations) {
+          for (const auto &e : p.elements) {
+            for (size_t k = e.size(); k-- > 0;) {
+              size_t key = e.keyAt(k);
+              if (key >= firstPermutationIndex) {
+                referencedIndices.insert(key);
+              }
+            }
+          }
+        }
+
+        auto trans = colsB.transpose();
         std::vector<size_t> todel;
-        for (auto & p : permutations) {
-          if (trans.getColumn(p.index).size () == 0) {
+        for (auto &p : permutations) {
+          if (trans.getColumn(p.index).size() == 0 &&
+              referencedIndices.find(p.index) == referencedIndices.end()) {
             todel.push_back(p.index);
+            if (DEBUG) {
+              std::cout << "  Marking permutation index " << p.index
+                        << " for deletion\n";
+            }
           } else {
             p.index = pindex++;
-            newperms.push_back (p);
+            newperms.push_back(p);
+            if (DEBUG) {
+              std::cout << "  Reassigned index " << p.index
+                        << " to permutation\n";
+            }
           }
         }
         permutations = newperms;
-        std::sort (todel.begin (), todel.end (), std::greater<size_t>());
+        std::sort(todel.begin(), todel.end(), std::greater<size_t>());
         for (auto &d : todel) {
-          trans.deleteColumn (d);
+          trans.deleteColumn(d);
+          if (DEBUG) {
+            std::cout << "  Deleted column " << d
+                      << " from transposed matrix\n";
+          }
         }
         colsB = trans.transpose();
+
+        // Update the permutations with the new indices
+        for (auto &p : permutations) {
+          for (auto &e : p.elements) {
+            e.deleteAndShift(todel);
+          }
+        }
+
+        if (DEBUG) {
+          std::cout << "Updated permutations size: " << permutations.size()
+                    << "\n";
+          for (const auto &p : permutations) {
+            std::cout << "Permutation index: " << p.index << ", elements: ";
+            for (const auto &e : p.elements) {
+              std::cout << e << " ";
+            }
+            std::cout << "\n";
+          }
+          std::cout << "Updated colsB:\n" << colsB << "\n";
+        }
+      } else {
+        if (DEBUG) {
+          std::cout << "No rewrite necessary\n";
+        }
+      }
+
+      if (DEBUG) {
+        std::cout << "Exiting fusePermutations\n";
       }
     }
 
