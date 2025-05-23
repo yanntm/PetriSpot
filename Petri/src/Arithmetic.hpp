@@ -70,6 +70,19 @@ std::ostream& operator<<(std::ostream& out, __uint128_t n) {
   return out;
 
 }
+
+template<typename T>
+std::ostream& operator<<(std::ostream& out, std::vector<T> v) {
+  out << "[" ;
+  bool first = true;
+  for (const auto & e : v) {
+    if (first) first = false;
+    else out << ", ";
+    out << e;
+  }
+  out << "]\n";
+  return out;
 }
 
+}
 #endif /* ARITHMETICOPERATIONS_H_ */
