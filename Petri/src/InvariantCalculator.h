@@ -285,40 +285,26 @@ template<typename T>
     {
       RowSignsDomination<T> rowSigns (colsB);
       std::unordered_set<size_t> basisIndices;
-      MixedSignsUniqueTable<T> msut (colsB); // Initialize MSUT regardless, but only seed in Q+
       size_t filteredCount = 0;
 
-      // Step 1: Remove rows with only negative entries, as they cannot contribute to semiflows.
-      {
-        std::unordered_set<size_t> tokill;
-        for (const auto &rs : rowSigns) {
-          if (rs.pPlus.size () == 0) {
-            for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
-              tokill.insert (rs.pMinus.keyAt (i));
-            }
-          }
-        }
-        if (tokill.size () > 0) {
-          for (const auto &col : tokill) {
-            clearColumn (col, colsB, rowSigns);
-          }
-          if (DEBUG) {
-            std::cout << "Cleared " << tokill.size ()
-                << " cols due to row with only negative entries\n";
-          }
-        }
-      }
+      MixedSignsUniqueTable<T> msut (colsB); // Initialize MSUT regardless, but only seed in Q+
 
       // Step 2: Seed basisIndices with all-positive vectors and msut with mixed-sign vectors (Q+ only)
       if (heur.useQPlusBasis ()) {
         std::cout << "Seeding basis and mixed-sign table with "
             << colsB.getColumnCount () << " columns\n";
+        auto initial = colsB.getColumnCount ();
         for (size_t i = 0; i < colsB.getColumnCount (); ++i) {
           if (colsB.getColumn (i).isPurePositive ()) {
             basisIndices.insert (i);
+          } else if (i < initial) {
+            auto neg = colsB.getColumn (i);
+            neg.scalarProduct(-1);
+            colsB.appendColumn(neg);
           }
           msut.insert (i);
         }
+        rowSigns  =  RowSignsDomination<T> (colsB);
         if (DEBUG) {
           std::cout << "Initial basis size: " << basisIndices.size () << "\n";
           for (const auto &index : basisIndices) {
@@ -340,6 +326,22 @@ template<typename T>
       int iter = 0;
       // Step 3: Iteratively eliminate rows to ensure all coefficients are non-negative.
       while (true) {
+
+        if (DEBUG) {
+          std::cout << "Iteration " << iter << "Basis size: "
+              << basisIndices.size () << "\n";
+          for (const auto &index : basisIndices) {
+            std::cout << index
+                << " " /*" :" << colsB.getColumn (index) << "\n"*/;
+          }
+          std::cout << "\nMixed-sign unique table size: " << msut.size ()
+              << "\n";
+          std::cout << "Mixed-sign stats - attempted insertions: "
+              << msut.getAttemptedInsertions () << ", successful insertions: "
+              << msut.getSuccessfulInsertions () << "\n";
+          RowSignsDomination<T>::confrontIndex (colsB, rowSigns, basisIndices);
+        }
+
         ssize_t tRow = -1;
 
         if (heur.useSingleSignRow ()) {
@@ -356,20 +358,7 @@ template<typename T>
         eliminateRowFME (tRow, colsB, rowSigns, basisIndices, heur,
                          filteredCount, msut, posRows);  // Pass msut always
 
-        if (DEBUG && ++iter /*(++iter % 10 == 0)*/) {
-          std::cout << "Iteration " << iter << "Basis size: "
-              << basisIndices.size () << "\n";
-          for (const auto &index : basisIndices) {
-            std::cout << index
-                << " " /*" :" << colsB.getColumn (index) << "\n"*/;
-          }
-          std::cout << "\nMixed-sign unique table size: " << msut.size ()
-              << "\n";
-          std::cout << "Mixed-sign stats - attempted insertions: "
-              << msut.getAttemptedInsertions () << ", successful insertions: "
-              << msut.getSuccessfulInsertions () << "\n";
-          RowSignsDomination<T>::confrontIndex (colsB, rowSigns, basisIndices);
-        }
+        if (DEBUG) ++iter;
       }
 
       // Step 4: Stats and finalize
