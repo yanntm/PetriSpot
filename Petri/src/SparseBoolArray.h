@@ -267,17 +267,6 @@ public:
     std::copy (mKeys, mKeys + mSize, copiedKeys);
     return copiedKeys;
   }
-  /**
-   * Provides direct access to keys, client should not modify.
-   * @return an array of sorted integers corresponding to true entries of this BoolArray
-   */
-  size_t* refKeys ()
-  {
-    if (size () == 0) {
-      return new size_t[0];
-    }
-    return mKeys;
-  }
 
   size_t hash () const
   {
