@@ -212,6 +212,10 @@ template<typename T>
         // Remove duplicate columns
         culled += cullDuplicateColumns (matC, matB, trivialInv);
 
+        if (DEBUG) {
+          std::cout << "Obtained trivial invariants :" << trivialInv << std::endl;
+        }
+
         std::cout << "Culled " << culled << " columns in "
             << std::chrono::duration_cast < std::chrono::milliseconds
             > (std::chrono::steady_clock::now () - time).count () << " ms."
@@ -297,7 +301,8 @@ template<typename T>
         for (size_t i = 0; i < colsB.getColumnCount (); ++i) {
           if (colsB.getColumn (i).isPurePositive ()) {
             basisIndices.insert (i);
-          } else if (i < initial) {
+          }
+          if (i < initial) {
             auto neg = colsB.getColumn (i);
             neg.scalarProduct(-1);
             colsB.appendColumn(neg);
@@ -678,8 +683,8 @@ template<typename T>
       if (rs.pPlus.size () == 0) {
         SparseBoolArray toVisit = rs.pMinus;
         for (size_t i = 0; i < toVisit.size (); ++i) {
-          msut.erase (i);
-          clearColumnWithBasis (i, colsB, rowSigns, false); // Non-basis by default
+          msut.erase (toVisit.keyAt(i));
+          clearColumnWithBasis (toVisit.keyAt(i), colsB, rowSigns, false); // Non-basis by default
         }
         if (DEBUG) {
           std::cout << "Cleared row " << targetRow << "\n";
