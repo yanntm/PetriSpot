@@ -274,7 +274,8 @@ int main (int argc, char *argv[])
         std::cout << "Computed " << mat.getColumnCount () << " P "
             << (psemiflows ? "semi" : "") << "flows " ;
         if (!perms.empty()) {
-          std::cout << "with " << perms.size() << "permutations";
+          std::cout << "with " << perms.size() << " permutations.\n";
+          std::cout << "Total decompressed invariants :" << InvariantMiddle<VAL>::countInvariant(mat,perms) << std::endl;
         }
         std::cout << " in " << std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now () - time).count () << " ms."
@@ -294,7 +295,8 @@ int main (int argc, char *argv[])
         std::cout << "Computed " << mat.getColumnCount () << " T "
             << (tsemiflows ? "semi" : "") << "flows ";
         if (!perms.empty()) {
-          std::cout << "with " << perms.size() << "permutations";
+          std::cout << "with " << perms.size() << " permutations.\n";
+          std::cout << "Total decompressed invariants :" << InvariantMiddle<VAL>::countInvariant(mat,perms) << std::endl;
         }
         std::cout << " in " << std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now () - time).count () << " ms."
