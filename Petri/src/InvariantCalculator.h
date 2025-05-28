@@ -287,6 +287,30 @@ template<typename T>
     static void phase2Pipe (MatrixCol<T> &colsB,
                             const EliminationHeuristic &heur)
     {
+      bool allPositive = true;
+      for (size_t col =0,cole=colsB.getColumnCount() ; col < cole ; ++col) {
+        if (! colsB.getColumn(col).isPurePositive()) {
+          allPositive = false;
+          break;
+        }
+      }
+      if (allPositive) {
+        std::cout << "Flow basis is also a basis of semiflows.\n";
+        return;
+      }
+
+      auto startTime = std::chrono::high_resolution_clock::now ();
+      // std::cout << "Before diago :" << colsB << std::endl;
+      // step 1 : pseudo diagonalize
+      pseudoDiagonalize(colsB);
+      //std::cout << "After diago :" << colsB << std::endl;
+      auto endTime = std::chrono::high_resolution_clock::now ();
+      auto duration = std::chrono::duration_cast < std::chrono::milliseconds
+          > (endTime - startTime);
+      std::cout << "Pseudo diagonalization completed in : " << duration.count ()
+          << " ms\n";
+
+
       RowSignsDomination<T> rowSigns (colsB);
       std::unordered_set<size_t> basisIndices;
       size_t filteredCount = 0;
@@ -301,11 +325,6 @@ template<typename T>
         for (size_t i = 0; i < colsB.getColumnCount (); ++i) {
           if (colsB.getColumn (i).isPurePositive ()) {
             basisIndices.insert (i);
-          }
-          if (i < initial) {
-            auto neg = colsB.getColumn (i);
-            neg.scalarProduct(-1);
-            colsB.appendColumn(neg);
           }
           msut.insert (i);
         }
@@ -472,6 +491,131 @@ template<typename T>
           << " ms\n";
 
       return basis;
+    }
+
+    static void pseudoDiagonalize (MatrixCol<T> &colsB)
+    {
+      // Initialize local RowSignsDomination to track signs of all columns initially
+      SparseRowSigns<T> rowSigns (colsB);
+      std::unordered_set<size_t> pivotColumns;
+      // Iterate over each row of the matrix
+      for (size_t r = 0; r < colsB.getRowCount (); ++r) {
+        // Get sign information for the current row
+        auto & rs = rowSigns.get (r);
+
+        // Skip rows with no non-zero entries
+        if (rs.pPlus.size () == 0 && rs.pMinus.size () == 0) {
+          continue;
+        }
+
+        // Select a pivot column : a small one
+        ssize_t spivot = -1;
+        bool need_negate = false;
+        size_t psize = std::numeric_limits<size_t>::max();
+
+        const auto *rsp = &rs.pPlus;
+        for (size_t i = 0, ie = rsp->size (); i < ie; i++) {
+          auto candidate = rsp->keyAt (i);
+          if (pivotColumns.find (candidate) == pivotColumns.end ()) {
+            auto candsize = colsB.getColumn(candidate).size ();
+            if (candsize < psize) {
+              spivot = candidate;
+              psize = candsize;
+            }
+          }
+        }
+        rsp = & rs.pMinus;
+        for (size_t i = 0, ie = rsp->size (); i < ie; i++) {
+          auto candidate = rsp->keyAt (i);
+          if (pivotColumns.find (candidate) == pivotColumns.end ()) {
+            auto candsize = colsB.getColumn (candidate).size ();
+            if (candsize < psize) {
+              spivot = candidate;
+              psize = candsize;
+              need_negate = true;
+            }
+          }
+        }
+
+        if (spivot == -1) {
+          continue;
+        }
+        // unsigned
+        size_t pivot = spivot;
+        pivotColumns.insert(pivot);
+        // If the pivot entry is negative, negate the entire column
+        if (need_negate) {
+          auto &col = colsB.getColumn (pivot);
+          col.scalarProduct (-1); // Negate column in-place
+        }
+
+
+        // Remove the pivot column from rowSigns to track only non-basis columns
+        auto &pivot_col = colsB.getColumn (pivot);
+
+        if (DEBUG) 
+          std::cout << "Chose pivot column " << pivot_col << " with index " << pivot << " as pivot for row " << r << std::endl;
+
+        // Collect columns to eliminate (all non-zero columns in this row except pivot)
+        std::vector < size_t > to_eliminate;
+        to_eliminate.reserve (rs.pPlus.size () + rs.pMinus.size ());
+
+        for (size_t i = 0, ie = rs.pPlus.size (); i < ie; ++i) {
+          auto j = rs.pPlus.keyAt (i);
+          if (j != pivot)
+            to_eliminate.push_back (j);
+        }
+        for (size_t i = 0, ie = rs.pMinus.size (); i < ie; ++i) {
+          auto j = rs.pMinus.keyAt (i);
+          if (j != pivot)
+            to_eliminate.push_back (j);
+        }
+
+//        for (size_t i = 0, ie = pivot_col.size (); i < ie; ++i) {
+//          rowSigns.setValue (pivot_col.keyAt (i), pivot, 0); // Set to zero to remove from rowSigns
+//        }
+
+        // Now, pivot_val = colsB.get(r, pivot) > 0 due to possible negation
+
+
+
+        T pivot_val = colsB.get (r, pivot); // Pivot value, ensured > 0
+
+        // Perform Gaussian elimination on each column
+        for (size_t j : to_eliminate) {
+          auto &col_j = colsB.getColumn (j);
+
+          if (DEBUG)  std::cout << "Before elimination, col " << j << " is " << col_j << std::endl;
+
+          T entry_j = col_j.get (r); // Value to eliminate
+
+          // Compute coefficients for elimination, reducing by GCD
+          T beta = pivot_val; // Coefficient for col_j
+          T alpha = -entry_j; // Coefficient for pivot_col
+          T gcd = std::gcd (std::abs (alpha), beta);
+          if (gcd != 0) {
+            alpha /= gcd;
+            beta /= gcd;
+          }
+
+          // Perform elimination: col_j = beta * col_j + alpha * pivot_col
+          auto changed = sumProdInto (beta, col_j, alpha, pivot_col);
+
+          // Normalize the column to keep coefficients small
+          normalize (col_j);
+
+
+          // Update rowSigns for all changed rows in column j
+          for (const auto &change : changed) {
+            size_t row = change.first;
+            T new_val = change.second;
+            rowSigns.setValue (row, j, new_val);
+          }
+
+          if (DEBUG) std::cout << "After elimination, col " << j << " is " << col_j << std::endl;
+        }
+
+      }
     }
 
     /**
@@ -1669,8 +1813,8 @@ template<typename T>
 
         std::unordered_set<size_t> targets;
         // Trivial equality check : size=2 and not pure positive and weights are +-1
-        if (F.size () == 2 && std::abs (F.valueAt (0)) == 1
-            && std::abs (F.valueAt (1)) == 1) {
+        if (F.size () == 2  /*&& std::abs (F.valueAt (0)) == 1
+            && std::abs (F.valueAt (1)) == 1 */) {
           if (DEBUG) {
             std::cout << "Trivially factorizable flow " << F << " at index "
                 << fIdx << "\n";
@@ -1706,7 +1850,7 @@ template<typename T>
         // and we have a list of targets to check for existence of coefficients k+,k-
 
         // to store the k+,k- we find
-        std::map<size_t, std::pair<Rational<T>, Rational<T>>> coefficients;
+        std::unordered_map<size_t, std::pair<Rational<T>, Rational<T>>> coefficients (targets.size());
         for (const auto &target : targets) {
           auto [success, kpkm] = SparseArray<T>::isFactorizable (
               F, colsB.getColumn (target));
@@ -1762,7 +1906,7 @@ template<typename T>
      * returning the new permutation induced by F.
      */
     static Permutation rewriteBasis (
-        ssize_t fIdx, std::map<size_t, std::pair<Rational<T>, Rational<T>>> &coefficients,
+        ssize_t fIdx, std::unordered_map<size_t, std::pair<Rational<T>, Rational<T>>> &coefficients,
         MatrixCol<T> &colsB, RowSigns<T> &rowSigns)
     {
       // F is the factorizable flow to rewrite out of the basis.
