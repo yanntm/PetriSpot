@@ -12,7 +12,7 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: install packages
       run:  C:\msys64\usr\bin\bash -lc "PATH+=:/mingw64/bin ; pacman --noconfirm -S base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-autotools mingw-w64-x86_64-gmp p7zip mingw-w64-x86_64-expat base-devel libtool"
     - name: get libDDD
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout 
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
