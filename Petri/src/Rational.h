@@ -11,7 +11,7 @@ public:
 
     // Constructor with default denominator of 1
     Rational(T num = 0, T den = 1) : numerator(num), denominator(den) {
-        simplify();
+        if (den != 1) simplify();
     }
 
     // Simplify the fraction using GCD
@@ -20,8 +20,10 @@ public:
             throw std::invalid_argument("Denominator cannot be zero.");
         }
         T gcd = std::gcd(numerator, denominator);
-        numerator /= gcd;
-        denominator /= gcd;
+        if (gcd != 1) {
+          numerator /= gcd;
+          denominator /= gcd;
+        }
         if (denominator < 0) {  // Ensure denominator is positive
             numerator = -numerator;
             denominator = -denominator;
