@@ -65,7 +65,7 @@ template<typename T>
         for (size_t i = 0; i < pt.size (); i++) {
           size_t p = pt.keyAt (i);
           T val = pt.valueAt (i);
-          pw << "<arc id=\"arc" << (arcid++) << "\" source=\"p" << p
+          pw << "<arc id=\"a" << (arcid++) << "\" source=\"p" << p
               << "\" target=\"t" << t << "\">";
           if (val != 1) {
             pw << "<inscription><text>" << val << "</text></inscription>";
@@ -80,7 +80,7 @@ template<typename T>
         for (size_t i = 0; i < tp.size (); i++) {
           size_t p = tp.keyAt (i);
           T val = tp.valueAt (i);
-          pw << "<arc id=\"arc" << (arcid++) << "\" source=\"t" << t
+          pw << "<arc id=\"a" << (arcid++) << "\" source=\"t" << t
               << "\" target=\"p" << p << "\">";
           if (val != 1) {
             pw << "<inscription><text>" << val << "</text></inscription>";
