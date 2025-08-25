@@ -156,12 +156,14 @@ public:
     }
 
     void scalarProduct(T factor) {
+      if (factor != 1)
         for (size_t i = 0; i < mSize; i++) {
             mValues[i] *= factor;
         }
     }
 
     void scalarDiv(T factor) {
+      if (factor != 1)
         for (size_t i = 0; i < mSize; i++) {
             mValues[i] /= factor;
         }
