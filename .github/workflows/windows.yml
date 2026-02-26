@@ -12,7 +12,7 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: install packages
       run:  C:\msys64\usr\bin\bash -lc "PATH+=:/mingw64/bin ; pacman --noconfirm -S base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-autotools mingw-w64-x86_64-gmp p7zip mingw-w64-x86_64-expat base-devel libtool"
     - name: get libDDD
@@ -24,7 +24,7 @@ jobs:
     - name: package zip
       run:  C:\msys64\usr\bin\bash -lc "PATH+=:/mingw64/bin ; cd /D/a/PetriSpot/PetriSpot  ;  mkdir site ; strip -s Petri/src/petri32.exe ; strip -s Petri/src/petri64.exe ; strip -s Petri/src/petri128.exe ; cp Petri/src/petri*.exe site/; "
     - name: Upload Artifacts 🔺 # The project is then uploaded as an artifact named 'site'.
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: site
         path: site/
@@ -35,12 +35,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout 
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
 
       - name: Download Artifacts  # The built project is downloaded into the 'site' folder.
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: site
 
