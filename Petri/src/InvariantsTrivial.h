@@ -81,7 +81,7 @@ size_t cullConstantColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
 //---------------------------------------------------------------------
 // Helper function to generate a unique string key for a SparseArray based on GCD normalization
 template<typename T>
-std::string gcdString(const SparseArray<T>& v) {
+std::string gcdString(const SparseArray<T>& v, bool normalizeSign) {
     if (v.size() == 0) {
         return "empty";
     }
@@ -95,13 +95,16 @@ std::string gcdString(const SparseArray<T>& v) {
         return "zero";
     }
     // Normalize sign based on the first non-zero value
-    T first_val = v.valueAt(0);
-    int sign = (first_val > 0) ? 1 : -1;
+    int sign = 1;
+    if (normalizeSign) {
+      T first_val = v.valueAt(0);
+      sign = (first_val > 0) ? 1 : -1;
+    }
     // Create string representation of normalized values
     std::ostringstream oss;
     for (size_t i = 0; i < v.size(); ++i) {
         if (i > 0) oss << ",";
-        T normalized_val = (v.valueAt(i) / gcd) * sign;
+        T normalized_val = (v.valueAt(i) / gcd)* sign;
         oss << v.keyAt(i) << ":" << normalized_val;
     }
     return oss.str();
@@ -110,7 +113,7 @@ std::string gcdString(const SparseArray<T>& v) {
 // Extended function to cull duplicate columns, including rational multiples
 template<typename T>
 size_t cullDuplicateColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
-                            std::vector<SparseArray<T>>& trivialInv)
+                            std::vector<SparseArray<T>>& trivialInv, bool normalizeSign)
 {
     size_t colCount = matC.getColumnCount();
     std::vector<size_t> duplicateIndexes;  // Collect duplicate column indices
@@ -119,7 +122,7 @@ size_t cullDuplicateColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
     // First pass: detect duplicates up to rational multiples
     for (size_t col = 0; col < colCount; ++col) {
         const SparseArray<T>& columnC = matC.getColumn(col);
-        std::string key = gcdString(columnC);
+        std::string key = gcdString(columnC, normalizeSign);
         auto it = repMap.find(key);
         if (it == repMap.end()) {
             repMap[key] = col;
@@ -131,9 +134,13 @@ size_t cullDuplicateColumns(MatrixCol<T>& matC, MatrixCol<T>& matB,
             // Use first values as coefficients to compute difference
             T a = columnC.valueAt(0);
             T b = repColumnC.valueAt(0);
+
             // Compute diff = b * matB(col) - a * matB(rep)
             SparseArray<T> diff = petri::sumProd(b, matB.getColumn(col),
                                                           -a, matB.getColumn(rep));
+            
+            // make sure diff is in its canonical form (GCD normalized, sign normalized)
+            petri::normalizeWithSign(diff);
             trivialInv.push_back(std::move(diff));
         }
     }

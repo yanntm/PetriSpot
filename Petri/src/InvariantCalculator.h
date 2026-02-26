@@ -210,7 +210,7 @@ template<typename T>
         // Remove trivial invariants (empty columns in matC) early.
         size_t culled = cullConstantColumns (matC, matB, trivialInv);
         // Remove duplicate columns
-        culled += cullDuplicateColumns (matC, matB, trivialInv);
+        culled += cullDuplicateColumns (matC, matB, trivialInv, ! onlyPositive);
 
         if (DEBUG) {
           std::cout << "Obtained trivial invariants :" << trivialInv << std::endl;
@@ -855,10 +855,12 @@ template<typename T>
 
       auto pos = rs.pPlus;
       auto neg = rs.pMinus;
-      std::cout << "Preparing to treat row " << targetRow << " with "
-          << pos.size () << " positive of which " << pos.basis.size ()
-          << " basis and " << neg.size () << " negative columns for a max of "
-          << (pos.size () * neg.size ()) << " new columns.\n";
+      if (DEBUG) {
+        std::cout << "Preparing to treat row " << targetRow << " with "
+            << pos.size () << " positive of which " << pos.basis.size ()
+            << " basis and " << neg.size () << " negative columns for a max of "
+            << (pos.size () * neg.size ()) << " new columns.\n";
+      }
       for (size_t j = 0, je = pos.size (); j < je; ++j) {
         auto jindex = (purePos != -1) ? purePos : pos.keyAt (j);
         if (purePos != -1) {
