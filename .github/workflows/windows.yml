@@ -24,7 +24,7 @@ jobs:
     - name: package zip
       run:  C:\msys64\usr\bin\bash -lc "PATH+=:/mingw64/bin ; cd /D/a/PetriSpot/PetriSpot  ;  mkdir site ; strip -s Petri/src/petri32.exe ; strip -s Petri/src/petri64.exe ; strip -s Petri/src/petri128.exe ; cp Petri/src/petri*.exe site/; "
     - name: Upload Artifacts 🔺 # The project is then uploaded as an artifact named 'site'.
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: site
         path: site/
