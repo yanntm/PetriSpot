@@ -10,7 +10,8 @@
 #include "Heuristic.h"
 #include "FlowPrinter.h"
 #include "MatrixExporter.h"
-#include "PNMLExport.h"  
+#include "PNMLExport.h"
+#include "SparseMatrixIO.h"
 
 using namespace std;
 using namespace petri;
@@ -29,6 +30,9 @@ const string EXPORT_MATRIX = "--exportAsMatrix";
 const string NORMALIZE_PNML = "--normalizePNML";
 const string USEQPLUS = "--useQPlusBasis";
 const string USECOMPRESSION = "--useCompression";
+const string LOAD_KERS = "--loadKERS";
+const string EXPORT_AS_KERS = "--exportAsKERS";
+const string BASIS_KERS = "--basisKERS";
 
 #define DEFAULT_TIMEOUT 150
 
@@ -52,7 +56,14 @@ void usage ()
       << "  --Tflows             Compute minimal T-flows (transition invariants).\n"
       << "  --Tsemiflows         Compute minimal T-semiflows (positive transition invariants).\n"
       << "  --minBasis           Force minimization of the semi flows basis (default: false).\n"
-      << "  --exportAsMatrix=<file>  Export the incidence matrix to <file> in sparse format.\n"
+      << "  --exportAsMatrix=<file>  Export the incidence matrix to <file> in ASCII sparse format.\n"
+      << "  --exportAsKERS=<file>    Export the incidence matrix to <file> in KERS binary format.\n"
+      << "  --loadKERS=<file>        Load a sparse integer matrix in KERS binary format instead of PNML.\n"
+      << "                           Use with --Pflows/--Psemiflows (rows=places, cols=transitions)\n"
+      << "                           or --Tflows/--Tsemiflows (matrix is transposed internally).\n"
+      << "                           Implies program-to-program mode when combined with --basisKERS.\n"
+      << "  --basisKERS=<file>       Export computed invariant basis to <file> in KERS binary format.\n"
+      << "                           Suppresses human-readable invariant output (program-to-program mode).\n"
       << "  --normalizePNML[=<file>] Exports a normalized PNML model to <file> (default: <input_path>.norm.pnml).\n"
       << "                       All places and transitions have id and name set to p0,p1... and t0,t1...\n"
       << "                       respectively, graphical and tool-specific information is removed.\n"
@@ -103,8 +114,11 @@ int main (int argc, char *argv[])
   bool useCulling = true;
   bool minimizeFlows = false;
   std::string exportMatrixFile;
-  bool doNormalize = false;  // New boolean flag, initially false
-  std::string normalizePnmlFile;  // Separate string for filename
+  std::string exportAsKERSFile;
+  bool doNormalize = false;
+  std::string normalizePnmlFile;
+  std::string loadKERSFile;
+  std::string basisKERSFile;
   EliminationHeuristic::PivotStrategy pivotStrategy =
       EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = -1;
@@ -171,6 +185,12 @@ int main (int argc, char *argv[])
       minimizeFlows = true;
     } else if (std::string (argv[i]).substr (0, 17) == "--exportAsMatrix=") {
       exportMatrixFile = std::string (argv[i]).substr (17);
+    } else if (std::string (argv[i]).substr (0, 15) == "--exportAsKERS=") {
+      exportAsKERSFile = std::string (argv[i]).substr (15);
+    } else if (std::string (argv[i]).substr (0, 11) == "--loadKERS=") {
+      loadKERSFile = std::string (argv[i]).substr (11);
+    } else if (std::string (argv[i]).substr (0, 12) == "--basisKERS=") {
+      basisKERSFile = std::string (argv[i]).substr (12);
     } else if (std::string (argv[i]).substr (0, 15) == "--normalizePNML") {
       doNormalize = true;  // Set the flag when we see --normalizePNML
       std::string arg = std::string(argv[i]);
@@ -197,6 +217,53 @@ int main (int argc, char *argv[])
     std::cout << "Cannot compute T flows and T semi-flows at the same time."
         << std::endl;
     return 1;
+  }
+
+  // --- KERS matrix-input path (bypass PNML entirely) ---
+  if (!loadKERSFile.empty ()) {
+    if (!invariants) {
+      std::cerr << "Error: --loadKERS requires a flow/semiflow flag (--Pflows, --Psemiflows, --Tflows, --Tsemiflows)." << std::endl;
+      return 1;
+    }
+    if (doUseCompression) {
+      std::cerr << "Warning: --useCompression is not supported with --loadKERS (no net structure); flag ignored." << std::endl;
+      doUseCompression = false;
+    }
+
+    MatrixCol<VAL> M = SparseMatrixIO<VAL>::read (loadKERSFile);
+    if (M.getColumnCount () == 0 && M.getRowCount () == 0) {
+      return 1;
+    }
+    bool semi = psemiflows || tsemiflows;
+    MatrixCol<VAL> toUse = (tflows || tsemiflows) ? M.transpose () : M;
+    EliminationHeuristic heurM (useSingleSignRow, pivotStrategy, loopLimit,
+                                useCulling, minimizeFlows, doUseQPlusBasis, false);
+    auto time = std::chrono::steady_clock::now ();
+    auto [mat, perms] = InvariantMiddle<VAL>::computePInvariants (toUse, semi, timeout, heurM);
+    std::string flowKind = (tflows || tsemiflows) ? "T" : "P";
+    std::string flowType = semi ? "semi" : "";
+    std::cout << "Computed " << mat.getColumnCount () << " " << flowKind << " "
+        << flowType << "flows in "
+        << std::chrono::duration_cast<std::chrono::milliseconds> (
+               std::chrono::steady_clock::now () - time).count () << " ms." << std::endl;
+    // basisKERS implies program-to-program mode: skip human-readable output
+    bool printHuman = quiet ? false : basisKERSFile.empty ();
+    if (printHuman) {
+      size_t ndim = M.getRowCount ();
+      std::vector<std::string> names;
+      names.reserve (ndim);
+      for (size_t i = 0; i < ndim; ++i) names.push_back ("x" + std::to_string (i));
+      std::vector<VAL> zeros (ndim, 0);
+      InvariantMiddle<VAL>::printInvariant (mat, perms, names, zeros);
+    }
+    if (!basisKERSFile.empty ()) {
+      if (!SparseMatrixIO<VAL>::write (mat, basisKERSFile)) return 1;
+      std::cout << "Exported basis to " << basisKERSFile << std::endl;
+    }
+    std::cout << "Total runtime "
+        << std::chrono::duration_cast<std::chrono::milliseconds> (
+            std::chrono::steady_clock::now () - runtime).count () << " ms." << std::endl;
+    return 0;
   }
 
   if (modelPath.empty ()) {
@@ -238,11 +305,14 @@ int main (int argc, char *argv[])
       }
     }
 
-    // Export matrix if requested
-    if (!exportMatrixFile.empty ()) {
+    // Export matrix if requested (ASCII or KERS binary)
+    if (!exportMatrixFile.empty () || !exportAsKERSFile.empty ()) {
       MatrixCol<VAL> sumMatrix = MatrixCol<VAL>::sumProd (-1, pn->getFlowPT (),
                                                           1, pn->getFlowTP ());
-      MatrixExporter<VAL>::exportMatrix (sumMatrix, exportMatrixFile);
+      if (!exportMatrixFile.empty ())
+        MatrixExporter<VAL>::exportMatrix (sumMatrix, exportMatrixFile);
+      if (!exportAsKERSFile.empty ())
+        SparseMatrixIO<VAL>::write (sumMatrix, exportAsKERSFile);
     }
 
     if (findDeadlock) {
@@ -280,9 +350,13 @@ int main (int argc, char *argv[])
         std::cout << " in " << std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now () - time).count () << " ms."
             << std::endl;
-        if (!quiet) {
+        if (!quiet && basisKERSFile.empty ()) {
           InvariantMiddle<VAL>::printInvariant (mat, perms, pn->getPnames (),
                                                 (*pn).getMarks ());
+        }
+        if (!basisKERSFile.empty ()) {
+          SparseMatrixIO<VAL>::write (mat, basisKERSFile);
+          std::cout << "Exported basis to " << basisKERSFile << std::endl;
         }
       }
       if (tflows || tsemiflows) {
@@ -301,10 +375,14 @@ int main (int argc, char *argv[])
         std::cout << " in " << std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now () - time).count () << " ms."
             << std::endl;
-        if (!quiet) {
+        if (!quiet && basisKERSFile.empty ()) {
           std::vector<VAL> emptyVector (pn->getTnames ().size (), 0);
-          InvariantMiddle<VAL>::printInvariant (mat,perms, pn->getTnames (),
+          InvariantMiddle<VAL>::printInvariant (mat, perms, pn->getTnames (),
                                                 emptyVector);
+        }
+        if (!basisKERSFile.empty ()) {
+          SparseMatrixIO<VAL>::write (mat, basisKERSFile);
+          std::cout << "Exported basis to " << basisKERSFile << std::endl;
         }
       }
     }
