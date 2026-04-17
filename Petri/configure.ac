@@ -4,16 +4,6 @@ AC_INIT([PetriSpot],[0.1],[Yann.Thierry-mieg@lip6.fr])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 
 
-# option to indicate libddd folder
-AC_ARG_WITH([libddd],
-            [AS_HELP_STRING([--with-libddd=/root/of/libddd],[specify the path of libddd])])
-
-
-AM_CONDITIONAL([WITH_LIBDDD_PATH], [test "x${with_libddd}" != x])
-if test "x${with_libddd}" != x; then
-    AC_SUBST([LIBDDD_ROOT],[${with_libddd}])
-fi
-
 # link time opt, set AR and RANLIB before LT_INIT call, unless configure overrides them.
 # also Options for disabling LTO on Darwin since binutils sucks big time on that platform.
 nolto=false
@@ -36,17 +26,6 @@ if test "x$nolto" = "xfalse"; then
 fi
 
 
-# option to indicate libspot folder
-AC_ARG_WITH([libspot],
-            [AS_HELP_STRING([--with-libspot=/root/of/libspot],[specify the path of Spot])])
-
-
-AM_CONDITIONAL([WITH_LIBSPOT_PATH], [test "x${with_libspot}" != x])
-if test "x${with_libspot}" != x; then
-    AC_SUBST([LIBSPOT_ROOT],[${with_libspot}])
-fi
-
-
 # option to indicate libexpat folder
 AC_ARG_WITH([libexpat],
             [AS_HELP_STRING([--with-libexpat=/root/of/libexpat],[specify the path of libexpat])])
@@ -56,17 +35,6 @@ AM_CONDITIONAL([WITH_LIBEXPAT_PATH], [test "x${with_libexpat}" != x])
 if test "x${with_libexpat}" != x; then
     AC_SUBST([LIBEXPAT_ROOT],[${with_libexpat}])
 fi
-
-# option to indicate the path to the antlr C runtime
-AC_ARG_WITH([antlrc],
-            [AS_HELP_STRING([--with-antlrc=/root/of/antlrc],[specify the path of antlr C runtime])])
-
-AM_CONDITIONAL([WITH_ANTLRC_PATH], [test "x${with_antlrc}" != x])
-if test "x${with_antlrc}" != x; then
-    AC_SUBST([ANTLRC_ROOT],[${with_antlrc}])
-fi
-
-
 
 # AC_CHECK_LIB(dl, dlopen, ,AC_MSG_WARN(No operational dynamic link libdl found. This is a real problem.))
 
