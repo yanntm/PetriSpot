@@ -4,9 +4,19 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PREFIX="$SCRIPT_DIR/usr/local"
 
-# On macOS, brew installs glibtoolize instead of libtoolize
+# Optional argument: gcc version, e.g. "13" or "gcc@13" (default: 13)
+GCC_ARG="${1:-gcc@13}"
+GCC_VER="${GCC_ARG#gcc@}"  # strip leading "gcc@" if present
+
+# On macOS, brew install the requested GCC and use it exclusively (not clang).
 if [ "$(uname)" = "Darwin" ]; then
   export LIBTOOLIZE=glibtoolize
+  brew install "gcc@${GCC_VER}"
+  export CC="gcc-${GCC_VER}"
+  export CXX="g++-${GCC_VER}"
+  export AR="gcc-ar-${GCC_VER}"
+  export NM="gcc-nm-${GCC_VER}"
+  export RANLIB="gcc-ranlib-${GCC_VER}"
 fi
 
 mkdir -p "$PREFIX"
