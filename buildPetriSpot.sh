@@ -4,6 +4,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PREFIX="$SCRIPT_DIR/usr/local"
 
+# On macOS, brew installs glibtoolize instead of libtoolize
+if [ "$(uname)" = "Darwin" ]; then
+  export LIBTOOLIZE=glibtoolize
+fi
+
 mkdir -p "$PREFIX"
 
 # --- libExpat ---
