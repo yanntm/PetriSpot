@@ -119,6 +119,26 @@ Total runtime 0 ms.
 
 The examples can be found in the `examples/` folder.
 
+## Kernel Basis Computation for Integer Matrices
+
+Beyond Petri net analysis, PetriSpot can compute a **generative basis of the integer kernel** of any sparse integer matrix, under either rational (Q) or positive-rational (Q+) coefficients — corresponding to flows and semi-flows respectively.
+
+This is intended primarily for **efficient tool-to-tool interaction**: a caller builds the matrix, serialises it to the [KERS binary format](KERS.md), runs PetriSpot as a subprocess, and reads back the basis — all without going through PNML or human-readable text.
+KERS is roughly 10 times more compact than PNML (e.g. 230 MB PNML-> 21 MB KERS).
+It is also so trivial to machine read that parse/export times are imperceptible. 
+
+```sh
+# Export an arbitrary matrix in KERS format, compute its Q-kernel basis
+petri64 --loadKERS=matrix.kers --Pflows --basisKERS=basis.kers
+
+# Same but Q+ (non-negative coefficients only)
+petri64 --loadKERS=matrix.kers --Psemiflows --basisKERS=basis.kers
+```
+
+The [KERS format](KERS.md) is a compact little-endian binary format. A companion utility `kersconv` converts between KERS and a human-readable ASCII sparse format for debugging.
+
+The three binaries `petri32` / `petri64` / `petri128` differ only in the integer width used internally; use a wider variant if intermediate coefficients overflow.
+
 ## License
 
 PetriSpot is FOSS licensed under the GPL v3.
