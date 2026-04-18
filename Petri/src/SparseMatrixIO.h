@@ -2,12 +2,14 @@
 #define SPARSE_MATRIX_IO_H
 
 #include "MatrixCol.h"
+#include <bit>        // std::endian, std::byteswap (C++23)
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <string>
+#include <vector>
 
 /**
  * Binary format for sparse integer matrices (KERS format).
@@ -16,170 +18,210 @@
  *   magic   : 4 bytes  "KERS"
  *   version : 1 byte   (= 1)
  *   flags   : 1 byte   (reserved, = 0)
- *   nrows   : 4 bytes  uint32 (little-endian)
- *   ncols   : 4 bytes  uint32 (little-endian)
- *   padding : 2 bytes
+ *   nrows   : 4 bytes  uint32 LE
+ *   ncols   : 4 bytes  uint32 LE
+ *   padding : 2 bytes  (zero)
  *
  * Body — non-empty columns only, in ascending column order:
- *   col_idx : 4 bytes  uint32
- *   nnz     : 4 bytes  uint32
- *   repeated nnz times:
- *     row_idx : 4 bytes uint32
- *     value   : 8 bytes int64 (little-endian)
+ *   col_idx    : 4 bytes  uint32 LE
+ *   nnz        : 4 bytes  uint32 LE
+ *   row_indices: nnz × 4 bytes uint32 LE (contiguous, sorted ascending)
+ *   values     : nnz × 8 bytes int64  LE (contiguous)
  *
  * Terminator:
- *   col_idx = 0xFFFFFFFF
- *
- * Row indices within a column are sorted ascending.
- * Values are int64; the caller narrows/widens as needed for T.
+ *   0xFFFFFFFF : 4 bytes
  */
 
-static const char KERS_MAGIC[4] = {'K', 'E', 'R', 'S'};
-static const uint8_t KERS_VERSION = 1;
-static const uint32_t KERS_END = 0xFFFFFFFF;
+static const char     KERS_MAGIC[4] = {'K', 'E', 'R', 'S'};
+static const uint32_t KERS_END      = 0xFFFFFFFF;
 
 template<typename T>
 class SparseMatrixIO {
 public:
 
     static bool write(const MatrixCol<T> &matrix, const std::string &filename) {
-        FILE *f = fopen(filename.c_str(), "wb");
-        if (!f) {
+        std::ofstream ofs(filename, std::ios::binary | std::ios::out | std::ios::trunc);
+        if (!ofs) {
             std::cerr << "Error: cannot open '" << filename << "' for writing\n";
             return false;
         }
 
-        uint32_t nrows = (uint32_t) matrix.getRowCount();
-        uint32_t ncols = (uint32_t) matrix.getColumnCount();
+        uint32_t nrows = static_cast<uint32_t>(matrix.getRowCount());
+        uint32_t ncols = static_cast<uint32_t>(matrix.getColumnCount());
 
-        // Header
-        uint8_t header[16] = {};
-        memcpy(header, KERS_MAGIC, 4);
-        header[4] = KERS_VERSION;
-        header[5] = 0; // flags
-        memcpy(header + 6,  &nrows, 4);
-        memcpy(header + 10, &ncols, 4);
-        // header[14..15] = padding (zero)
-        fwrite(header, 1, 16, f);
+        // Header (version 1)
+        ofs.write(KERS_MAGIC, 4);
+        ofs.put(1);              // version
+        ofs.put(0);              // flags
+        writeLE(ofs, nrows);
+        writeLE(ofs, ncols);
+        ofs.put(0); ofs.put(0);  // padding
 
-        // Columns
+        if (!ofs) {
+            std::cerr << "Error: failed to write header to '" << filename << "'\n";
+            return false;
+        }
+
+        // Pre-scan: size buffer to largest column to avoid repeated reallocations
         const auto &cols = matrix.getColumns();
+        size_t maxColBytes = 0;
         for (uint32_t ci = 0; ci < ncols; ++ci) {
-            const SparseArray<T> &col = cols[ci];
+            size_t nnz = cols[ci].size();
+            if (nnz == 0) continue;
+            size_t bytes = 8 + nnz * (4 + 8);   // col_idx+nnz header + rows + values
+            if (bytes > maxColBytes) maxColBytes = bytes;
+        }
+
+        std::vector<char> buf;
+        if (maxColBytes > 0) buf.reserve(maxColBytes);
+
+        // Body: one write per non-empty column
+        for (uint32_t ci = 0; ci < ncols; ++ci) {
+            const auto &col = cols[ci];
             if (col.size() == 0) continue;
 
-            uint32_t nnz = (uint32_t) col.size();
-            fwrite(&ci,  4, 1, f);
-            fwrite(&nnz, 4, 1, f);
-            for (size_t i = 0; i < col.size(); ++i) {
-                uint32_t row = (uint32_t) col.keyAt(i);
-                int64_t  val = (int64_t)  col.valueAt(i);
-                fwrite(&row, 4, 1, f);
-                fwrite(&val, 8, 1, f);
+            buf.clear();
+            appendLE(buf, ci);
+            appendLE(buf, static_cast<uint32_t>(col.size()));
+
+            // Contiguous row indices
+            for (size_t i = 0; i < col.size(); ++i)
+                appendLE(buf, static_cast<uint32_t>(col.keyAt(i)));
+
+            // Contiguous values
+            for (size_t i = 0; i < col.size(); ++i)
+                appendLE(buf, static_cast<int64_t>(col.valueAt(i)));
+
+            ofs.write(buf.data(), static_cast<std::streamsize>(buf.size()));
+            if (!ofs) {
+                std::cerr << "Error: write failed for column " << ci << "\n";
+                return false;
             }
         }
 
-        // Terminator
-        fwrite(&KERS_END, 4, 1, f);
-        fclose(f);
+        writeLE(ofs, KERS_END);
+        if (!ofs) {
+            std::cerr << "Error: failed to write terminator\n";
+            return false;
+        }
+
+        return true;  // RAII closes the file
+    }
+
+    // Read a KERS file (v1 or v2). Returns an empty matrix on error.
+    static MatrixCol<T> read(const std::string &filename) {
+        uint32_t nr, nc;
+        return readImpl(filename, nr, nc);
+    }
+
+    // Read and also return header dimensions separately.
+    static MatrixCol<T> read(const std::string &filename,
+                             uint32_t &nrows_out, uint32_t &ncols_out) {
+        return readImpl(filename, nrows_out, ncols_out);
+    }
+
+private:
+
+    // Zero-cost little-endian conversion (C++23)
+    template<typename U>
+    static U toLittleEndian(U v) {
+        if constexpr (std::endian::native == std::endian::little)
+            return v;
+        else
+            return std::byteswap(v);
+    }
+
+    template<typename U>
+    static void appendLE(std::vector<char> &buf, U value) {
+        U le = toLittleEndian(value);
+        auto old_size = buf.size();
+        buf.resize(old_size + sizeof(U));
+        std::memcpy(buf.data() + old_size, &le, sizeof(U));
+    }
+
+    static void writeLE(std::ostream &os, uint32_t value) {
+        uint32_t le = toLittleEndian(value);
+        os.write(reinterpret_cast<const char *>(&le), 4);
+    }
+
+    template<typename U>
+    static bool readLE(std::istream &is, U &out) {
+        U raw;
+        if (!is.read(reinterpret_cast<char *>(&raw), sizeof(U))) return false;
+        out = toLittleEndian(raw);
         return true;
     }
 
-    // Returns a MatrixCol<T> read from file.
-    // nrows and ncols are set from the header.
-    static MatrixCol<T> read(const std::string &filename) {
-        FILE *f = fopen(filename.c_str(), "rb");
-        if (!f) {
+    static MatrixCol<T> readImpl(const std::string &filename,
+                                 uint32_t &nrows_out, uint32_t &ncols_out) {
+        nrows_out = ncols_out = 0;
+
+        std::ifstream ifs(filename, std::ios::binary);
+        if (!ifs) {
             std::cerr << "Error: cannot open '" << filename << "' for reading\n";
             return MatrixCol<T>();
         }
 
         uint8_t header[16];
-        if (fread(header, 1, 16, f) != 16) {
+        if (!ifs.read(reinterpret_cast<char *>(header), 16)) {
             std::cerr << "Error: truncated header in '" << filename << "'\n";
-            fclose(f);
+            return MatrixCol<T>();
+        }
+        if (std::memcmp(header, KERS_MAGIC, 4) != 0) {
+            std::cerr << "Error: bad magic in '" << filename << "'\n";
             return MatrixCol<T>();
         }
 
-        if (memcmp(header, KERS_MAGIC, 4) != 0) {
-            std::cerr << "Error: bad magic in '" << filename << "'\n";
-            fclose(f);
-            return MatrixCol<T>();
-        }
-        if (header[4] != KERS_VERSION) {
-            std::cerr << "Error: unsupported KERS version " << (int)header[4] << "\n";
-            fclose(f);
+        uint8_t version = header[4];
+        if (version != 1) {
+            std::cerr << "Error: unsupported KERS version " << (int)version << "\n";
             return MatrixCol<T>();
         }
 
         uint32_t nrows, ncols;
-        memcpy(&nrows, header + 6,  4);
-        memcpy(&ncols, header + 10, 4);
+        std::memcpy(&nrows, header + 6,  4);  nrows = toLittleEndian(nrows);
+        std::memcpy(&ncols, header + 10, 4);  ncols = toLittleEndian(ncols);
+        nrows_out = nrows;
+        ncols_out = ncols;
 
         MatrixCol<T> matrix(nrows, ncols);
 
-        uint32_t col_idx;
-        while (fread(&col_idx, 4, 1, f) == 1) {
+        std::vector<uint32_t> rows;
+        std::vector<int64_t>  vals;
+
+        uint32_t col_idx = KERS_END;
+        while (readLE(ifs, col_idx)) {
             if (col_idx == KERS_END) break;
 
             uint32_t nnz;
-            if (fread(&nnz, 4, 1, f) != 1) {
-                std::cerr << "Error: truncated nnz for column " << col_idx << "\n";
-                break;
-            }
+            if (!readLE(ifs, nnz))
+                throw "Truncated nnz in KERS file.";
 
             SparseArray<T> &col = matrix.getColumn(col_idx);
+
+            // rows block, then values block
+            rows.resize(nnz);
+            vals.resize(nnz);
+            for (uint32_t i = 0; i < nnz; ++i)
+                if (!readLE(ifs, rows[i])) throw "Truncated row data in KERS file.";
+            for (uint32_t i = 0; i < nnz; ++i)
+                if (!readLE(ifs, vals[i])) throw "Truncated value data in KERS file.";
             for (uint32_t i = 0; i < nnz; ++i) {
-                uint32_t row;
-                int64_t  val;
-                if (fread(&row, 4, 1, f) != 1 || fread(&val, 8, 1, f) != 1) {
-                    std::cerr << "Error: truncated entry in column " << col_idx << "\n";
-                    fclose(f);
-                    return matrix;
-                }
-                // Overflow check: warn if int64 value doesn't fit in T
-                if (val > (int64_t) std::numeric_limits<T>::max() ||
-                    val < (int64_t) std::numeric_limits<T>::min()) {
-                    std::cerr << "Warning: value " << val << " in column " << col_idx
-                              << " row " << row << " overflows T (width "
-                              << sizeof(T) << " bytes); truncated.\n";
-                }
-                col.append((size_t) row, (T) val);
+                checkOverflow(vals[i], col_idx, rows[i]);
+                col.append(rows[i], static_cast<T>(vals[i]));
             }
         }
 
-        fclose(f);
         return matrix;
     }
 
-    // Convenience: read and also return nrows/ncols separately (useful when
-    // caller needs to know dimensions even if matrix has empty columns).
-    static MatrixCol<T> read(const std::string &filename,
-                             uint32_t &nrows_out, uint32_t &ncols_out) {
-        FILE *f = fopen(filename.c_str(), "rb");
-        if (!f) {
-            std::cerr << "Error: cannot open '" << filename << "' for reading\n";
-            nrows_out = ncols_out = 0;
-            return MatrixCol<T>();
+    static void checkOverflow(int64_t val, uint32_t col, uint32_t row) {
+        if (val > static_cast<int64_t>(std::numeric_limits<T>::max()) ||
+            val < static_cast<int64_t>(std::numeric_limits<T>::min())) {
+            std::cerr << "Warning: value " << val
+                      << " at col=" << col << " row=" << row
+                      << " overflows T (" << sizeof(T) << " bytes); truncated.\n";
         }
-
-        uint8_t header[16];
-        if (fread(header, 1, 16, f) != 16) {
-            std::cerr << "Error: truncated header in '" << filename << "'\n";
-            fclose(f); nrows_out = ncols_out = 0;
-            return MatrixCol<T>();
-        }
-        if (memcmp(header, KERS_MAGIC, 4) != 0 || header[4] != KERS_VERSION) {
-            std::cerr << "Error: bad magic or version in '" << filename << "'\n";
-            fclose(f); nrows_out = ncols_out = 0;
-            return MatrixCol<T>();
-        }
-
-        memcpy(&nrows_out, header + 6,  4);
-        memcpy(&ncols_out, header + 10, 4);
-        fclose(f);
-
-        return read(filename);
     }
 };
 
