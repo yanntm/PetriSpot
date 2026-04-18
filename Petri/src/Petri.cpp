@@ -90,7 +90,7 @@ void usage ()
       << "  petri -i model.pnml --normalizePNML=normalized.pnml\n";
 }
 
-int main (int argc, char *argv[])
+int main_noex (int argc, char *argv[])
 {
   std::string logMessage = "Running PetriSpot with arguments : [";
   int i = 0;
@@ -121,7 +121,7 @@ int main (int argc, char *argv[])
   std::string basisKERSFile;
   EliminationHeuristic::PivotStrategy pivotStrategy =
       EliminationHeuristic::PivotStrategy::FindBest;
-  ssize_t loopLimit = -1;
+  ssize_t loopLimit = 500;
   bool doUseQPlusBasis = false;
   bool doUseCompression = false;
 
@@ -278,7 +278,7 @@ int main (int argc, char *argv[])
     return 1;
   }
 
-  try {
+  {
     SparsePetriNet<VAL> *pn = loadXML<VAL> (modelPath);
 
     // Handle PNML normalization and export only if flag is present
@@ -388,10 +388,6 @@ int main (int argc, char *argv[])
     }
 
     delete pn;
-
-  } catch (const char *e) {
-    std::cout << e << std::endl;
-    return 1;
   }
 
   std::cout << "Total runtime "
@@ -400,4 +396,23 @@ int main (int argc, char *argv[])
       << std::endl;
 
   return 0;
+}
+
+int main (int argc, char *argv[])
+{
+  // Reserve 16K that can be freed to allow an OOM error message to be printed
+  char *emergencyMemory = new char[16384];
+  try {
+    return main_noex (argc, argv);
+  } catch (const char *ex) {
+    std::cerr << "An unexpected exception occurred : " << ex << std::endl;
+    return 1;
+  } catch (std::string &ex) {
+    std::cerr << "An unexpected exception occurred : " << ex << std::endl;
+    return 1;
+  } catch (std::bad_alloc &) {
+    delete[] emergencyMemory;
+    std::cerr << "Out of memory error!" << std::endl;
+    return 1;
+  }
 }
