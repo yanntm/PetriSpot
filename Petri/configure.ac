@@ -99,8 +99,8 @@ put the 'dlopen' option into LT_INIT's first parameter.])
 test -z "$CFLAGS" && CFLAGS=
 test -z "$CXXFLAGS" && CXXFLAGS=
 
-# we compile C++20
-CXXFLAGS="-std=c++20 $CXXFLAGS"
+# we compile C++23
+CXXFLAGS="-std=c++23 $CXXFLAGS"
 
 #compile in C++
 AC_PROG_CXX
