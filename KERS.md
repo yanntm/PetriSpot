@@ -36,14 +36,12 @@ For each non-empty column:
 |------|--------|------------------------------------------|
 | 4    | uint32 | Column index (0-based)                   |
 | 4    | uint32 | `nnz` — number of non-zero entries in this column |
-| 4×nnz | uint32 | Row index (0-based, repeated nnz times as `(row, value)` pairs — see below) |
+| 4×nnz | uint32 | Row indices (0-based, contiguous, sorted ascending) |
+| 8×nnz | int64  | Values (signed, contiguous, matching row order) |
 
-Each entry is a `(row_index, value)` pair:
-
-| Size | Type   | Description       |
-|------|--------|-------------------|
-| 4    | uint32 | Row index (0-based)|
-| 8    | int64  | Value (signed)    |
+Row indices are written as a contiguous block first, then all values as a contiguous block.
+This separates structure from data and allows a reader to load the index array and value array
+directly without interleaving.
 
 Row indices within a column are **sorted in ascending order**.
 This allows readers to use `append()` (amortised O(1)) rather than `put()` (O(log n)).
