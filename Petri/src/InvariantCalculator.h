@@ -1498,10 +1498,11 @@ template<typename T>
           // a pure negative row => we need to clear all related columns
           return rs.row;
 
-          // number of columns in result
-          ssize_t weight = pps * ppm - pps - ppm;
+          // number of columns incident to this row
+          ssize_t cardweight = (ssize_t) (pps + ppm);
 
-          if (minRow == -1 || minRowWeight > weight) {
+          if (minRow == -1 || minRowWeight >= cardweight) {
+            // total entries in the incident columns
             ssize_t refinedweight = 0;
             for (size_t i = 0, ie = rs.pPlus.size (); i < ie; i++) {
               refinedweight += matB.getColumn (rs.pPlus.keyAt (i)).size ();
@@ -1509,9 +1510,10 @@ template<typename T>
             for (size_t i = 0, ie = rs.pMinus.size (); i < ie; i++) {
               refinedweight += matB.getColumn (rs.pMinus.keyAt (i)).size ();
             }
-            if (minRow == -1 || minRefinedRowWeight > refinedweight) {
+            if (minRow == -1 || minRowWeight > cardweight
+                || minRefinedRowWeight > refinedweight) {
               minRow = rs.row;
-              minRowWeight = weight;
+              minRowWeight = cardweight;
               minRefinedRowWeight = refinedweight;
             }
           }
