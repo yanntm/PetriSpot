@@ -60,15 +60,15 @@ template<typename T1, typename T2>
 
 namespace std {
 std::ostream& operator<<(std::ostream& out, __uint128_t n) {
-  uint64_t high = static_cast<uint64_t>(n >> 64);
-  uint64_t low = n & 0xFFFFFFFFFFFFFFFFULL;
-  if (high > 0) {
-    out << high << std::setfill('0') << std::setw(19) << low;
-  } else {
-    out << low;
-  }
+  // decimal conversion by repeated division; a 128-bit value has at most 39 digits
+  char buf[40];
+  size_t pos = sizeof(buf);
+  do {
+    buf[--pos] = '0' + static_cast<char>(n % 10);
+    n /= 10;
+  } while (n > 0);
+  out.write(buf + pos, sizeof(buf) - pos);
   return out;
-
 }
 
 template<typename T>
