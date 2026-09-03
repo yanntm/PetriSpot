@@ -12,6 +12,7 @@
 #include "io/MatrixExporter.h"
 #include "io/PNMLExport.h"
 #include "io/SparseMatrixIO.h"
+#include "parse/mcc/PropertyLoader.h"
 
 using namespace std;
 using namespace petri;
@@ -33,6 +34,9 @@ const string USECOMPRESSION = "--useCompression";
 const string LOAD_KERS = "--loadKERS";
 const string EXPORT_AS_KERS = "--exportAsKERS";
 const string BASIS_KERS = "--basisKERS";
+const string PROPS = "--props=";
+const string QUERY = "--query=";
+const string PRINT_PROPS = "--printProps";
 
 #define DEFAULT_TIMEOUT 150
 
@@ -78,6 +82,10 @@ void usage ()
       << "                       - worst: Use worst pivot (for testing).\n"
       << "                       - first: Use first valid pivot.\n"
       << "  --loopLimit=<n>      Limit elimination loops to <n> iterations (-1 for no limit).\n\n"
+      << "Reachability (explicit walk):\n"
+      << "  --props=<file>       Load an MCC property XML file (Reachability*.xml).\n"
+      << "  --query=<n>          Select property number <n> (0-based, file order); default all.\n"
+      << "  --printProps         Print the selected properties (parsed, then normalised) and exit.\n\n"
       << "Notes:\n" << "  - P-flows and P-semiflows are mutually exclusive.\n"
       << "  - T-flows and T-semiflows are mutually exclusive.\n"
       << "  - Invariant options enable invariant analysis.\n"
@@ -122,6 +130,9 @@ int main_noex (int argc, char *argv[])
   EliminationHeuristic::PivotStrategy pivotStrategy =
       EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = 500;
+  std::string propsFile;
+  long query = -1;
+  bool printProps = false;
   bool doUseQPlusBasis = false;
   bool doUseCompression = false;
 
@@ -181,6 +192,12 @@ int main_noex (int argc, char *argv[])
         std::cerr << "Invalid loopLimit value: " << limitStr << std::endl;
         exit (1);
       }
+    } else if (std::string (argv[i]).substr (0, PROPS.size ()) == PROPS) {
+      propsFile = std::string (argv[i]).substr (PROPS.size ());
+    } else if (std::string (argv[i]).substr (0, QUERY.size ()) == QUERY) {
+      query = std::stol (std::string (argv[i]).substr (QUERY.size ()));
+    } else if (std::string (argv[i]) == PRINT_PROPS) {
+      printProps = true;
     } else if (std::string (argv[i]) == MINFLOWS) {
       minimizeFlows = true;
     } else if (std::string (argv[i]).substr (0, 17) == "--exportAsMatrix=") {
@@ -313,6 +330,28 @@ int main_noex (int argc, char *argv[])
         MatrixExporter<VAL>::exportMatrix (sumMatrix, exportMatrixFile);
       if (!exportAsKERSFile.empty ())
         SparseMatrixIO<VAL>::write (sumMatrix, exportAsKERSFile);
+    }
+
+    if (!propsFile.empty ()) {
+      std::vector<petri::expr::Property> props = petri::mcc::loadProperties (propsFile, *pn);
+      if (query >= 0) {
+        if (static_cast<size_t> (query) >= props.size ()) {
+          std::cerr << "Error: --query=" << query << " but the file holds " << props.size () << " properties." << std::endl;
+          delete pn;
+          return 1;
+        }
+        props = { props[static_cast<size_t> (query)] };
+      }
+      if (printProps) {
+        for (const auto &prop : props) {
+          prop.print (std::cout, &pn->getPnames ());
+          std::cout << "\n  goal (" << prop.goal ().size () << " nodes) : ";
+          prop.goal ().print (std::cout, &pn->getPnames ());
+          std::cout << std::endl;
+        }
+        delete pn;
+        return 0;
+      }
     }
 
     if (findDeadlock) {
