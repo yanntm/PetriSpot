@@ -2,3 +2,15 @@
 /gmp*/
 /libexpat*/
 /.vscode/
+# local build and bench material, never committed
+/bench/models/
+/build*/
+/website/
+/.project
+/Petri/res.txt
+/Petri/examples/FamilyReunion*
+/Petri/src/petri32
+/Petri/src/petri64
+/Petri/src/petri128
+/Petri/src/kersconv
+/Petri/test/logs/

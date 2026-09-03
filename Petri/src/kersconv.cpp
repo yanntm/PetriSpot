@@ -13,9 +13,9 @@
 #include <sstream>
 #include <string>
 #include <numeric>
-#include "MatrixCol.h"
-#include "SparseArray.h"
-#include "SparseMatrixIO.h"
+#include "core/MatrixCol.h"
+#include "core/SparseArray.h"
+#include "io/SparseMatrixIO.h"
 
 // Decode KERS → ASCII
 static int decode (const std::string &kersFile, std::ostream &out)

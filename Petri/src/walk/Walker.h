@@ -11,9 +11,9 @@
 #include <random>
 #include <thread>
 
-#include "MatrixCol.h"
-#include "SparseArray.h"
-#include "SparsePetriNet.h"
+#include "core/MatrixCol.h"
+#include "core/SparseArray.h"
+#include "core/SparsePetriNet.h"
 #include <unordered_map>
 
 template<typename T>

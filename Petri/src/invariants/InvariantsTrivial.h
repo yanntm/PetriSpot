@@ -5,10 +5,10 @@
 #include <unordered_set>
 #include <iostream>
 #include <limits>
-#include "SparseArray.h"
-#include "MatrixCol.h"
-#include "SparseBoolArray.h"
-#include "Arithmetic.hpp"
+#include "core/SparseArray.h"
+#include "core/MatrixCol.h"
+#include "core/SparseBoolArray.h"
+#include "core/Arithmetic.hpp"
 
 namespace petri {
 

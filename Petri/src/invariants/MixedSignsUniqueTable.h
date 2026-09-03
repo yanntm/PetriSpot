@@ -3,8 +3,8 @@
 
 #include <unordered_set>
 #include <cstddef>
-#include "MatrixCol.h"  // Assumed to define MatrixCol<T> and SparseArray<T>
-#include "SparseArray.h" // For SparseArray<T> access
+#include "core/MatrixCol.h"  // Assumed to define MatrixCol<T> and SparseArray<T>
+#include "core/SparseArray.h" // For SparseArray<T> access
 
 template<typename T>
   class MixedSignsUniqueTable

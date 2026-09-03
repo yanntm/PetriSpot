@@ -1,17 +1,17 @@
 #include <iostream>
 #include <string>
-#include "Walker.h"
-#include "PTNetLoader.h"
-#include "InvariantMiddle.h"
+#include "walk/Walker.h"
+#include "parse/PTNetLoader.h"
+#include "invariants/InvariantMiddle.h"
 #include <vector>
 #include <fstream>
 #include <unordered_set>
 #include <chrono>
-#include "Heuristic.h"
-#include "FlowPrinter.h"
-#include "MatrixExporter.h"
-#include "PNMLExport.h"
-#include "SparseMatrixIO.h"
+#include "invariants/Heuristic.h"
+#include "io/FlowPrinter.h"
+#include "io/MatrixExporter.h"
+#include "io/PNMLExport.h"
+#include "io/SparseMatrixIO.h"
 
 using namespace std;
 using namespace petri;

@@ -1,10 +1,11 @@
 #ifndef INVARIANTMIDDLE_H_
 #define INVARIANTMIDDLE_H_
 
-#include "Arithmetic.hpp"
-#include "SparsePetriNet.h"
-#include "InvariantCalculator.h"
-#include "Heuristic.h"
+#include "core/Arithmetic.hpp"
+#include "core/SparsePetriNet.h"
+#include "core/Log.h"
+#include "invariants/InvariantCalculator.h"
+#include "invariants/Heuristic.h"
 #include <chrono>
 #include <thread>
 #include <future>
@@ -274,17 +275,7 @@ template<typename T>
   public:
     static void writeToLog (const std::string &message)
     {
-      auto now = std::chrono::system_clock::now ();
-      std::time_t now_c = std::chrono::system_clock::to_time_t (now);
-      struct std::tm *parts = std::localtime (&now_c);
-
-      std::cout << "[" << (parts->tm_year + 1900) << "-" << std::setw (2)
-          << std::setfill ('0') << (parts->tm_mon + 1) << "-" << std::setw (2)
-          << std::setfill ('0') << parts->tm_mday << " " << std::setw (2)
-          << std::setfill ('0') << parts->tm_hour << ":" << std::setw (2)
-          << std::setfill ('0') << parts->tm_min << ":" << std::setw (2)
-          << std::setfill ('0') << parts->tm_sec << "] " << "[INFO   ] "
-          << message << std::endl;
+      petri::writeToLog (message);
     }
 
     static Invariants computePInvariants (const MatrixCol<T> &pn)

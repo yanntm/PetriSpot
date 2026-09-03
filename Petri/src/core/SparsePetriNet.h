@@ -8,7 +8,7 @@
 #ifndef SPARSEPETRINET_H_
 #define SPARSEPETRINET_H_
 
-#include "MatrixCol.h"
+#include "core/MatrixCol.h"
 
 template<typename T>
   class SparsePetriNet

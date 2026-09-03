@@ -28,8 +28,8 @@
  */
 
 // package fr.lip6.move.gal.util;
-#include "SparseArray.h"
-#include "InvariantHelpers.h"
+#include "core/SparseArray.h"
+#include "core/InvariantHelpers.h"
 #include <unordered_set>
 
 /**

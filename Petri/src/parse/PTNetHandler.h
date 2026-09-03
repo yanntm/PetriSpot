@@ -1,7 +1,7 @@
 #ifndef PTNETHANDLER_H_
 #define PTNETHANDLER_H_
 
-#include "SparsePetriNet.h"
+#include "core/SparsePetriNet.h"
 #include <unordered_map>    // Replaced ext_hash_map.hh with standard header
 #include <expat.h>
 #include <stack>

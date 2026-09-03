@@ -10,9 +10,9 @@
 #include <limits>
 #include <cstdlib>
 #include <cassert>
-#include "SparseArray.h"
-#include "SparseBoolArray.h"
-#include "Arithmetic.hpp"
+#include "core/SparseArray.h"
+#include "core/SparseBoolArray.h"
+#include "core/Arithmetic.hpp"
 
 namespace petri {
 

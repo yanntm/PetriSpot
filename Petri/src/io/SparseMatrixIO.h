@@ -1,7 +1,7 @@
 #ifndef SPARSE_MATRIX_IO_H
 #define SPARSE_MATRIX_IO_H
 
-#include "MatrixCol.h"
+#include "core/MatrixCol.h"
 #include <bit>        // std::endian, std::byteswap (C++23)
 #include <cstdint>
 #include <cstring>

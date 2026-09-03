@@ -1,7 +1,7 @@
 #ifndef FLOWPRINTER_H_
 #define FLOWPRINTER_H_
 
-#include "SparsePetriNet.h"
+#include "core/SparsePetriNet.h"
 #include <fstream>
 #include <set>
 #include <sstream>

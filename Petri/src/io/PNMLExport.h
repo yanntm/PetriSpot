@@ -11,7 +11,7 @@
 #include <string>
 #include <chrono>
 #include <iostream>
-#include "SparsePetriNet.h"
+#include "core/SparsePetriNet.h"
 
 template<typename T>
   class PNMLExport

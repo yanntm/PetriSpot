@@ -1,0 +1,56 @@
+cmake_minimum_required(VERSION 3.16)
+project(PetriSpot CXX)
+
+# Header-only C++23 sources under src/, one driver per binary. The three petri
+# binaries differ only in the integer width VAL used for markings/coefficients.
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+option(PETRISPOT_STATIC "Link the binaries statically" ON)
+option(PETRISPOT_LTO "Enable link time optimisation" ON)
+option(PETRISPOT_SANITIZE "Sanitizer to enable (address, thread, undefined) or empty" "")
+
+find_package(EXPAT REQUIRED)
+
+set(PETRI_WARNINGS -Wall -Wextra -Wconversion -Wnarrowing)
+
+function(petri_common_setup target)
+  target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_compile_options(${target} PRIVATE ${PETRI_WARNINGS})
+  target_compile_definitions(${target} PRIVATE $<$<CONFIG:Release>:NDEBUG>)
+  if(PETRISPOT_LTO AND NOT PETRISPOT_SANITIZE)
+    set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
+  if(PETRISPOT_STATIC AND NOT PETRISPOT_SANITIZE)
+    target_link_options(${target} PRIVATE -static -static-libgcc -static-libstdc++)
+  endif()
+  if(PETRISPOT_SANITIZE)
+    target_compile_options(${target} PRIVATE -fsanitize=${PETRISPOT_SANITIZE} -fno-omit-frame-pointer -g)
+    target_link_options(${target} PRIVATE -fsanitize=${PETRISPOT_SANITIZE})
+  endif()
+endfunction()
+
+foreach(width IN ITEMS 32 64 128)
+  set(target petri${width})
+  add_executable(${target} src/Petri.cpp)
+  petri_common_setup(${target})
+  if(width EQUAL 32)
+    target_compile_definitions(${target} PRIVATE VAL=int)
+  elseif(width EQUAL 64)
+    target_compile_definitions(${target} PRIVATE VAL=long)
+  else()
+    target_compile_definitions(${target} PRIVATE "VAL=long long")
+  endif()
+  target_link_libraries(${target} PRIVATE EXPAT::EXPAT)
+  find_package(Threads REQUIRED)
+  target_link_libraries(${target} PRIVATE Threads::Threads)
+endforeach()
+
+add_executable(kersconv src/kersconv.cpp)
+petri_common_setup(kersconv)
+target_compile_definitions(kersconv PRIVATE VAL=long)

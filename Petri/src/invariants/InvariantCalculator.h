@@ -42,16 +42,16 @@
 #include <iostream>
 #include <vector>
 #include <unordered_set>
-#include "SparseArray.h"
-#include "MatrixCol.h"
-#include "SparseBoolArray.h"
-#include "Arithmetic.hpp"
-#include "InvariantHelpers.h"
-#include "RowSigns.h"
-#include "RowSignDomination.h"
-#include "InvariantsTrivial.h"
-#include "Heuristic.h"
-#include "MixedSignsUniqueTable.h"
+#include "core/SparseArray.h"
+#include "core/MatrixCol.h"
+#include "core/SparseBoolArray.h"
+#include "core/Arithmetic.hpp"
+#include "core/InvariantHelpers.h"
+#include "invariants/RowSigns.h"
+#include "invariants/RowSignDomination.h"
+#include "invariants/InvariantsTrivial.h"
+#include "invariants/Heuristic.h"
+#include "invariants/MixedSignsUniqueTable.h"
 
 namespace petri
 {

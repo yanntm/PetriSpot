@@ -1,7 +1,7 @@
 #ifndef MATRIX_EXPORTER_H
 #define MATRIX_EXPORTER_H
 
-#include "MatrixCol.h"
+#include "core/MatrixCol.h"
 #include <fstream>
 #include <string>
 

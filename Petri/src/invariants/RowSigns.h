@@ -5,9 +5,9 @@
 #include <cstddef>
 #include <iosfwd>
 #include <map>
-#include "SparseArray.h"
-#include "MatrixCol.h"
-#include "SparseBoolArray.h"
+#include "core/SparseArray.h"
+#include "core/MatrixCol.h"
+#include "core/SparseBoolArray.h"
 
 namespace petri
 {

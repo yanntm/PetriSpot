@@ -28,7 +28,7 @@
 #include <limits>
 #include <concepts>
 
-#include "Rational.h"
+#include "core/Rational.h"
 
 /**
  * @brief SparseArray maps integers to values of type T. Unlike a normal array,
