@@ -26,6 +26,7 @@ struct WalkStats
   uint64_t steps = 0;
   uint64_t resets = 0;
   uint64_t deadEnds = 0;
+  uint64_t stalls = 0;    // restarts requested by the strategy
   uint64_t millis = 0;
   uint64_t arcVisits = 0; // consumer arcs visited by the enabled-set update
   uint64_t flips = 0;     // enabled-status changes
@@ -116,6 +117,13 @@ template<typename T>
           }
         }
         uint32_t t = strategy.choose (ctx);
+        if (t == RESTART) {
+          ++st.stalls;
+          ++st.resets;
+          runSteps = 0;
+          reset ();
+          continue;
+        }
         fire (t);
         ++st.steps;
         ++runSteps;

@@ -7,6 +7,7 @@
 #define PETRI_WALK_STRATEGY_H_
 
 #include <cstdint>
+#include <limits>
 #include <random>
 
 #include "walk/EnabledSet.h"
@@ -25,12 +26,15 @@ template<typename T>
     std::mt19937_64 &rng;
   };
 
+/** Returned by Strategy::choose to ask the walker to restart the run. */
+constexpr uint32_t RESTART = std::numeric_limits<uint32_t>::max ();
+
 template<typename T>
   class Strategy
   {
   public:
     virtual ~Strategy () = default;
-    /** Called with a non-empty enabled set; returns a transition of it. */
+    /** Called with a non-empty enabled set; returns a transition of it, or RESTART. */
     virtual uint32_t choose (WalkContext<T> &ctx) = 0;
     virtual void onReset ()
     {
