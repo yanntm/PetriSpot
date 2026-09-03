@@ -1,0 +1,620 @@
+# PetriSpot explicit walk engine: survey, architecture, heuristics, plan
+
+Status: proposal for discussion, revision 2 after first round of feedback.
+No code yet.
+
+Goal: extend PetriSpot with an explicit, (almost) memoryless, multi-threaded
+walk engine whose job is to find counter-examples to reachability properties
+quickly on large P/T nets. It complements the Java ITS-Tools tool chain (which
+does the reductions, the SMT and symbolic work and today's walks); it does not
+replace it. Being exhaustive is not a goal. Being very good at finding a
+witness when one exists is.
+
+Design axioms fixed by the user:
+
+- Sparse everywhere. Transitions touch a handful of places out of tens of
+  thousands; `SparseArray` / `MatrixCol` are the substrate, no dense
+  per-place structures in the hot path.
+- Threaded by design. Hot data is thread-local; what threads share goes
+  through an explicit Knowledge Base, whose content is deliberately flexible.
+- Properties are parsed into one AST; several concrete syntaxes are a side
+  goal we will reach (MCC XML, PetriVizu text, s-expressions).
+- Models and benchmarks live outside the repo (cluster, MCC corpora,
+  ITS-Tools dumps); the repo holds a few small examples.
+- Parikh hints and other ITS-Tools inputs come later.
+- The source tree gets reorganised into folders.
+
+---
+
+## 1. What exists today
+
+### 1.1 master (the invariant tool)
+
+| Component | File | State / notes |
+|---|---|---|
+| Sparse vector | `src/SparseArray.h` | Template on integral `T`. Sorted keys, merge-based `sumProd`, `greaterOrEqual` with galloping binary search, `manhattanDistance`, `countContainsPos`, `hash`/`==`. Solid, the substrate. |
+| Column matrix | `src/MatrixCol.h` | Vector of `SparseArray` columns, `transpose`, `sumProd`. flowPT / flowTP / incidence. |
+| Net | `src/SparsePetriNet.h` | `marks` (dense `vector<T>`, initial only), `flowPT`, `flowTP`, names. |
+| PNML parser | `src/PTNetHandler.h`, `src/PTNetLoader.h` | expat SAX, P/T only, deferred arc patching. Recently optimised. Reused as is. |
+| Walker | `src/Walker.h` | 2020 deadlock prototype, ported from the Java `RandomExplorer` of that era. Design reference, not code (1.3). |
+| Invariants | `Invariant*.h`, `RowSigns*.h`, `MixedSignsUniqueTable.h`, `Heuristic.h` | Mature. Out of scope here except as a later heuristic input (semi-flows give bounds and cycles). |
+| IO | `SparseMatrixIO.h` (KERS), `MatrixExporter.h`, `PNMLExport.h`, `FlowPrinter.h` | Exporters. |
+| Timeout pattern | `InvariantMiddle::computePInvariants` | `std::thread` + promise/future `wait_for`. |
+| Build | autotools, C++23, static, only dependency expat. `petri32/64/128` via `-DVAL`. `subdir-objects` already enabled, so folders cost nothing in `Makefile.am`. |
+
+Working tree has an uncommitted `--check` feature (`Petri.cpp`,
+`InvariantHelpers.h`), unrelated; commit it first.
+
+### 1.2 origin/er/link-spot (Jan 2021, 5 years stale)
+
+Merge base `dbe0ee9`, before the template refactoring. Adds:
+
+| Component | Reusable? | Comment |
+|---|---|---|
+| `expr/Op.h` | yes | Operator enum: MCC atoms (CARD, ENABLED, BOUND, DEAD), comparisons, boolean ops, CTL and LTL operators. |
+| `expr/Expression.h`, `BinOp.h`, `NaryOp.h`, `VarRef.h`, `Constant.h`, `BoolConstant.h` | yes, after porting | Virtual `eval(const SparseIntArray&)`, `print`, child navigation. Needs `T` template, evaluation against the walker's marking, and `is-fireable`. The Java simplifier is present only as a comment block: it is the spec for ours. |
+| `expr/Property.h` | yes | name + body. Needs a type (reach / invariant / deadlock / bounds / ctl / ltl / atom). |
+| `expr/parse/ExprHandler.h`, `ExprLoader.*` | yes, after porting | expat SAX parser for the MCC property XML: tokens-count, integer-le, boolean ops, CTL and LTL path operators. `is-fireable` throws: we need it. `ext_hash_map` (libDDD) to be replaced by std containers. |
+| `expr/AtomicPropManager.h` | later | Unique atomic propositions for LTL. |
+| `Petricube.h` | later, as design | Spot `kripkecube` adapter over a marking and an enabled list. Good template for a future LTL back-end; pulls in Spot and libDDD. Not now. |
+| `Petri.cpp` (branch) | no | Spot CNDFS driver. |
+
+Verdict: cherry-pick the `expr/` tree and the MCC parser by hand (`git show`),
+modernise, leave Spot on the shelf. The walk engine's successor iterator must
+stay adaptable to a `kripkecube`-style interface later.
+
+### 1.3 Lessons from the current `Walker.h`
+
+Keep:
+
+- `combFlow`: one effect column per transition (post minus pre).
+- `behaviorMap`: transitions grouped by identical effect; random choice over
+  distinct behaviours, duplicates never fired twice from a state.
+- Incremental `updateEnabled`: only consumers of places that grew can become
+  newly enabled.
+- "Repeat last": iterate a transition while enabled if its effect strictly
+  decreases some place (no divergence).
+- Dead-end handling: reset to the initial marking, count resets.
+- The "fewest successors" rule for deadlock, which is a distance heuristic in
+  disguise (distance to deadlock = number of enabled transitions).
+- `dropUnavailable(enabled, parikh)`: vestige of the Parikh-guided walk.
+
+Fix:
+
+- `updateEnabled` allocates and zeroes two arrays of size |T| per step, so the
+  incremental update is O(|T|) anyway; `computeEnabled` on reset is
+  O(|T| x |pre|) with a `greaterOrEqual` per transition.
+- One `sumProd` allocation per step for the new marking; raw `new int[]`
+  lists and `memcpy` per candidate in the lookahead.
+- Deadlock hard-wired; no property, no trace, no parseable output, one
+  strategy, one thread.
+
+### 1.4 Neighbouring code worth knowing
+
+- libHSC (`~/git/libHSC`) vendors our `SparseArray`, `MatrixCol`,
+  `SparsePetriNet` and PNML parser unchanged (see its
+  `include/hsc/petri/README.md`), and has a 84-line s-expression reader
+  (`include/hsc/surface/sexpr.hh`: a `datum` is an atom or a list with a
+  source line; `parse`, `write`). Its manual section 6 defines the
+  SMT-flavoured expression syntax: `(and BEXP*) (or BEXP*) (not BEXP)
+  (imply a b) (CMP EXPR EXPR) (OP EXPR EXPR)`.
+- PetriVizu (`~/git/PetriVizu/public/syntax.md`) defines the infix syntax:
+  `property "Name" [reach|atom|ctl|ltl|bounds] : EF P1 + P2 <= 5;`, `@Name`
+  references to earlier properties, quoted identifiers when they clash with
+  keywords.
+
+---
+
+## 2. Requirements recap
+
+- Reachability first: given a property set, answer as many as possible with
+  a witness (EF phi true, AG phi false), stay silent or say UNKNOWN on the
+  rest. Deadlock is a target like the others.
+- Mostly memoryless: current marking, enabled set, scratch, static per-net
+  tables, a bounded Knowledge Base. Never a growing set of visited states.
+- Per-step cost proportional to the arcs actually touched, independent of
+  |T| and |P|.
+- Guided: pluggable heuristics, restarts, portfolio of strategies.
+- Threaded from the first version that matters (Phase 4), designed for it
+  from Phase 2.
+- Subprocess of ITS-Tools: deterministic CLI, parseable output, witness
+  trace on request.
+- 32/64/128-bit variants kept, static link, no new dependencies (expat only).
+
+---
+
+## 3. Proposed architecture
+
+### 3.1 Source tree
+
+```
+Petri/src/
+  core/        SparseArray.h SparseBoolArray.h MatrixCol.h SparsePetriNet.h
+               Arithmetic.hpp Rational.h InvariantHelpers.h   (moved, unchanged)
+  parse/       PTNetHandler.h PTNetLoader.h                  (moved)
+               mcc/   PropertyHandler.h PropertyLoader.h     (ported from link-spot)
+               sexpr/ Sexpr.h SexprProperties.h              (new, small)
+               vizu/  PropertyLexer.h PropertyParser.h       (new, later phase)
+  expr/        Op.h Expression.h BinOp.h NaryOp.h VarRef.h Constant.h
+               BoolConstant.h Property.h PropertySet.h Simplify.h Printer.h
+  invariants/  InvariantCalculator.h InvariantMiddle.h InvariantsTrivial.h
+               RowSigns.h RowSignDomination.h MixedSignsUniqueTable.h
+               Heuristic.h                                   (moved, unchanged)
+  io/          SparseMatrixIO.h MatrixExporter.h PNMLExport.h FlowPrinter.h
+  walk/        WalkNet.h EnabledSet.h Marking.h Target.h Distance.h
+               Strategy.h strategies/*.h Walker.h Trace.h
+               KnowledgeBase.h Checkpoint.h Portfolio.h
+  Petri.cpp    CLI (thin; option parsing may move to cli/ if it grows)
+  kersconv.cpp
+```
+
+Each folder gets a `README.md`; `walk/` and `expr/` also get an
+`algorithm.md` written before the code, per the repo conventions. Headers are
+included as `"core/SparseArray.h"` with `-I$(srcdir)`. `Makefile.am` lists
+sources per folder; `subdir-objects` is already on.
+
+### 3.2 expr: one AST, several syntaxes
+
+The AST is the link-spot tree, modernised:
+
+- `Expression<T>` (or `Expression` evaluating in `T` through a marking
+  accessor; decision below) with `Op`, children, `eval(const Marking&)`,
+  `print(Printer&)`.
+- Leaves: place reference, transition reference (for `is-fireable`),
+  integer constant, boolean constant, deadlock, property reference `@Name`
+  (resolved at load time into the referenced body).
+- `Property`: name, type (atom, reach, bounds, ctl, ltl), body.
+- `PropertySet`: ordered list with name index.
+- `Simplify`: constant folding, flattening of n-ary and/or, double negation,
+  negation pushing, `EF !phi` versus `AG phi` normalisation. Transcribed from
+  the Java block commented in link-spot's `Expression.h`.
+- `Printer`: one printer per syntax (MCC XML, PetriVizu, s-expr). Printing
+  then re-parsing in every syntax is the cross-validation of the parsers.
+
+Parsers, in order of arrival:
+
+1. **MCC XML** (`parse/mcc/`). The MCC corpora and the ITS-Tools dumps are
+   PNML plus this XML, so it is mandatory and it is what the benchmark
+   pipeline feeds us. Ported from link-spot, plus `is-fireable`, plus the
+   property type inferred from the file name and the top operator. Its
+   defects (no true/false leaves, verbose) are absorbed by the AST and the
+   simplifier.
+2. **s-expressions** (`parse/sexpr/`). A reader in the style of libHSC's
+   `datum` (about 100 lines) and a datum-to-AST pass (about 150 lines).
+   Syntax: `(property Name reach (EF (<= (+ P1 P2) 5)))`, `(atom Name ...)`,
+   `(and ...) (or ...) (not ...) (imply ...)`, `(fireable t1 t2)`,
+   `(deadlock)`, `(ref Name)` or `@Name`. Trivial to parse and to emit, so it
+   is the natural format for tests, for hand-written properties in the
+   examples folder, and for program-to-program exchange with ITS-Tools if we
+   ever prefer text over the XML (KERS already covers the matrix side).
+3. **PetriVizu infix** (`parse/vizu/`). Human-friendly, already specified,
+   and it is the syntax the user reads and writes. Needs a lexer and a
+   precedence-climbing parser with the keyword-quoting rule (about 400
+   lines). Scheduled after the walker works, unless it turns out we want to
+   hand-write many properties earlier.
+
+Recommendation: MCC XML and s-expr in Phase 1, PetriVizu in Phase 6 or when
+needed. All three print; the CLI gets `--props=<file>` with the syntax chosen
+by extension (`.xml`, `.sexpr`/`.lisp`, `.prop`) and `--printProps=<syntax>`
+to convert.
+
+### 3.3 WalkNet: the compiled net, read-only, shared by threads
+
+Built once from `SparsePetriNet<T>`:
+
+- `pre[t]`, `post[t]`: the existing sparse columns.
+- `effect[t]`: post minus pre (the `combFlow`); empty-effect transitions
+  flagged (only matter for `is-fireable` and deadlock semantics).
+- `effectClass[t]`: identical-effect class id (the `behaviorMap`) and a map
+  from an effect to its exact negation, if any (anti-oscillation).
+- `consumers[p]`: transitions with an arc from `p`, with weight, **sorted by
+  weight** (transpose of `flowPT`, one sort per row).
+- `producers[p]`: transitions with a positive effect on `p`.
+- `maxConsumeWeight[p]`, `nbPre[t]`.
+- Per-property structural tables (4.3) computed by `Target`, not here.
+
+Memory: three to four sparse copies of the arc set. Tens of MB for a net with
+half a million transitions. Fine.
+
+### 3.4 Marking: sparse, thread-local, updated in place
+
+The marking is a `SparseArray<T>` (sorted keys, values). Two update schemes,
+both sparse, both allocation-free after warm-up; we keep both behind one
+interface and measure:
+
+- **In-place merge.** For each `(p, d)` in `effect[t]`: locate `p` in the
+  marking (binary search, or a merge walk since both are sorted), add `d`,
+  remove the key if it hits zero, insert it if it was absent. Insert and
+  remove shift the tail of the key and value arrays (`memmove`); the tail is
+  short on average since effects are small and keys are spread.
+- **Double buffer.** `sumProd(1, m, 1, effect[t])` written into a
+  preallocated second buffer of the same capacity, then swap. Zero
+  allocation, cost O(|m| + |effect|), branch-friendly, no shifting.
+
+The in-place merge is asymptotically better when |m| is large and effects
+are tiny, which is the common case on big nets; the double buffer is
+simpler and probably faster on small nets. The interface exposes what the
+enabled-set update needs: for each touched place, its old and new value.
+
+`unfire(t)` is `fire` with the negated effect, giving cheap one-step
+lookahead without a copy. Initial marking and checkpoints are also
+`SparseArray<T>`, so copying a state is one `operator=`.
+
+### 3.5 EnabledSet: incremental maintenance with unsatisfied-arc counters
+
+- `unsat[t]`: number of pre-arcs `(p, w)` of `t` with `m[p] < w`. Enabled iff
+  `unsat[t] == 0`.
+- `enabled`: packed list of enabled transition ids plus `posInEnabled[t]`
+  for O(1) swap-remove; random choice O(1).
+- After `fire(t)`, for each touched place `p` going from `a` to `b`:
+  - decrease (`b < a`): consumers of `p` with weight `w` in `(b, a]` get
+    `unsat++`; those reaching 1 leave `enabled`.
+  - increase (`b > a`): consumers with `w` in `(a, b]` get `unsat--`; those
+    reaching 0 join `enabled`.
+  - `consumers[p]` is sorted by weight, so the affected range is a binary
+    search and only the transitions that actually flip are visited. When
+    `a` and `b` are both at least `maxConsumeWeight[p]` (or both below the
+    smallest weight), nothing is visited.
+
+Per-step cost: `O(sum over touched p of log(fanout(p)) + number of
+transitions that flip)`. Independent of |T| and |P|.
+
+`unsat`, `posInEnabled` and `enabled` are per-thread arrays of size |T|
+(a few MB on the largest nets). They are static working storage, not state
+memory; `reset()` copies them from a precomputed initial snapshot (O(|T|)
+memcpy, amortised by the restart schedule). If |T| ever makes this hurt, a
+`SparseBoolArray` snapshot of the initially enabled set plus lazy `unsat`
+recomputation is the fallback; not expected to be needed.
+
+`is-fireable(t)` atoms are then O(1) reads of `unsat[t]`.
+
+### 3.6 Target: compiled goal predicate and distance
+
+A reachability property normalises to "find a marking where `phi` holds"
+(from `EF phi`, or `AG psi` with `phi = !psi`) or to deadlock (`enabled`
+empty, with the MCC convention about empty-effect transitions decided
+explicitly). `Target` compiles `phi` into:
+
+- an evaluator over the marking and `unsat` (booleans, comparisons of linear
+  sums of places and constants, fireability);
+- a distance `dist(m) >= 0`, zero iff `phi` holds (4.2), evaluated
+  incrementally: `atomsOfPlace[p]` (sparse: only places that appear in
+  atoms) and `atomsOfTransition[t]` for fireability atoms, so that firing `t`
+  re-evaluates only atoms touching `effect[t]`;
+- goal places and goal transitions with a direction (need more / need less
+  tokens) for the structural heuristics (4.3).
+
+Several properties are handled together: every open target is checked at
+each step (cheap, indexed by touched places). A strategy is told which
+property it currently aims at; each has its own distance.
+
+### 3.7 Strategy: transition choice policy
+
+```
+struct Strategy {
+  virtual int choose(WalkContext& ctx) = 0;  // transition id, or -1 for "reset"
+  virtual void onFired(int t) {}
+  virtual void onReset() {}
+};
+```
+
+`WalkContext`: marking, enabled set, current target, RNG, recent history,
+WalkNet tables, read access to the Knowledge Base. Concrete strategies in
+section 4; `Composite` mixes them (epsilon-greedy, phase scheduling).
+
+### 3.8 Walker: the loop (one per thread)
+
+```
+reset(from initial marking or from a KB checkpoint)
+loop while budget and not stopped:
+  if an open target holds: publish witness to KB (trace replayed for verification)
+  if enabled is empty: deadlock target? publish : reset
+  t = strategy.choose(); if t < 0: reset
+  fire(t); enabled.update(touched places); trace.push(t); strategy.onFired(t)
+  every K steps: KB.pollStop(); maybe publish a checkpoint (3.9)
+  restart schedule (Luby or geometric) -> reset
+```
+
+`Trace`: transition ids since the run's origin. A run started from a KB
+checkpoint prepends the checkpoint's trace at output time (3.9), so a run's
+own trace stays bounded by the restart schedule.
+
+### 3.9 Knowledge Base: what threads share
+
+Everything hot is thread-local. The Knowledge Base (KB) is the one shared
+object, coarse-grained (a mutex per section, atomics for flags), touched only
+every K steps or at reset. Its content is deliberately open; the initial
+sections:
+
+- **Verdicts**: per property, an atomic solved flag and the winning witness
+  (marking + trace). Threads stop aiming at solved properties.
+- **Checkpoints**: a bounded pool of promising states per property: marking,
+  distance score, the trace from the initial marking, the strategy that
+  produced it. Insertion when a thread's best distance in the current run
+  beats the pool's worst; eviction keeps diversity (distinct markings by
+  hash, distinct distance levels). Restarts draw from the pool with some
+  probability instead of the initial marking: population-style search with
+  a few hundred states of memory at most. Traces are stored as a parent
+  checkpoint id plus a suffix, forming a checkpoint tree, so shared prefixes
+  are stored once.
+- **Structural knowledge** computed once and shared: goal tables (4.3),
+  effect classes, and later invariant-derived facts (place bounds from
+  semi-flows, transitions provably dead).
+- **Statistics**: per-property best distance seen, restarts, steps;
+  per-transition fire counts and "useful" counts (fired on a witness or on a
+  checkpoint's path), which heuristics may read as priors. Cheap, bounded.
+- **Hints** (later): Parikh vectors and other ITS-Tools inputs live here so
+  every strategy can read them the same way.
+
+Whether checkpoints actually help is an empirical question; the design keeps
+them optional (`--kb-checkpoints=0` disables the pool).
+
+### 3.10 Portfolio and timeout
+
+N threads, each with its own `Marking`, `EnabledSet`, RNG seed, `Strategy`
+and restart schedule, sharing the WalkNet, the compiled targets and the KB.
+Global stop through an atomic checked every K steps; wall clock via the
+existing promise/future idiom in the driver. Default assignment of strategies
+to threads in 4.7.
+
+### 3.11 CLI and output
+
+```
+--props=<file>            properties (MCC XML, .sexpr, later PetriVizu .prop)
+--findDeadlock            kept; becomes a deadlock target
+--walkSteps=<n>           per-run budget before restart (default e.g. 1M)
+--walkThreads=<n>
+--strategy=<random|bestfirst|structural|portfolio>
+--trace=<file|->          print witnesses as transition sequences
+--seed=<n>
+--printProps=<mcc|sexpr|vizu>   convert and exit
+-t <seconds>              wall clock, as today
+```
+
+Output: one MCC line per solved property, `FORMULA <name> TRUE|FALSE
+TECHNIQUES EXPLICIT RANDOM_WALK ...`, nothing for unsolved ones unless
+`--printUnknown`. Statistics after `-q` gating, as today. Witnesses are
+replayed on a fresh marking before printing.
+
+---
+
+## 4. Heuristics to guide the search
+
+A toolbox of cheap, composable signals. Each is O(touched arcs) per step or
+precomputed once per property.
+
+### 4.1 Baseline: random walk with restarts, made cheap
+
+- Uniform choice over enabled effect classes, not transitions.
+- Saturation: a transition whose effect strictly decreases some place and
+  stays enabled can be fired `k` times in one update (`countContainsPos`).
+- Restart schedule (Luby or geometric), fresh seed each time, optional
+  restart from a KB checkpoint.
+- Cycle signal under fixed memory: a Zobrist-style 64-bit marking hash
+  maintained incrementally (XOR of `H(p, value)` for touched places) fed to
+  a small fixed-size table or Bloom filter. A hit is a signal to perturb or
+  restart, never a pruning decision. This is the only per-thread "visited"
+  memory and it is constant-size.
+
+### 4.2 Marking distance, best-first (TAPAAL style)
+
+Jensen, Nielsen, Oestergaard, Srba, "TAPAAL and reachability analysis of P/T
+nets", ToPNoC 2016; link-spot's `Expression.h` already points at it.
+
+- `p >= k`: `max(0, k - m[p])`; `p <= k`: `max(0, m[p] - k)`; `p == k`:
+  `|m[p] - k|`; `p != k`: `1 if m[p] == k else 0`; linear sums likewise.
+- `AND`: sum of children; `OR`: min; negation pushed to atoms.
+- `fireable(t)`: sum over pre-arcs of `max(0, w - m[p])`; `!fireable(t)`:
+  min over pre-arcs of `max(0, m[p] - w + 1)`.
+- Deadlock: `|enabled|`, possibly weighted by how hard each enabled
+  transition is to disable.
+
+Use:
+
+- Candidate `t` scored by `dist(m + effect[t])`, computed incrementally on
+  the atoms touching `effect[t]`. Minimum wins, ties random, epsilon-greedy
+  or softmax over `-dist`.
+- Candidate sampling: score a random sample of K (16 to 64) enabled
+  transitions plus the enabled goal transitions (4.3), never the whole
+  enabled list. Bounded cost and useful noise.
+- Plateau escape: no improvement for N steps switches to random for a while
+  or restarts; a small tabu list of recent transitions.
+
+### 4.3 Structural distance: firings away in the net graph
+
+Marking distance is blind when tokens must first travel along a chain, a
+lock must be released, or a counter must reach a threshold through an
+unrelated cycle. A static per-property signal:
+
+- Goal places with a direction, goal transitions: producers of "need more"
+  places, consumers of "need less" places, the transition itself for
+  fireability.
+- Backward BFS in the bipartite graph from goal transitions: `hops[t]` =
+  length of the shortest chain `t -> post place -> consumer -> ... -> goal
+  transition`. One pass, O(arcs), once per property, one small integer per
+  transition. Unreachable transitions get infinity and are deprioritised,
+  never forbidden.
+- Strategy: prefer enabled transitions with smallest `hops`, tie-break with
+  marking distance, epsilon randomness; or a weighted sum, tuned empirically.
+- Stall-time re-rooting ("unlocking"): when no goal transition is enabled,
+  take the disabled ones with smallest `hops`, read their unsatisfied
+  pre-places (`unsat` plus a scan of `pre[t]`), and temporarily promote the
+  producers of those places. A one-level dynamic re-rooting of the BFS,
+  recomputed only on stall.
+
+### 4.4 Knowledge-Base driven heuristics
+
+- Checkpoint restarts (3.9): "go with the winners". A thread restarting from
+  a checkpoint inherits a state already close to the goal under some
+  distance; different threads restarting from the same checkpoint with
+  different strategies and seeds is a cheap beam.
+- Transition priors: `useful[t]` counts from witnesses and checkpoint paths
+  of other properties on the same net bias the sampling weights.
+- Cross-property reuse: a witness for property A is a state; it enters the
+  checkpoint pools of the other properties if its distance to them is good.
+
+### 4.5 Anti-oscillation and novelty
+
+- Do not immediately undo: penalise the effect class that is the exact
+  negation of the last fired one; tabu window of the last L effect classes.
+- Place-level novelty with constant memory: per run, sparse min and max seen
+  for goal-related places; a candidate that pushes such a place outside its
+  seen range gets a bonus.
+- The marking-hash filter (4.1) as a "we are looping" signal.
+
+### 4.6 Deadlock specifics
+
+Deadlock is a target with `dist = |enabled|` and structural preferences:
+consume from places with a single consumer; prefer transitions whose firing
+disables the most other transitions (computable from `consumers[p]` for the
+places it decreases). The old forward walk and the "backward" (reversed net)
+walk both become strategies; whether the reversed walk is worth keeping is
+an empirical question.
+
+### 4.7 Portfolio
+
+Default with 4 threads:
+
+1. random with restarts (fast, unbiased, feeds checkpoints);
+2. best-first on marking distance, epsilon 0.1, K = 32;
+3. structural hops with marking-distance tie-break;
+4. best-first with softmax, restarting from KB checkpoints with high
+   probability.
+
+Each thread rotates its focus over the open properties at every restart.
+First verified witness wins for a property.
+
+### 4.8 Later: hints from ITS-Tools
+
+Parikh vectors from the SMT over-approximation as a soft or hard restriction
+of the choice (the vestigial `dropUnavailable`), T-semiflows to recognise
+useless cycles, place bounds from P-semiflows to prune. All enter through
+the KB hints section, none in the first deliverables.
+
+---
+
+## 5. Validation and benchmarking
+
+- **Development**: the handful of nets in `Petri/examples/` plus a few small
+  MCC instances with their property files and known verdicts, checked into
+  `Petri/test/` (kilobytes, not megabytes). Every phase below names its
+  check.
+- **Benchmarking**: on the cluster, over the MCC corpora
+  (`~/git/pnmcc-models-20xx`) and over ITS-Tools dumps (nets already
+  reduced, agglomerated, with the properties ITS-Tools could not settle by
+  other means). Those dumps are the real target: a property ITS-Tools
+  already solves is not interesting. Verdict oracles are the MCC reference
+  results and ITS-Tools' own answers.
+- The repo holds the campaign scripts (`Petri/test/bench/`), the result
+  tables and the analysis, never the models.
+- Metrics: solved count per strategy and time-to-witness; steps per second
+  per net size class; sensitivity to seeds. Disagreements with the oracle
+  are bugs until proven otherwise.
+
+---
+
+## 6. Plan of attack
+
+Each phase ends with something that runs and can be measured. Line counts
+are rough effort calibration.
+
+### Phase 0: housekeeping and tree reorganisation
+
+- Commit the pending `--check`.
+- `.gitignore`: binaries, objects, `res.txt`, the 245 MB PNML in
+  `examples/` (or move it out of the tree).
+- `git mv` into `core/ parse/ invariants/ io/`, fix includes, `Makefile.am`,
+  build the three binaries, run the existing invariant examples as
+  regression. One commit for the move.
+- `README.md` per folder; `CLAUDE.md` at the root (done, revision 1).
+
+### Phase 1: properties in (about 900 lines, half ported)
+
+- `expr/`: AST, `Property`, `PropertySet`, `Simplify`, printers for the
+  three syntaxes. `expr/algorithm.md` first (AST shape, normal forms,
+  simplifier rules).
+- `parse/mcc/`: port of link-spot's `ExprHandler`, `is-fireable`, property
+  types.
+- `parse/sexpr/`: reader and datum-to-AST.
+- CLI: `--props` and `--printProps`. Check: parse the MCC files of a few
+  models, print as s-expr, re-parse, compare ASTs; parse hand-written s-expr
+  properties for the `examples/` nets.
+
+### Phase 2: walk core, single thread (about 1000 lines)
+
+- `walk/algorithm.md` first: WalkNet, marking update schemes, enabled
+  maintenance, invariants of the data structures.
+- `WalkNet`, `Marking` (both update schemes), `EnabledSet`, `Trace`.
+- Rewire `--findDeadlock` onto the new core with the existing random
+  strategy, as regression: same verdicts, steps per second at least as good.
+  Delete the old `Walker.h`.
+- Micro-benchmark: steps per second on `Airplane.pnml`, a mid-size MCC net,
+  and the half-million-transition FamilyReunion net (kept out of the tree),
+  for both marking update schemes. This validates the "cost independent of
+  |T|" claim before any heuristic work.
+
+### Phase 3: reachability end to end, single thread (about 600 lines)
+
+- `Target` compilation and incremental evaluation; deadlock as a target.
+- Random strategy with restarts and the hash-based cycle signal.
+- MCC output, witness replay and printing, exit codes.
+- Check: verdicts against known results on a batch of small MCC models where
+  random walks are known to succeed.
+
+### Phase 4: threads and Knowledge Base (about 600 lines)
+
+- `KnowledgeBase` (verdicts, checkpoints, statistics), `Checkpoint` tree,
+  `Portfolio`, global stop and timeout.
+- Check: N threads of the random strategy give the same verdicts as one, no
+  data races under `-fsanitize=thread` on the small tests, throughput scales.
+
+### Phase 5: heuristics (about 800 lines, iterative)
+
+- Marking distance with sampling and epsilon-greedy; structural hops and
+  stall re-rooting; anti-oscillation and novelty; checkpoint restarts.
+- Evaluation harness for the cluster (`Petri/test/bench/`): solved counts and
+  time-to-witness per strategy versus the random baseline, on MCC subsets
+  and ITS-Tools dumps. Most of the phase is tuning, not code.
+
+### Phase 6: syntax completion and integration (about 500 lines)
+
+- PetriVizu infix parser.
+- Output protocol frozen and documented in a `WALK.md` next to `KERS.md`.
+- Java side hook in ITS-Tools (other repo).
+
+### Later, explicitly out of scope now
+
+- Parikh and invariant hints through the KB.
+- LTL through Spot using the link-spot `kripkecube` design over the walker's
+  successor iterator; bounds; CTL.
+- Any exhaustive or stateful exploration.
+
+---
+
+## 7. Decisions taken (2026-09-03)
+
+1. Marking update: sparse, in place; the double-buffer variant only if
+   profiling asks for it.
+2. Enabled maintenance by unsatisfied-arc counters over the place-to-transition
+   matrix. Delta updates only; no transition-to-transition structure, ever.
+3. Syntax: MCC XML first, AST independent of MCC. Bricks: true, false, and,
+   or, not, and linear atoms `sum(coeff * place) cmp constant` (sums are
+   required for MCC cardinality). `is-fireable(t)` is desugared by the parser
+   into the conjunction of `place >= weight` over the pre-arcs of `t`, so it
+   never reaches the AST. No deadlock atom in the AST; deadlock is a separate
+   target.
+4. Template on `T` kept end to end, effort on the 64-bit build. No template
+   metaprogramming; the AST is plain data, evaluation is a small template
+   function over the marking.
+5. No Knowledge Base in the first deliverables; only a stop flag, a solved
+   flag and a witness slot. One property per run for now (`--query=<n>`).
+6. Threads after the single-thread engine works.
+7. `--findDeadlock` moves to the MCC `FORMULA` output line.
+8. Folder layout done (commit d5b034d); CMake added, autotools kept in sync
+   until CMake is stable in CI, then removed.
+
+Development models (outside the repo, `bench/models/`, git-ignored):
+AirplaneLD-PT-0010, Angiogenesis-PT-05, and the challenge
+ErlangenMainframeV1-PT-bP09C09 ReachabilityFireability (333 places, 59403
+transitions, 16 properties, 209 fireability atoms; ITS-Tools solves 4/16,
+TAPAAL all). The win condition is time-to-counterexample on such queries.
