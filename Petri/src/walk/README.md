@@ -8,5 +8,11 @@ the data structures and the step.
 * `Marking.h` — sparse marking with in-place `apply(effect, onChange)`.
 * `EnabledSet.h` — enabled transitions by delta (unsatisfied-arc counters).
 * `Target.h` — goal predicate (normal-form expression) or deadlock.
-* `Strategy.h` — transition choice interface, `RandomStrategy`.
+* `Strategy.h` — transition choice interface (`RESTART` sentinel), `RandomStrategy`.
+* `GoalDistance.h` — distance interface, `MarkingDistance` (expression distance).
+* `StructuralDistance.h` — hop-based refinement for `place >= k` atoms.
+* `BestFirstStrategy.h` — greedy on a `GoalDistance`, epsilon, stall restart.
+* `RelaxedPlan.h`, `RelaxedPlanStrategy.h` — delete-relaxation cost (h_add),
+  relaxed plan extraction, helpful-transition choice.
+* `NetStats.h` — structural histograms (`--netStats`).
 * `Walker.h` — restart loop, budget, witness trace and its verification.

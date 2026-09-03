@@ -13,6 +13,7 @@
 #ifndef PETRI_WALK_RELAXEDPLAN_H_
 #define PETRI_WALK_RELAXEDPLAN_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <queue>
@@ -38,18 +39,18 @@ template<typename T>
     const Expression &goal;
     std::vector<size_t> goalPlaces;
 
-    // per place
+    // per place; a stamp equal to epoch means the entry is valid this round
     std::vector<uint32_t> cost;
     std::vector<uint32_t> achiever;
-    std::vector<char> placeTouched;
+    std::vector<uint32_t> placeStamp;
     std::vector<char> goalPending;
-    std::vector<size_t> touchedPlaces;
     // per transition
+    std::vector<uint32_t> preSize;
     std::vector<uint32_t> remaining;
-    std::vector<char> transitionTouched;
-    std::vector<uint32_t> touchedTransitions;
+    std::vector<uint32_t> transitionStamp;
     std::vector<char> inPlan;
     std::vector<uint32_t> planTransitions;
+    uint32_t epoch = 0;
 
     std::vector<size_t> supporters;
     std::vector<uint32_t> helpful;
@@ -70,32 +71,28 @@ template<typename T>
       for (const auto &c : e.children) collectGoalPlaces (c);
     }
 
+    /** Cost of p this round (INF when never reached). */
+    uint32_t costAt (size_t p) const
+    {
+      return placeStamp[p] == epoch ? cost[p] : INF;
+    }
     void touchPlace (size_t p)
     {
-      if (!placeTouched[p]) {
-        placeTouched[p] = 1;
-        touchedPlaces.push_back (p);
-      }
-    }
-    void touchTransition (uint32_t t)
-    {
-      if (!transitionTouched[t]) {
-        transitionTouched[t] = 1;
-        touchedTransitions.push_back (t);
-        remaining[t] = static_cast<uint32_t> (net.pre (t).size ());
+      if (placeStamp[p] != epoch) {
+        placeStamp[p] = epoch;
+        cost[p] = INF;
+        achiever[p] = NONE;
       }
     }
 
     void clear ()
     {
-      for (size_t p : touchedPlaces) {
-        cost[p] = INF;
-        achiever[p] = NONE;
-        placeTouched[p] = 0;
+      ++epoch;
+      if (epoch == 0) { // wrapped: invalidate everything explicitly
+        std::fill (placeStamp.begin (), placeStamp.end (), 0);
+        std::fill (transitionStamp.begin (), transitionStamp.end (), 0);
+        epoch = 1;
       }
-      touchedPlaces.clear ();
-      for (uint32_t t : touchedTransitions) transitionTouched[t] = 0;
-      touchedTransitions.clear ();
       for (uint32_t t : planTransitions) inPlan[t] = 0;
       planTransitions.clear ();
       supporters.clear ();
@@ -115,9 +112,9 @@ template<typename T>
         queue.push ({ 0, p });
       }
       size_t goalsLeft = 0;
-      for (size_t g : goalPlaces) if (cost[g] == INF) ++goalsLeft;
+      for (size_t g : goalPlaces) if (costAt (g) == INF) ++goalsLeft;
       std::vector<char> &pending = goalPending;
-      for (size_t g : goalPlaces) pending[g] = cost[g] == INF ? 1 : 0;
+      for (size_t g : goalPlaces) pending[g] = costAt (g) == INF ? 1 : 0;
       const MatrixCol<T> &post = net.getNet ().getFlowTP ();
       while (!queue.empty () && goalsLeft > 0) {
         auto [c, p] = queue.top ();
@@ -129,7 +126,10 @@ template<typename T>
         }
         for (const auto &cons : net.consumersOf (p)) {
           uint32_t t = cons.transition;
-          touchTransition (t);
+          if (transitionStamp[t] != epoch) {
+            transitionStamp[t] = epoch;
+            remaining[t] = preSize[t];
+          }
           if (--remaining[t] != 0) continue;
           uint64_t tc = 1;
           const SparseArray<T> &pre = net.pre (t);
@@ -185,9 +185,10 @@ template<typename T>
         if (a.terms.size () == 1 && a.terms[0].second > 0 && a.constant >= 1
             && (a.op == petri::expr::Cmp::GE || a.op == petri::expr::Cmp::EQ)) {
           size_t p = a.terms[0].first;
-          if (cost[p] == INF) return petri::expr::INFINITE_DISTANCE;
+          uint32_t c = costAt (p);
+          if (c == INF) return petri::expr::INFINITE_DISTANCE;
           if (record) supporters.push_back (p);
-          return cost[p] > md ? cost[p] : md;
+          return c > md ? c : md;
         }
         return md;
       }
@@ -202,7 +203,8 @@ template<typename T>
       while (!stack.empty ()) {
         size_t g = stack.back ();
         stack.pop_back ();
-        if (cost[g] == 0 || cost[g] == INF) continue;
+        uint32_t cg = costAt (g);
+        if (cg == 0 || cg == INF) continue;
         uint32_t t = achiever[g];
         if (t == NONE || inPlan[t]) continue;
         inPlan[t] = 1;
@@ -211,7 +213,7 @@ template<typename T>
         const SparseArray<T> &pre = net.pre (t);
         for (size_t j = 0; j < pre.size (); ++j) {
           size_t r = pre.keyAt (j);
-          if (cost[r] != 0) {
+          if (costAt (r) != 0) {
             applicable = false;
             stack.push_back (r);
           }
@@ -223,11 +225,14 @@ template<typename T>
   public:
     RelaxedPlan (const WalkNet<T> &n, const Expression &g)
         : net (n), goal (g), cost (n.placeCount (), INF), achiever (n.placeCount (), NONE),
-          placeTouched (n.placeCount (), 0), goalPending (n.placeCount (), 0),
-          remaining (n.transitionCount (), 0),
-          transitionTouched (n.transitionCount (), 0), inPlan (n.transitionCount (), 0)
+          placeStamp (n.placeCount (), 0), goalPending (n.placeCount (), 0),
+          preSize (n.transitionCount (), 0), remaining (n.transitionCount (), 0),
+          transitionStamp (n.transitionCount (), 0), inPlan (n.transitionCount (), 0)
     {
       collectGoalPlaces (goal);
+      for (size_t t = 0; t < n.transitionCount (); ++t) {
+        preSize[t] = static_cast<uint32_t> (n.pre (t).size ());
+      }
     }
 
     size_t goalPlaceCount () const
@@ -258,7 +263,7 @@ template<typename T>
     }
     uint32_t costOf (size_t place) const
     {
-      return cost[place];
+      return costAt (place);
     }
   };
 

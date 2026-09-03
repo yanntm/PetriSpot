@@ -1,7 +1,9 @@
 # PetriSpot explicit walk engine: survey, architecture, heuristics, plan
 
-Status: proposal for discussion, revision 2 after first round of feedback.
-No code yet.
+Status: design document, revision 3. Iteration 1 is implemented (commits up
+to the relaxed-plan strategy, 2026-09-03): folders and CMake, property AST and
+MCC parser, sparse walk engine, random / best-first / structural / relaxed
+strategies, `--props --query` driver. Section 8 records the state.
 
 Goal: extend PetriSpot with an explicit, (almost) memoryless, multi-threaded
 walk engine whose job is to find counter-examples to reachability properties
@@ -612,6 +614,30 @@ are rough effort calibration.
 7. `--findDeadlock` moves to the MCC `FORMULA` output line.
 8. Folder layout done (commit d5b034d); CMake added, autotools kept in sync
    until CMake is stable in CI, then removed.
+
+## 8. State after iteration 1 (2026-09-03)
+
+* `petri64 -i model.pnml --props=ReachabilityFireability.xml --query=3
+  --strategy=relaxed --stall=300` answers the challenge query in about 100
+  steps. On the whole challenge file, 9 of the 11 queries that have a witness
+  are solved in under half a second each (queries 12 and 15 remain); the 5
+  others have no witness. Every verdict produced on the three development
+  models matches the MCC 2026 consensus.
+* What made the difference is not raw speed but the heuristic: marking
+  distance (TAPAAL style) and hop distance both stall on this net, whose goal
+  is a coordination of 9 processes gated by a control token. The planning
+  relaxed plan (h_add with helpful transitions, as in directed unfolding)
+  sees through it. See `Petri/src/walk/algorithm.md`.
+* Speed: 12k to 40k steps/ms on small nets with the random strategy. On the
+  challenge net the enabled-set delta visits about 39k consumer arcs per
+  step (places with 6561 consumers each flip between 0 and 1) for 2 real
+  status changes, giving 80 steps/ms; the relaxed plan costs 0.5 to 3 ms per
+  step there.
+* Portfolio is now the obvious next step: random wins on dense biochemical
+  nets (Angiogenesis), relaxed on coordination nets; neither dominates.
+  Threads (Phase 4) are the natural vehicle.
+* Open: the two remaining challenge queries; h_add cost on wide nets
+  (bounded/backward variants); autotools still kept in sync with CMake.
 
 Development models (outside the repo, `bench/models/`, git-ignored):
 AirplaneLD-PT-0010, Angiogenesis-PT-05, and the challenge

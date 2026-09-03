@@ -60,8 +60,47 @@ once profiling shows it matters.
 ## Strategy
 
 `choose(context) -> transition` picks the next transition among the enabled
-ones; `RandomStrategy` picks uniformly. The context exposes the marking, the
-enabled set, the net and the RNG. Heuristic strategies plug in here.
+ones, or returns `RESTART` to ask the walker for a fresh run. The context
+exposes the marking, the enabled set, the net and the RNG.
+
+* `RandomStrategy`: uniform over the enabled list.
+* `BestFirstStrategy(GoalDistance)`: scores every enabled successor (or a
+  random sample of them) by the goal distance after firing, computed with
+  `Marking::peek` (apply, evaluate, revert), keeps the minimum with random
+  tie-breaking, and takes an epsilon share of uniform random moves. Restarts
+  after `stall` steps without improving the best distance of the run.
+* `RelaxedPlanStrategy`: FF-style. Computes a relaxed plan from the current
+  marking (below) and fires one of its helpful transitions; falls back to a
+  random enabled transition when none is enabled. Same epsilon and stall
+  mechanism, on the relaxed-plan value.
+
+## Goal distances
+
+* `MarkingDistance` (TAPAAL style): an atom's distance is how far its linear
+  value is from satisfying the comparison; `And` sums, `Or` takes the minimum.
+  Cheap, but blind to the structure: a token just past its target place looks
+  close while it needs a full cycle.
+* `StructuralDistance`: for atoms `place >= k` with no token on the place, the
+  estimate becomes the number of transitions a token present in the marking
+  needs to travel to the place, from a backward BFS over producers computed
+  once per goal place. Optimistic: only one pre-place of each transition is
+  accounted, so co-requirements (a control token that must be in a given
+  state at the same time) are invisible.
+* `RelaxedPlan` (planning h_add, as in directed unfolding): a Dijkstra pass
+  from the marked places ignoring token consumption; a transition costs one
+  plus the sum of its pre-place costs, a place takes the cheapest producer.
+  The goal is evaluated on these costs (`And` sums, `Or` takes the cheapest
+  branch, atoms other than `place >= k` fall back to the marking distance),
+  and a relaxed plan is extracted backward through the recorded achievers.
+  Plan transitions whose pre-places are all marked now are the *helpful*
+  transitions. The pass stops as soon as every goal place has a cost; when
+  the goal is far it visits the whole net, which on a net with 60k
+  transitions costs a few milliseconds per step. Bookkeeping uses epoch
+  stamps so nothing is cleared between steps.
+
+The relaxed plan is what solves coordination-shaped goals (several
+components that must each reach a specific state, gated by a shared control
+token): the marking and structural distances see no gradient there.
 
 ## Walker: one run
 
