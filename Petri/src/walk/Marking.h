@@ -45,15 +45,16 @@ template<typename T>
     }
 
     /**
-     * Add effect to this marking; onChange(place, oldValue, newValue) is
-     * called for every touched place, after the marking is updated.
+     * Add sign * effect to this marking (sign is +1 or -1);
+     * onChange(place, oldValue, newValue) is called for every touched place,
+     * after the marking is updated.
      */
     template<class OnChange>
-      void apply (const SparseArray<T> &effect, OnChange &&onChange)
+      void apply (const SparseArray<T> &effect, OnChange &&onChange, int sign = 1)
       {
         for (size_t i = 0, e = effect.size (); i < e; ++i) {
           size_t p = effect.keyAt (i);
-          T d = effect.valueAt (i);
+          T d = sign < 0 ? static_cast<T> (-effect.valueAt (i)) : effect.valueAt (i);
           ssize_t idx = m.indexOfKey (p);
           T oldv = 0;
           if (idx >= 0) {
@@ -67,6 +68,17 @@ template<typename T>
             onChange (p, oldv, d);
           }
         }
+      }
+
+    /** Apply effect, evaluate f on the result, revert; returns f's value. */
+    template<class F>
+      auto peek (const SparseArray<T> &effect, F &&f)
+      {
+        auto nop = [] (size_t, T, T) {};
+        apply (effect, nop, 1);
+        auto r = f (*this);
+        apply (effect, nop, -1);
+        return r;
       }
   };
 

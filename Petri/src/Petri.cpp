@@ -2,6 +2,8 @@
 #include <string>
 #include "walk/Walker.h"
 #include "walk/Strategy.h"
+#include "walk/BestFirstStrategy.h"
+#include "walk/NetStats.h"
 #include "walk/Target.h"
 #include "parse/PTNetLoader.h"
 #include "invariants/InvariantMiddle.h"
@@ -43,6 +45,10 @@ const string WALK_STEPS = "--walkSteps=";
 const string RUN_LENGTH = "--runLength=";
 const string SEED = "--seed=";
 const string TRACE = "--trace";
+const string STRATEGY = "--strategy=";
+const string EPSILON = "--epsilon=";
+const string SAMPLE = "--sample=";
+const string NET_STATS = "--netStats";
 
 #define DEFAULT_TIMEOUT 150
 
@@ -95,7 +101,11 @@ void usage ()
       << "  --walkSteps=<n>      Total step budget for the walk (default: until timeout).\n"
       << "  --runLength=<n>      Steps between restarts from the initial marking (default 1000000).\n"
       << "  --seed=<n>           Random seed (default: clock).\n"
-      << "  --trace              Print the witness trace as a transition sequence.\n\n"
+      << "  --trace              Print the witness trace as a transition sequence.\n"
+      << "  --strategy=<s>       random (default) | bestfirst (greedy on goal distance).\n"
+      << "  --epsilon=<n>        bestfirst: percentage of uniformly random moves (default 10).\n"
+      << "  --sample=<n>         bestfirst: score at most n random candidates per step (default all).\n"
+      << "  --netStats           Print structural histograms of the net (arities, fan-out).\n\n"
       << "Notes:\n" << "  - P-flows and P-semiflows are mutually exclusive.\n"
       << "  - T-flows and T-semiflows are mutually exclusive.\n"
       << "  - Invariant options enable invariant analysis.\n"
@@ -112,10 +122,18 @@ void usage ()
 template<typename T>
   bool runWalk (const petri::walk::WalkNet<T> &wnet, const petri::walk::Target<T> &target,
                 const std::string &name, const std::string &verdict,
-                const petri::walk::WalkBudget &budget, uint64_t seed, bool printTrace, bool quiet)
+                const petri::walk::WalkBudget &budget, uint64_t seed, bool printTrace, bool quiet,
+                const std::string &strategyName, unsigned epsilon, size_t sample)
   {
-    petri::walk::RandomStrategy<T> strategy;
-    petri::walk::Walker<T> walker (wnet, target, strategy, seed);
+    petri::walk::RandomStrategy<T> randomStrategy;
+    petri::walk::BestFirstStrategy<T> bestFirst (target.expression (), epsilon, sample);
+    petri::walk::Strategy<T> *strategy = &randomStrategy;
+    if (strategyName == "bestfirst" && !target.isDeadlock ()) {
+      strategy = &bestFirst;
+    } else if (strategyName != "random") {
+      std::cerr << "Unknown strategy " << strategyName << ", using random." << std::endl;
+    }
+    petri::walk::Walker<T> walker (wnet, target, *strategy, seed);
     petri::walk::WalkResult res = walker.run (budget);
     const petri::walk::WalkStats &st = res.stats;
     uint64_t ms = st.millis == 0 ? 1 : st.millis;
@@ -124,12 +142,17 @@ template<typename T>
         << " dead ends), " << st.millis << " ms (" << (st.steps / ms) << " steps/ms; "
         << (st.steps ? st.arcVisits / st.steps : 0) << " arc visits and "
         << (st.steps ? st.flips / st.steps : 0) << " flips per step)." << std::endl;
+    if (strategy == &bestFirst) {
+      std::cout << "Best-first reached goal distance " << bestFirst.minDistance << " in "
+          << bestFirst.runsReachingMin << " run(s); initial distance "
+          << petri::expr::distance (target.expression (), petri::walk::Marking<T> (wnet.initialMarking ())) << "." << std::endl;
+    }
     if (!res.found) return false;
     if (!walker.verify (res.trace)) {
       std::cerr << "Internal error: witness trace does not replay to the goal." << std::endl;
       return false;
     }
-    std::cout << "FORMULA " << name << " " << verdict << " TECHNIQUES EXPLICIT RANDOM_WALK" << std::endl;
+    std::cout << "FORMULA " << name << " " << verdict << " TECHNIQUES EXPLICIT " << (strategyName == "bestfirst" ? "HEURISTIC_WALK" : "RANDOM_WALK") << std::endl;
     if (printTrace) {
       const auto &tnames = wnet.getNet ().getTnames ();
       std::cout << "Witness (" << res.trace.size () << " transitions):";
@@ -181,6 +204,10 @@ int main_noex (int argc, char *argv[])
   petri::walk::WalkBudget budget;
   uint64_t seed = static_cast<uint64_t> (std::chrono::steady_clock::now ().time_since_epoch ().count ());
   bool printTrace = false;
+  std::string strategyName = "random";
+  unsigned epsilon = 10;
+  size_t sample = 0;
+  bool netStats = false;
   bool doUseQPlusBasis = false;
   bool doUseCompression = false;
 
@@ -254,6 +281,14 @@ int main_noex (int argc, char *argv[])
       seed = std::stoull (std::string (argv[i]).substr (SEED.size ()));
     } else if (std::string (argv[i]) == TRACE) {
       printTrace = true;
+    } else if (std::string (argv[i]).substr (0, STRATEGY.size ()) == STRATEGY) {
+      strategyName = std::string (argv[i]).substr (STRATEGY.size ());
+    } else if (std::string (argv[i]).substr (0, EPSILON.size ()) == EPSILON) {
+      epsilon = static_cast<unsigned> (std::stoul (std::string (argv[i]).substr (EPSILON.size ())));
+    } else if (std::string (argv[i]) == NET_STATS) {
+      netStats = true;
+    } else if (std::string (argv[i]).substr (0, SAMPLE.size ()) == SAMPLE) {
+      sample = std::stoul (std::string (argv[i]).substr (SAMPLE.size ()));
     } else if (std::string (argv[i]) == MINFLOWS) {
       minimizeFlows = true;
     } else if (std::string (argv[i]).substr (0, 17) == "--exportAsMatrix=") {
@@ -388,6 +423,11 @@ int main_noex (int argc, char *argv[])
         SparseMatrixIO<VAL>::write (sumMatrix, exportAsKERSFile);
     }
 
+    if (netStats) {
+      petri::walk::WalkNet<VAL> wnet (*pn);
+      petri::walk::printNetStats (std::cout, wnet);
+    }
+
     if (!propsFile.empty ()) {
       std::vector<petri::expr::Property> props = petri::mcc::loadProperties (propsFile, *pn);
       if (query >= 0) {
@@ -423,7 +463,7 @@ int main_noex (int argc, char *argv[])
               << " TECHNIQUES TOPOLOGICAL TRIVIAL" << std::endl;
           continue;
         }
-        runWalk<VAL> (wnet, target, prop.name, prop.verdictIfReached (), budget, seed, printTrace, quiet);
+        runWalk<VAL> (wnet, target, prop.name, prop.verdictIfReached (), budget, seed, printTrace, quiet, strategyName, epsilon, sample);
       }
     }
 
@@ -431,7 +471,7 @@ int main_noex (int argc, char *argv[])
       budget.timeoutMillis = static_cast<uint64_t> (timeout) * 1000;
       petri::walk::WalkNet<VAL> wnet (*pn);
       petri::walk::Target<VAL> target = petri::walk::Target<VAL>::deadlockTarget ();
-      runWalk<VAL> (wnet, target, "ReachabilityDeadlock", "TRUE", budget, seed, printTrace, quiet);
+      runWalk<VAL> (wnet, target, "ReachabilityDeadlock", "TRUE", budget, seed, printTrace, quiet, strategyName, epsilon, sample);
     }
 
     if (invariants) {
