@@ -27,6 +27,8 @@ struct WalkStats
   uint64_t resets = 0;
   uint64_t deadEnds = 0;
   uint64_t millis = 0;
+  uint64_t arcVisits = 0; // consumer arcs visited by the enabled-set update
+  uint64_t flips = 0;     // enabled-status changes
 };
 
 struct WalkResult
@@ -120,6 +122,8 @@ template<typename T>
       }
       st.millis = static_cast<uint64_t> (
           std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - start).count ());
+      st.arcVisits = enabled.arcVisits;
+      st.flips = enabled.flips;
       return result;
     }
 

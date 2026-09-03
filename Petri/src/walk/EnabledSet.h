@@ -29,6 +29,12 @@ template<typename T>
     std::vector<uint32_t> position;
     std::vector<uint32_t> list;
 
+  public:
+    /** Instrumentation: consumer arcs visited and enabled-status flips. */
+    uint64_t arcVisits = 0;
+    uint64_t flips = 0;
+
+  private:
     void add (uint32_t t)
     {
       position[t] = static_cast<uint32_t> (list.size ());
@@ -100,12 +106,13 @@ template<typename T>
           [] (T v, const typename WalkNet<T>::Consumer &c) { return v < c.weight; });
       auto last = std::upper_bound (first, cs.end (), hi,
           [] (T v, const typename WalkNet<T>::Consumer &c) { return v < c.weight; });
+      arcVisits += static_cast<uint64_t> (last - first);
       for (auto it = first; it != last; ++it) {
         uint32_t t = it->transition;
         if (becomeSat) {
-          if (--unsat[t] == 0) add (t);
+          if (--unsat[t] == 0) { add (t); ++flips; }
         } else {
-          if (unsat[t]++ == 0) remove (t);
+          if (unsat[t]++ == 0) { remove (t); ++flips; }
         }
       }
     }

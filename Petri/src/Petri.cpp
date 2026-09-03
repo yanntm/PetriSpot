@@ -121,7 +121,9 @@ template<typename T>
     uint64_t ms = st.millis == 0 ? 1 : st.millis;
     std::cout << "Walk " << (res.found ? "found a witness" : "exhausted its budget") << " for " << name
         << " after " << st.steps << " steps, " << st.resets << " resets (" << st.deadEnds
-        << " dead ends), " << st.millis << " ms (" << (st.steps / ms) << " steps/ms)." << std::endl;
+        << " dead ends), " << st.millis << " ms (" << (st.steps / ms) << " steps/ms; "
+        << (st.steps ? st.arcVisits / st.steps : 0) << " arc visits and "
+        << (st.steps ? st.flips / st.steps : 0) << " flips per step)." << std::endl;
     if (!res.found) return false;
     if (!walker.verify (res.trace)) {
       std::cerr << "Internal error: witness trace does not replay to the goal." << std::endl;
