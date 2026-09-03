@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
 #include "walk/Walker.h"
+#include "walk/Strategy.h"
+#include "walk/Target.h"
 #include "parse/PTNetLoader.h"
 #include "invariants/InvariantMiddle.h"
 #include <vector>
@@ -37,6 +39,10 @@ const string BASIS_KERS = "--basisKERS";
 const string PROPS = "--props=";
 const string QUERY = "--query=";
 const string PRINT_PROPS = "--printProps";
+const string WALK_STEPS = "--walkSteps=";
+const string RUN_LENGTH = "--runLength=";
+const string SEED = "--seed=";
+const string TRACE = "--trace";
 
 #define DEFAULT_TIMEOUT 150
 
@@ -85,7 +91,11 @@ void usage ()
       << "Reachability (explicit walk):\n"
       << "  --props=<file>       Load an MCC property XML file (Reachability*.xml).\n"
       << "  --query=<n>          Select property number <n> (0-based, file order); default all.\n"
-      << "  --printProps         Print the selected properties (parsed, then normalised) and exit.\n\n"
+      << "  --printProps         Print the selected properties (parsed, then normalised) and exit.\n"
+      << "  --walkSteps=<n>      Total step budget for the walk (default: until timeout).\n"
+      << "  --runLength=<n>      Steps between restarts from the initial marking (default 1000000).\n"
+      << "  --seed=<n>           Random seed (default: clock).\n"
+      << "  --trace              Print the witness trace as a transition sequence.\n\n"
       << "Notes:\n" << "  - P-flows and P-semiflows are mutually exclusive.\n"
       << "  - T-flows and T-semiflows are mutually exclusive.\n"
       << "  - Invariant options enable invariant analysis.\n"
@@ -97,6 +107,39 @@ void usage ()
       << "  petri -i x/y/model.pnml --normalizePNML\n"
       << "  petri -i model.pnml --normalizePNML=normalized.pnml\n";
 }
+
+/** Run one random walk toward target; print the MCC verdict line if reached. */
+template<typename T>
+  bool runWalk (const petri::walk::WalkNet<T> &wnet, const petri::walk::Target<T> &target,
+                const std::string &name, const std::string &verdict,
+                const petri::walk::WalkBudget &budget, uint64_t seed, bool printTrace, bool quiet)
+  {
+    petri::walk::RandomStrategy<T> strategy;
+    petri::walk::Walker<T> walker (wnet, target, strategy, seed);
+    petri::walk::WalkResult res = walker.run (budget);
+    const petri::walk::WalkStats &st = res.stats;
+    uint64_t ms = st.millis == 0 ? 1 : st.millis;
+    std::cout << "Walk " << (res.found ? "found a witness" : "exhausted its budget") << " for " << name
+        << " after " << st.steps << " steps, " << st.resets << " resets (" << st.deadEnds
+        << " dead ends), " << st.millis << " ms (" << (st.steps / ms) << " steps/ms)." << std::endl;
+    if (!res.found) return false;
+    if (!walker.verify (res.trace)) {
+      std::cerr << "Internal error: witness trace does not replay to the goal." << std::endl;
+      return false;
+    }
+    std::cout << "FORMULA " << name << " " << verdict << " TECHNIQUES EXPLICIT RANDOM_WALK" << std::endl;
+    if (printTrace) {
+      const auto &tnames = wnet.getNet ().getTnames ();
+      std::cout << "Witness (" << res.trace.size () << " transitions):";
+      for (uint32_t t : res.trace) std::cout << " " << tnames[t];
+      std::cout << std::endl;
+    } else if (!quiet) {
+      std::cout << "Witness length " << res.trace.size () << " ; final marking ";
+      walker.currentMarking ().sparse ().print (std::cout);
+      std::cout << std::endl;
+    }
+    return true;
+  }
 
 int main_noex (int argc, char *argv[])
 {
@@ -133,6 +176,9 @@ int main_noex (int argc, char *argv[])
   std::string propsFile;
   long query = -1;
   bool printProps = false;
+  petri::walk::WalkBudget budget;
+  uint64_t seed = static_cast<uint64_t> (std::chrono::steady_clock::now ().time_since_epoch ().count ());
+  bool printTrace = false;
   bool doUseQPlusBasis = false;
   bool doUseCompression = false;
 
@@ -198,6 +244,14 @@ int main_noex (int argc, char *argv[])
       query = std::stol (std::string (argv[i]).substr (QUERY.size ()));
     } else if (std::string (argv[i]) == PRINT_PROPS) {
       printProps = true;
+    } else if (std::string (argv[i]).substr (0, WALK_STEPS.size ()) == WALK_STEPS) {
+      budget.maxSteps = std::stoull (std::string (argv[i]).substr (WALK_STEPS.size ()));
+    } else if (std::string (argv[i]).substr (0, RUN_LENGTH.size ()) == RUN_LENGTH) {
+      budget.runLength = std::stoull (std::string (argv[i]).substr (RUN_LENGTH.size ()));
+    } else if (std::string (argv[i]).substr (0, SEED.size ()) == SEED) {
+      seed = std::stoull (std::string (argv[i]).substr (SEED.size ()));
+    } else if (std::string (argv[i]) == TRACE) {
+      printTrace = true;
     } else if (std::string (argv[i]) == MINFLOWS) {
       minimizeFlows = true;
     } else if (std::string (argv[i]).substr (0, 17) == "--exportAsMatrix=") {
@@ -352,22 +406,30 @@ int main_noex (int argc, char *argv[])
         delete pn;
         return 0;
       }
+      budget.timeoutMillis = static_cast<uint64_t> (timeout) * 1000;
+      petri::walk::WalkNet<VAL> wnet (*pn);
+      for (const auto &prop : props) {
+        if (prop.kind == petri::expr::PropertyKind::Unsupported) {
+          std::cout << "Skipping " << prop.name << " : " << prop.comment << std::endl;
+          continue;
+        }
+        petri::walk::Target<VAL> target = prop.kind == petri::expr::PropertyKind::Deadlock
+            ? petri::walk::Target<VAL>::deadlockTarget ()
+            : petri::walk::Target<VAL> (prop.goal ());
+        if (!target.isDeadlock () && target.expression ().kind == petri::expr::Expression::Kind::False) {
+          std::cout << "FORMULA " << prop.name << " " << (prop.kind == petri::expr::PropertyKind::Invariant ? "TRUE" : "FALSE")
+              << " TECHNIQUES TOPOLOGICAL TRIVIAL" << std::endl;
+          continue;
+        }
+        runWalk<VAL> (wnet, target, prop.name, prop.verdictIfReached (), budget, seed, printTrace, quiet);
+      }
     }
 
     if (findDeadlock) {
-      Walker<VAL> walk (*pn);
-      if (walk.runDeadlockDetection (1000000, true, timeout)) {
-        std::cout << "Deadlock found !" << std::endl;
-        delete pn;
-        return 0;
-      } else {
-        std::cout << "No deadlock found !" << std::endl;
-      }
-      if (walk.runDeadlockDetection (1000000, false, timeout)) {
-        std::cout << "Deadlock found !" << std::endl;
-      } else {
-        std::cout << "No deadlock found !" << std::endl;
-      }
+      budget.timeoutMillis = static_cast<uint64_t> (timeout) * 1000;
+      petri::walk::WalkNet<VAL> wnet (*pn);
+      petri::walk::Target<VAL> target = petri::walk::Target<VAL>::deadlockTarget ();
+      runWalk<VAL> (wnet, target, "ReachabilityDeadlock", "TRUE", budget, seed, printTrace, quiet);
     }
 
     if (invariants) {
