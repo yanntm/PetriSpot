@@ -20,6 +20,10 @@ copied so the two projects keep one syntax without depending on each other.
   error. `p<digits>` and `t<digits>` are indices, `"quoted"` atoms are names,
   any other atom is a name. `loadProperties(file, net)` reads a file.
 
+* `HintReader.h` — the `--hints` file: `(parikh NAME (t k)...)` forms giving a
+  Parikh vector to the property of that name (`expr/Hint.h`); `loadHints`,
+  `attachHints`.
+
 Errors are thrown as `std::string` with the line of the offending form, like
 the MCC loader. The printer for this syntax is `expr/SexprPrinter.h`, and the
 choice between MCC XML and s-expressions is `parse/PropertyFile.h`.

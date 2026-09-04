@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 #include "core/MatrixCol.h"
@@ -33,6 +34,8 @@ template<typename T>
     MatrixCol<T> effects;
     std::vector<std::vector<Consumer>> consumers;
     std::vector<T> maxConsumeWeight;
+    std::vector<uint32_t> effectClass; // transitions with identical effect share a class
+    uint32_t nbClasses = 0;
 
   public:
     explicit WalkNet (const SparsePetriNet<T> &n)
@@ -59,6 +62,13 @@ template<typename T>
         std::sort (cs.begin (), cs.end (), [] (const Consumer &a, const Consumer &b) {
           return a.weight < b.weight || (a.weight == b.weight && a.transition < b.transition);
         });
+      }
+      effectClass.resize (nbT);
+      std::unordered_map<SparseArray<T>, uint32_t> classes;
+      for (size_t t = 0; t < nbT; ++t) {
+        auto it = classes.find (effects.getColumn (t));
+        if (it == classes.end ()) it = classes.emplace (effects.getColumn (t), nbClasses++).first;
+        effectClass[t] = it->second;
       }
     }
 
@@ -97,6 +107,15 @@ template<typename T>
     const std::vector<T>& initialMarking () const
     {
       return net.getMarks ();
+    }
+    /** Class of transitions with the same effect as t (what the state equation sees). */
+    uint32_t effectClassOf (size_t t) const
+    {
+      return effectClass[t];
+    }
+    uint32_t effectClassCount () const
+    {
+      return nbClasses;
     }
   };
 

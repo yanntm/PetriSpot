@@ -10,6 +10,7 @@
 #include <limits>
 
 #include "expr/Expression.h"
+#include "expr/Hint.h"
 #include "walk/EnabledSet.h"
 #include "walk/Marking.h"
 
@@ -30,6 +31,7 @@ template<typename T>
     petri::expr::Expression goal;    // Goal: the predicate; Bound with a limit: form >= limit
     petri::expr::LinearAtom form;    // Bound: the terms to maximise
     long long limit = std::numeric_limits<long long>::max (); // Bound: value that ends the target
+    petri::expr::ParikhHint hint; // optional Parikh vector toward the goal
 
   public:
     /** Reach a state satisfying g. */
@@ -66,6 +68,18 @@ template<typename T>
     Kind getKind () const
     {
       return kind;
+    }
+    void setHint (petri::expr::ParikhHint h)
+    {
+      hint = std::move (h);
+    }
+    bool hasHint () const
+    {
+      return !hint.empty ();
+    }
+    const petri::expr::ParikhHint& getHint () const
+    {
+      return hint;
     }
     bool isDeadlock () const
     {

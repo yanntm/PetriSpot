@@ -212,14 +212,25 @@ human-readable dump.
 Java side: `SexprPropertyPrinter implements ExprVisitor<Void>` after the
 model of `CExpressionPrinter`, about 80 lines, emitting indices.
 
-### 4.4 Later: hints
+### 4.4 Hints: `--hints=<file>`
 
-A hint (a Parikh vector with an optional order from the SMT solver, a known
-structural bound for a `bound` target) does not change the question, it may
-enable more strategies. Hints will come as a separate input (`--hints=<file>`
-in the same s-expression syntax, forms naming the property they help) once
-the engine has something to do with them (sections 6.3 and 6.4). Not part of
-the current phases.
+A hint does not change the question, it enables more strategies. Hints come
+as a separate input in the same s-expression syntax, each form naming the
+property it helps (a name absent from `--props` is a warning):
+
+```
+HINT  ::= (parikh NAME (TREF INT)+)    ; a Parikh vector: transition, firing count
+```
+
+The Parikh vector comes from the SMT state equation over *representatives*:
+transitions with identical effect are one variable there. PetriSpot groups
+transitions by identical effect itself, so a count on any member of a class
+is the class count, and firing any member consumes it. ITS-Tools sends the
+vector as the solver returned it, keyed by the representative transitions of
+the walked net, and never sends its `repr` mapping.
+
+The known upper bound of a `bound` target is not a hint in this sense: it is
+part of the form (4.2), since it decides when the target is answered.
 
 ---
 
@@ -316,17 +327,18 @@ when is a matter of profiling; the architecture stays flexible:
   keeps its focus, the driver picks the next one. Options select the policy;
   profiling on the MCC harness decides the defaults.
 
-### 6.3 Later: Parikh strategy
+### 6.3 Parikh strategy (implemented)
 
-The hint-driven walk of `RandomExplorer.runGuidedReachabilityDetection`, as a
-`Strategy`: choose among enabled transitions with a positive remaining count
-in the hint, decrement on firing, prefer the smallest rank when a partial
-order is given, cycle through rank-first / random / last / first modes across
-restarts, and relax the restriction with probability growing with the number
-of restarts (the Java decay), so a slightly wrong Parikh vector still guides.
-Later the same hint can weight the relaxed-plan or best-first choice rather
-than restrict it. Comes with the `--hints` input (4.4), after the random and
-directed parts are integrated in ITS-Tools.
+The hint-driven walk of `RandomExplorer.runGuidedReachabilityDetection`, as
+the `parikh` strategy: the remaining count per effect class starts at the
+hint; a step chooses uniformly among the enabled transitions whose class
+still has count and decrements it; when no such transition is enabled the
+run restarts. (The partial order the SMT side can produce is not used: it is
+practically disabled there, too expensive.) The restriction is relaxed with probability
+growing with the number of restarts (one per mille per restart, the Java
+decay), so a slightly wrong vector still guides. A focus with a hint runs the
+`--hintStrategies` pool (default `parikh,parikh,relaxed,bestfirst`) instead
+of `--strategies`; a `parikh` spec on a target without hint is a random walk.
 
 ### 6.4 Bound targets (implemented)
 

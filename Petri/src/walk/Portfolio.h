@@ -24,6 +24,7 @@
 
 #include "walk/BestFirstStrategy.h"
 #include "walk/GoalDistance.h"
+#include "walk/ParikhStrategy.h"
 #include "walk/RelaxedPlanStrategy.h"
 #include "walk/SharedPool.h"
 #include "walk/Strategy.h"
@@ -36,14 +37,14 @@ namespace petri::walk
 
 struct StrategySpec
 {
-  std::string name;      // random | bestfirst | structural | relaxed
+  std::string name;      // random | bestfirst | structural | relaxed | parikh
   unsigned epsilon = 10; // percent of random moves (heuristic strategies)
   uint64_t stall = 0;    // restart after this many steps without improvement
   size_t sample = 0;     // best-first: candidates scored per step (0: all)
 
   std::string label () const
   {
-    if (name == "random") return name;
+    if (name == "random" || name == "parikh") return name;
     return name + ":" + std::to_string (epsilon) + ":" + std::to_string (stall);
   }
 };
@@ -106,7 +107,14 @@ template<typename T>
     StrategyBundle<T> b;
     b.spec = spec;
     const std::string &n = spec.name;
-    if (!focus || focus->isDeadlock () || n == "random") {
+    if (n == "parikh") {
+      if (focus && focus->hasHint ()) {
+        b.strategy = std::make_unique<ParikhStrategy<T>> (net, focus->getHint ());
+      } else {
+        b.strategy = std::make_unique<RandomStrategy<T>> ();
+        b.spec.name = "random";
+      }
+    } else if (!focus || focus->isDeadlock () || n == "random") {
       b.strategy = std::make_unique<RandomStrategy<T>> ();
       b.spec.name = "random";
     } else if (focus->isBound () && !focus->hasLimit ()) {

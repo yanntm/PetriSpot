@@ -134,6 +134,14 @@ exposes the marking, the enabled set, the net and the RNG.
   `form >= limit` and every heuristic strategy applies unchanged; without a
   limit they all become this best-first.
 
+* `ParikhStrategy`: hint-driven. The net groups transitions by identical
+  effect (`WalkNet::effectClassOf`, what the state equation sees); the hint's
+  firing counts land on classes. A step chooses uniformly among the enabled
+  transitions whose class still has count and decrements it; when none is
+  enabled the run restarts. With probability one per mille per restart the
+  restriction is skipped for the step, so a vector that is slightly off still
+  guides. A focus with a hint runs the `--hintStrategies` pool.
+
 The relaxed plan is what solves coordination-shaped goals (several
 components that must each reach a specific state, gated by a shared control
 token): the marking and structural distances see no gradient there.

@@ -21,6 +21,7 @@
 #include "expr/Property.h"
 #include "expr/SexprPrinter.h"
 #include "parse/PropertyFile.h"
+#include "parse/sexpr/HintReader.h"
 #include "walk/Portfolio.h"
 #include "walk/SharedPool.h"
 #include "walk/Target.h"
@@ -149,6 +150,10 @@ template<typename T>
       }
       props = { props[static_cast<size_t> (o.query)] };
     }
+    if (!o.hintsFile.empty ()) {
+      size_t n = petri::sexpr::attachHints (props, petri::sexpr::loadHints (o.hintsFile, pn));
+      std::cout << "Hints: " << n << " properties have a Parikh vector." << std::endl;
+    }
     return props;
   }
 
@@ -209,6 +214,7 @@ template<typename T>
         }
         targets.push_back (petri::walk::Target<T> (std::move (goal)));
       }
+      targets.back ().setHint (prop.hint);
       names.push_back (prop.name);
       verdicts.push_back (prop.verdictIfReached ());
     }
@@ -239,6 +245,8 @@ template<typename T>
     budget.recordTrace = o.trace;
     petri::walk::WalkNet<T> wnet (pn);
     std::vector<petri::walk::StrategySpec> specs = strategyPool (o);
+    std::vector<petri::walk::StrategySpec> hintSpecs = petri::walk::parseStrategySpecs (o.hintStrategies, o.epsilon,
+                                                                                         o.stall, o.sample);
     std::vector<petri::walk::StrategySpec> randomSpecs = petri::walk::parseStrategySpecs ("random", 0, 0, 0);
 
     auto walkStart = std::chrono::steady_clock::now ();
@@ -270,7 +278,8 @@ template<typename T>
       bool allStepBound = true;
       for (uint32_t k : open) {
         if (targets.isSolved (k)) continue; // claimed on the way to another focus
-        petri::walk::PortfolioResult<T> res = runWalk (o, wnet, targets, k, budget, specs);
+        petri::walk::PortfolioResult<T> res = runWalk (o, wnet, targets, k, budget,
+                                                       targets.target (k).hasHint () ? hintSpecs : specs);
         if (!stepBound (res, budget)) allStepBound = false;
         if (totalMs > 0 && elapsedMs () >= totalMs) break;
       }

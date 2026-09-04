@@ -55,6 +55,8 @@ struct Options
   // reachability walk
   std::string propsFile;
   std::string propsSyntax = "auto"; // auto (by extension) | mcc | sexpr
+  std::string hintsFile;            // --hints, s-expression (parikh NAME (t k)...) forms
+  std::string hintStrategies = "parikh,parikh,relaxed,bestfirst"; // pool for a focus with a hint
   long query = -1;
   bool printProps = false;
   std::string printPropsFormat = "infix"; // infix | sexpr | sexpr-index
@@ -147,6 +149,10 @@ inline void addOptions (CLI::App &app, Options &o)
                   "Property file: MCC XML (.xml) or s-expressions (any other extension, see INTEROP.md).");
   wk->add_option ("--propsSyntax", o.propsSyntax, "Property syntax: auto (by extension, default), mcc, sexpr.")
       ->check (CLI::IsMember ({ "auto", "mcc", "sexpr" }));
+  wk->add_option ("--hints", o.hintsFile,
+                  "Hints file: (parikh NAME (t k)...) forms naming properties of --props (see INTEROP.md).");
+  wk->add_option ("--hintStrategies", o.hintStrategies,
+                  "Pool for a focus that has a hint (default parikh,parikh,relaxed,bestfirst).");
   wk->add_option ("--query", o.query, "Select the n-th property of the file (0-based); default all.");
   wk->add_option_function<std::vector<std::string>> ("--printProps",
       [&o] (const std::vector<std::string> &v) {
@@ -161,8 +167,8 @@ inline void addOptions (CLI::App &app, Options &o)
   wk->add_option ("--seed", o.seed, "Random seed (default: clock).");
   wk->add_flag ("--trace", o.trace, "Record the witness trace, verify it by replay and print it as a WITNESS line.");
   wk->add_flag ("--printUnknown", o.printUnknown, "At exit, print an UNKNOWN line for every property left without verdict.");
-  wk->add_option ("--strategy", o.strategy, "random (default) | bestfirst | structural | relaxed.")
-      ->check (CLI::IsMember ({ "random", "bestfirst", "structural", "relaxed" }));
+  wk->add_option ("--strategy", o.strategy, "random (default) | bestfirst | structural | relaxed | parikh.")
+      ->check (CLI::IsMember ({ "random", "bestfirst", "structural", "relaxed", "parikh" }));
   wk->add_option ("--threads", o.threads, "Parallel walkers (default 1); first witness wins.");
   wk->add_option ("--strategies", o.strategies,
                   "Pool assigned round-robin to threads: name[:epsilon[:stall]],... (default with several "

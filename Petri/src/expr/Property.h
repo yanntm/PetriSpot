@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "expr/Expression.h"
+#include "expr/Hint.h"
 #include "expr/Simplify.h"
 
 namespace petri::expr
@@ -44,6 +45,7 @@ struct Property
   Expression body;
   std::string comment;
   long long boundHint = -1; // Bound: a known upper bound of the form, -1 when unknown
+  ParikhHint hint;          // from --hints, empty when none
 
   /** Bound: the linear form to maximise (the terms of body's atom). */
   const LinearAtom& boundForm () const

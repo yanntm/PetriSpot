@@ -4,7 +4,7 @@ Sparse, per-thread explicit walk toward a goal state. `algorithm.md` describes
 the data structures and the step.
 
 * `WalkNet.h` — compiled read-only view: effects, consumers per place sorted
-  by weight.
+  by weight, effect classes (transitions with identical effect).
 * `Marking.h` — sparse marking with in-place `apply(effect, onChange)`.
 * `EnabledSet.h` — enabled transitions by delta (unsatisfied-arc counters).
 * `Target.h` — goal predicate (normal-form expression) or deadlock.
@@ -16,6 +16,8 @@ the data structures and the step.
 * `BestFirstStrategy.h` — greedy on a `GoalDistance`, epsilon, stall restart.
 * `RelaxedPlan.h`, `RelaxedPlanStrategy.h` — delete-relaxation cost (h_add),
   relaxed plan extraction, helpful-transition choice.
+* `ParikhStrategy.h` — choice restricted to the effect classes with firings
+  left in a Parikh hint, relaxed as restarts accumulate.
 * `NetStats.h` — structural histograms (`--netStats`).
 * `Walker.h` — restart loop over a `TargetSet` with an optional focus, budget,
   stop flag, incremental target checks, optional trace, pooled restarts.
