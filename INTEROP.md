@@ -475,10 +475,21 @@ random and best-first phases. Checked through the MCC harness on the
 reinstalled release: Angiogenesis and Airplane UpperBounds all match the
 oracle, the walker reporting the 16 bounds in 20 to 35 ms.
 
-### Phase 6b: hints
+### Phase 6b (done): hints
 
-`--hints`, the Parikh strategy (6.3), then their Java call sites
-(`tryReplayParikh`, `DeadlockSolver` guided walks).
+`--hints`, the Parikh strategy (6.3), and their Java call sites
+(`tryReplayParikh`, `DeadlockSolver` and `UpperBoundsSolver` guided walks).
+Count-only vectors: a witness-derived vector did not help on the Bridge
+"full" query, where order matters; the deadlock hint on Airplane hits at once.
+
+### Phase 7 (done, ITS-Tools side): place projection for bounds
+
+The walker gives the lower bound; an over-approximation by dropping places,
+refined on spurious abstract witnesses (traces from PetriSpot `--trace` on the
+projection), proves the upper bound exhaustively. Design and status in
+ITS-Tools `pnmcc/fr.lip6.move.gal.application.pnmcc/ABSTRACTION.md`; on
+BridgeAndVehicles-PT-V80P50N10 it closes the two UpperBounds nobody answered
+in 2026 (both 10).
 
 ---
 
