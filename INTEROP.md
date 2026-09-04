@@ -1,10 +1,10 @@
 # ITS-Tools and PetriSpot: tool-to-tool reachability
 
 Status: design document, revision 2 (2026-09-04). Revision 1 was discussed
-with the user; section 10 records the decisions. Phases 0 to 4 (section 9)
-are implemented on the PetriSpot side; the Java side (section 7) comes next.
-Sections 3 to 5 are the reference for the formats until they move next to
-`KERS.md`.
+with the user; section 10 records the decisions. Phases 0 to 5 (section 9)
+are implemented: the PetriSpot side here, the Java side in ITS-Tools
+(`petrispot/fr.lip6.move.petrispot.runner`). Sections 3 to 5 are the
+reference for the formats until they move next to `KERS.md`.
 
 Goal: let ITS-Tools (Java) delegate its explicit walks to PetriSpot with the
 same ease it already delegates invariant computation, so that
@@ -405,12 +405,23 @@ equals the per-property baseline; a one-second sweep answers 12 of the 16
 fireability properties at 8700 steps/ms with 3 goal evaluations per step.
 ThreadSanitizer clean with 4 threads.
 
-### Phase 5: Java runner and call sites (ITS-Tools repository)
+### Phase 5 (done): Java runner and call sites (ITS-Tools repository)
 
-`PNETFormatIO`, `SexprPropertyPrinter`, `PetriSpotWalker`, then the call
-sites one at a time, `ReachabilitySolver` first. Check: the `itstools` MCC
-driver on the reachability examinations solves at least what it solves today,
-with the walk time per property logged on both sides.
+`PNETFormatIO`, `SexprPropertyPrinter` and `PetriSpotWalker` in the existing
+wrapper plugin `fr.lip6.move.petrispot.runner`; call sites
+`ReachabilitySolver.randomCheckReachability` (one request replaces the random
+and best-first phases), `AtomicReducer`, `AtomicReducerSR`, `DeadlockSolver`
+(random walks). `PetriSpotWalker.USE_PETRISPOT` is the compile-time switch
+back to the Java walker; every entry point returns null when the binary cannot
+be used and the caller falls back. `-Dpetrispot.bin=<path>` names the binary
+outside OSGi. Checked: the PNET written from Java is byte-identical to
+PetriSpot's own export of the same PNML (Airplane, Angiogenesis), and a
+request with one `p >= 1` predicate per place plus an unreachable one solves
+exactly the reachable ones. Still to do: run the `itstools` MCC driver on the
+reachability examinations and compare with today's results. Found on the
+way: the structural plugin's SAX `PTNetHandler` added post arcs with place
+and transition swapped (fixed; production loads nets through the `nupn`
+reader, which was correct).
 
 ### Phase 6: hints and bounds
 
