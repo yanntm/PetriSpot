@@ -180,9 +180,10 @@ Output follows the MCC convention, one line per solved property:
 
 | Option | Meaning |
 |---|---|
-| `--props=<file>` | MCC property XML (reachability fragment; other kinds are reported unsupported) |
+| `--props=<file>` | property file: MCC XML (`.xml`, reachability fragment) or s-expressions (any other extension, see `INTEROP.md`) |
+| `--propsSyntax=<s>` | `auto` (by extension, default), `mcc`, `sexpr` |
 | `--query=<n>` | select the n-th property of the file (0-based) |
-| `--printProps` | print the parsed and normalised properties, then exit |
+| `--printProps[=<f>]` | print the properties and exit: `infix` (parsed and normalised, default), `sexpr`, `sexpr-index`; converts MCC XML to s-expressions |
 | `--findDeadlock` | look for a deadlock |
 | `--strategy=<s>` / `--strategies=<list>` | one strategy, or the pool for the threads |
 | `--threads=<n>` | parallel walkers (default 1) |

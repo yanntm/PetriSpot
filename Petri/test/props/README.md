@@ -9,3 +9,7 @@ MCC-format property files for models that live outside the repository
   (`SUR_PONT_A >= P`, `SUR_PONT_B >= P`, P = capacity, bounded by V): every
   vehicle of a batch must be authorised before any of them leaves, which an
   undirected walk essentially never does on the large instances.
+
+* `Airplane.sexpr` — s-expression syntax sample for `Petri/examples/Airplane.pnml`:
+  names, quoted names, indices, `fireable`, arithmetic, all three property
+  kinds. Every property but the invariant on speeds has a witness.

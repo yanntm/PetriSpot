@@ -5,6 +5,8 @@
 * `logs/` — run logs, git-ignored. `baseline_*.txt` are the invariant outputs
   of the example nets used as a regression reference.
 * `bench_kers.sh` — KERS input/output benchmark of the invariant solver.
+* `sexpr_roundtrip.sh` — MCC XML to s-expressions and back on the property
+  files of the given model folders; the ASTs must agree.
 
 Models: extract MCC archives (`~/git/pnmcc-models-2026/website/INPUTS/*.tgz`)
 into `bench/models/<model>/` at the repository root (git-ignored). Development

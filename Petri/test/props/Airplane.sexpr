@@ -1,0 +1,9 @@
+; Hand-written properties for Petri/examples/Airplane.pnml, in the s-expression
+; syntax (INTEROP.md section 4): names, quoting, indices, fireable, arithmetic.
+(reach on-ground (>= Plane_On_Ground_Signal_no_T 1))
+(invariant "speed bound" (<= (+ Speed_Left_Wheel_1 (* 2 Speed_Right_Wheel_1)) 3))
+(reach by-index (and (>= p3 1) (not (fireable t0 t1))))
+(reach mixed (== (- TheAltitude_5 1) 0))
+(reach quoted-place (>= "P6" 1))
+(invariant never-both (not (and (fireable SpeedLW_1) (>= stp4 1))))
+(deadlock dl)

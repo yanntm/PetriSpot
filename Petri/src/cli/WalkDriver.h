@@ -18,7 +18,8 @@
 #include "cli/Options.h"
 #include "core/SparsePetriNet.h"
 #include "expr/Property.h"
-#include "parse/mcc/PropertyLoader.h"
+#include "expr/SexprPrinter.h"
+#include "parse/PropertyFile.h"
 #include "walk/Portfolio.h"
 #include "walk/SharedPool.h"
 #include "walk/Target.h"
@@ -98,7 +99,8 @@ template<typename T>
 template<typename T>
   std::vector<petri::expr::Property> loadProperties (const Options &o, const SparsePetriNet<T> &pn)
   {
-    std::vector<petri::expr::Property> props = petri::mcc::loadProperties (o.propsFile, pn);
+    std::vector<petri::expr::Property> props = petri::loadPropertyFile (o.propsFile, pn,
+                                                                          petri::propertySyntaxOf (o.propsSyntax));
     if (o.query >= 0) {
       if (static_cast<size_t> (o.query) >= props.size ()) {
         throw std::string ("--query=" + std::to_string (o.query) + " but the file holds "
@@ -109,15 +111,23 @@ template<typename T>
     return props;
   }
 
+/** --printProps: infix with the goal, or one s-expression form per line. */
 template<typename T>
-  void printProperties (const std::vector<petri::expr::Property> &props, const SparsePetriNet<T> &pn)
+  void printProperties (const std::vector<petri::expr::Property> &props, const SparsePetriNet<T> &pn,
+                        const std::string &format)
   {
+    const std::vector<std::string> *pnames = format == "sexpr-index" ? nullptr : &pn.getPnames ();
     for (const auto &prop : props) {
-      prop.print (std::cout, &pn.getPnames ());
-      std::cout << "\n  goal (" << prop.goal ().size () << " nodes) : ";
-      prop.goal ().print (std::cout, &pn.getPnames ());
-      std::cout << std::endl;
+      if (format == "infix") {
+        prop.print (std::cout, pnames);
+        std::cout << "\n  goal (" << prop.goal ().size () << " nodes) : ";
+        prop.goal ().print (std::cout, pnames);
+      } else {
+        petri::expr::printSexpr (std::cout, prop, pnames);
+      }
+      std::cout << "\n";
     }
+    std::cout.flush ();
   }
 
 /**
@@ -131,7 +141,7 @@ template<typename T>
     using petri::expr::PropertyKind;
     std::vector<petri::expr::Property> props = loadProperties (o, pn);
     if (o.printProps) {
-      printProperties (props, pn);
+      printProperties (props, pn, o.printPropsFormat);
       return;
     }
     petri::walk::WalkBudget budget = o.budget;

@@ -52,8 +52,10 @@ struct Options
 
   // reachability walk
   std::string propsFile;
+  std::string propsSyntax = "auto"; // auto (by extension) | mcc | sexpr
   long query = -1;
   bool printProps = false;
+  std::string printPropsFormat = "infix"; // infix | sexpr | sexpr-index
   bool findDeadlock = false;
   petri::walk::WalkBudget budget;
   uint64_t seed = static_cast<uint64_t> (std::chrono::steady_clock::now ().time_since_epoch ().count ());
@@ -108,7 +110,7 @@ inline void addOptions (CLI::App &app, Options &o)
   ex->add_option_function<std::vector<std::string>> ("--normalizePNML",
       [&o] (const std::vector<std::string> &v) {
         o.normalizePNML = true;
-        if (!v.empty ()) o.normalizePNMLFile = v[0];
+        if (!v.empty () && !v[0].empty ()) o.normalizePNMLFile = v[0];
       }, "Write a normalised PNML (ids p0,p1... t0,t1..., no graphics); default <model>.norm.pnml.")
       ->expected (0, 1);
   ex->add_flag ("--netStats", o.netStats, "Print structural histograms of the net (arities, fan-out).");
@@ -134,9 +136,18 @@ inline void addOptions (CLI::App &app, Options &o)
   inv->add_option ("--loopLimit", o.loopLimit, "Elimination loop limit (default 500, -1 unlimited).");
 
   auto *wk = app.add_option_group ("Reachability walk");
-  wk->add_option ("--props", o.propsFile, "Property file: MCC XML (Reachability*.xml).");
+  wk->add_option ("--props", o.propsFile,
+                  "Property file: MCC XML (.xml) or s-expressions (any other extension, see INTEROP.md).");
+  wk->add_option ("--propsSyntax", o.propsSyntax, "Property syntax: auto (by extension, default), mcc, sexpr.")
+      ->check (CLI::IsMember ({ "auto", "mcc", "sexpr" }));
   wk->add_option ("--query", o.query, "Select the n-th property of the file (0-based); default all.");
-  wk->add_flag ("--printProps", o.printProps, "Print the selected properties (parsed, normalised) and exit.");
+  wk->add_option_function<std::vector<std::string>> ("--printProps",
+      [&o] (const std::vector<std::string> &v) {
+        o.printProps = true;
+        if (!v.empty () && !v[0].empty ()) o.printPropsFormat = v[0];
+      }, "Print the selected properties and exit: infix (parsed and normalised, default), sexpr (names), "
+         "sexpr-index (p<i>/t<i>).")
+      ->expected (0, 1)->check (CLI::IsMember ({ "infix", "sexpr", "sexpr-index" }));
   wk->add_flag ("--findDeadlock", o.findDeadlock, "Look for a deadlock.");
   wk->add_option ("--walkSteps", o.budget.maxSteps, "Step budget of a walk (default: until timeout).");
   wk->add_option ("--runLength", o.budget.runLength, "Steps between restarts from the initial marking (default 1000000).");
