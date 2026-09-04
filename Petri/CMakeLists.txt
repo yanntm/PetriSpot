@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 project(PetriSpot CXX)
 
 # Header-only C++23 sources under src/, one driver per binary. The three petri
-# binaries differ only in the integer width VAL used for markings/coefficients.
+# binaries differ only in the integer width VAL used for markings and
+# coefficients. The only dependency is expat (PNML and property parsing).
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,11 +12,20 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-option(PETRISPOT_STATIC "Link the binaries statically" ON)
-option(PETRISPOT_LTO "Enable link time optimisation" ON)
-option(PETRISPOT_SANITIZE "Sanitizer to enable (address, thread, undefined) or empty" "")
+option(PETRISPOT_STATIC "Link the binaries statically (fully on Linux/MinGW, runtime only on macOS)" ON)
+if(APPLE)
+  option(PETRISPOT_LTO "Enable link time optimisation" OFF)
+else()
+  option(PETRISPOT_LTO "Enable link time optimisation" ON)
+endif()
+set(PETRISPOT_SANITIZE "" CACHE STRING "Sanitizer to enable (address, thread, undefined) or empty")
 
+if(PETRISPOT_STATIC)
+  # prefer static archives when resolving expat
+  set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
+endif()
 find_package(EXPAT REQUIRED)
+find_package(Threads REQUIRED)
 
 set(PETRI_WARNINGS -Wall -Wextra -Wconversion -Wnarrowing)
 
@@ -23,11 +33,20 @@ function(petri_common_setup target)
   target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   target_compile_options(${target} PRIVATE ${PETRI_WARNINGS})
   target_compile_definitions(${target} PRIVATE $<$<CONFIG:Release>:NDEBUG>)
+  target_link_libraries(${target} PRIVATE Threads::Threads)
   if(PETRISPOT_LTO AND NOT PETRISPOT_SANITIZE)
     set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
   endif()
   if(PETRISPOT_STATIC AND NOT PETRISPOT_SANITIZE)
-    target_link_options(${target} PRIVATE -static -static-libgcc -static-libstdc++)
+    if(APPLE)
+      target_link_options(${target} PRIVATE -static-libgcc -static-libstdc++)
+    else()
+      target_link_options(${target} PRIVATE -static -static-libgcc -static-libstdc++)
+    endif()
+  endif()
+  if(WIN32)
+    # deep recursions in the invariant solver: larger main thread stack
+    target_link_options(${target} PRIVATE -Wl,--stack,16777216)
   endif()
   if(PETRISPOT_SANITIZE)
     target_compile_options(${target} PRIVATE -fsanitize=${PETRISPOT_SANITIZE} -fno-omit-frame-pointer -g)
@@ -47,10 +66,10 @@ foreach(width IN ITEMS 32 64 128)
     target_compile_definitions(${target} PRIVATE "VAL=long long")
   endif()
   target_link_libraries(${target} PRIVATE EXPAT::EXPAT)
-  find_package(Threads REQUIRED)
-  target_link_libraries(${target} PRIVATE Threads::Threads)
 endforeach()
 
 add_executable(kersconv src/kersconv.cpp)
 petri_common_setup(kersconv)
 target_compile_definitions(kersconv PRIVATE VAL=long)
+
+install(TARGETS petri32 petri64 petri128 kersconv RUNTIME DESTINATION bin)

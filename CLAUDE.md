@@ -7,10 +7,10 @@ computation (P/T flows and semi-flows, mature, state of the art) and, under
 construction, an explicit heuristic walk engine for reachability. It is a
 subprocess of ITS-Tools (Java, `~/git/ITStools`), not a replacement for it.
 
-* `Petri/` : the autotools project. `autoreconf -vfi && ./configure && make`
-  in `Petri/`; `buildPetriSpot.sh` at root does the full static build with
-  libexpat. Binaries: `Petri/src/petri32|64|128` (integer width via `-DVAL`)
-  and `kersconv`.
+* `Petri/` : the CMake project (`Petri/CMakeLists.txt`). Build with
+  `cmake -S Petri -B build && cmake --build build`; `buildPetriSpot.sh` at
+  root does the full static build with libexpat as the CI does. Binaries:
+  `build/petri32|64|128` (integer width via `-DVAL`) and `kersconv`.
 * `Petri/src/` : header-only templates on the integer type `T`, one `Petri.cpp`
   driver. Being reorganised into folders (see `WALK_PLAN.md` section 3):
   `core/` sparse vectors, matrices, net; `parse/` PNML and property parsers;

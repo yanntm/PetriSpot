@@ -612,8 +612,8 @@ are rough effort calibration.
    flag and a witness slot. One property per run for now (`--query=<n>`).
 6. Threads after the single-thread engine works.
 7. `--findDeadlock` moves to the MCC `FORMULA` output line.
-8. Folder layout done (commit d5b034d); CMake added, autotools kept in sync
-   until CMake is stable in CI, then removed.
+8. Folder layout done (commit d5b034d); the build is CMake only (autotools
+   removed on 2026-09-04, CI and `buildPetriSpot.sh` converted).
 
 ## 8. State after iteration 1 (2026-09-03)
 
@@ -656,7 +656,7 @@ are rough effort calibration.
   (negative leading coefficients) now fixed. `--totalTime` schedules open
   properties in rounds of growing budget. Logs in `Petri/test/logs/`.
 * Open: the last challenge query (12); h_add cost on wide nets
-  (bounded/backward variants); autotools still kept in sync with CMake.
+  (bounded/backward variants).
 
 Development models (outside the repo, `bench/models/`, git-ignored):
 AirplaneLD-PT-0010, Angiogenesis-PT-05, and the challenge

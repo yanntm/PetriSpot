@@ -18,20 +18,24 @@ Three versions are available based on integer size: `petri32`, `petri64`, and `p
 
 ### Building from Source
 
-To build from source, follow these steps:
+Requirements: a C++23 compiler (GCC 13 or later), CMake 3.16 or later, and
+libexpat (development headers; a static library if you want static binaries).
 
-1. Clone the repository:
-    ```sh
-    git clone -b invariant https://github.com/yanntm/PetriSpot.git
-    cd PetriSpot
-    ```
+```sh
+git clone https://github.com/yanntm/PetriSpot.git
+cd PetriSpot
+cmake -S Petri -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
 
-2. The build uses GitHub Actions for CI/CD. Necessary package dependencies are tracked in the workflows within the `.github` folder. The `build.sh` script compiles and deploys all dependencies, including Spot for LTL and libGMP and libExpat for the parser.
+The binaries `petri32`, `petri64`, `petri128` and `kersconv` appear in `build/`.
+Options: `-DPETRISPOT_STATIC=OFF` for dynamic linking, `-DPETRISPOT_LTO=OFF`,
+`-DPETRISPOT_SANITIZE=thread` (or `address`) for instrumented builds.
 
-    To build the project, run:
-    ```sh
-    ./build.sh
-    ```
+`buildPetriSpot.sh` reproduces the CI build: it compiles a static libexpat into
+`usr/local`, builds PetriSpot against it and puts stripped binaries in
+`website/`. The GitHub workflows (`.github/workflows`) run it on Linux and
+macOS and use CMake with MSYS2/MinGW on Windows.
 
 ## Usage
 
