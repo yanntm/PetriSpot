@@ -25,6 +25,7 @@ Three versions are available based on integer size: `petri32`, `petri64`, and `p
 
 Requirements: a C++23 compiler (GCC 13 or later), CMake 3.16 or later, and
 libexpat (development headers; a static library if you want static binaries).
+The command line parser CLI11 is vendored as a single header (`Petri/src/cli11/`).
 
 ```sh
 git clone https://github.com/yanntm/PetriSpot.git
@@ -57,6 +58,9 @@ To use PetriSpot, run the following command:
 - Path of the model file in .pnml format (ISO/IEC 15909-2 standard)
 
 #### `[flags]`
+
+Every option accepts `--name=value` or `--name value`; `--help` lists them all
+by group.
 
 - `-q`: Quiet mode (avoids printing the invariants, used for performance evaluation)
 - `--Pflows`: Compute generative basis of generalized flows on places
@@ -199,6 +203,7 @@ each source folder documents itself (`Petri/src/*/README.md`, and
 
 | Folder | Content |
 |---|---|
+| `Petri/src/cli/` | command line (CLI11, vendored in `cli11/`), invariant and walk drivers |
 | `Petri/src/core/` | sparse vectors and matrices, the net, logging |
 | `Petri/src/parse/` | PNML parser; `mcc/` MCC property XML parser |
 | `Petri/src/expr/` | property AST, simplifier, goal distance |

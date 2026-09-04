@@ -1,644 +1,114 @@
-#include <iostream>
-#include <string>
-#include "walk/Walker.h"
-#include "walk/Strategy.h"
-#include "walk/BestFirstStrategy.h"
-#include "walk/NetStats.h"
-#include "walk/GoalDistance.h"
-#include "walk/StructuralDistance.h"
-#include "walk/RelaxedPlanStrategy.h"
-#include "walk/Portfolio.h"
-#include "walk/SharedPool.h"
-#include "walk/Target.h"
-#include "parse/PTNetLoader.h"
-#include "invariants/InvariantMiddle.h"
-#include <vector>
-#include <fstream>
-#include <unordered_set>
+/*
+ * Petri.cpp
+ *
+ * Entry point of the petri32/64/128 binaries: parse the command line
+ * (cli/Options.h), load the input, dispatch to the invariant and walk drivers.
+ */
 #include <chrono>
-#include "invariants/Heuristic.h"
+#include <fstream>
+#include <iostream>
+#include <limits>
+#include <set>
+#include <string>
+
+#include "cli/InvariantDriver.h"
+#include "cli/Options.h"
+#include "cli/WalkDriver.h"
+#include "cli11/CLI11.hpp"
+#include "core/Log.h"
+#include "core/SparsePetriNet.h"
 #include "io/FlowPrinter.h"
 #include "io/MatrixExporter.h"
 #include "io/PNMLExport.h"
 #include "io/SparseMatrixIO.h"
-#include "parse/mcc/PropertyLoader.h"
-
-using namespace std;
-using namespace petri;
-
-const string FINDDEADLOCK = "--findDeadlock";
-const string PFLOW = "--Pflows";
-const string PSEMIFLOW = "--Psemiflows";
-const string TFLOW = "--Tflows";
-const string TSEMIFLOW = "--Tsemiflows";
-const string PATH = "-i";
-const string QUIET = "-q";
-const string TIMEOUT = "-t";
-const string DRAW = "--draw";
-const string MINFLOWS = "--minBasis";
-const string EXPORT_MATRIX = "--exportAsMatrix";
-const string NORMALIZE_PNML = "--normalizePNML";
-const string USEQPLUS = "--useQPlusBasis";
-const string USECOMPRESSION = "--useCompression";
-const string LOAD_KERS = "--loadKERS";
-const string EXPORT_AS_KERS = "--exportAsKERS";
-const string BASIS_KERS = "--basisKERS";
-const string PROPS = "--props=";
-const string QUERY = "--query=";
-const string PRINT_PROPS = "--printProps";
-const string WALK_STEPS = "--walkSteps=";
-const string RUN_LENGTH = "--runLength=";
-const string SEED = "--seed=";
-const string TRACE = "--trace";
-const string STRATEGY = "--strategy=";
-const string EPSILON = "--epsilon=";
-const string SAMPLE = "--sample=";
-const string NET_STATS = "--netStats";
-const string STALL = "--stall=";
-const string DEBUG_STEPS = "--debugSteps=";
-const string THREADS = "--threads=";
-const string STRATEGIES = "--strategies=";
-const string SHARE = "--share=";
-const string SHARE_PROB = "--shareProb=";
-const string TOTAL_TIME = "--totalTime=";
-const string ROUND_TIME = "--roundTime=";
-
-#define DEFAULT_TIMEOUT 150
+#include "parse/PTNetLoader.h"
+#include "walk/NetStats.h"
+#include "walk/WalkNet.h"
 
 #ifndef VAL
 // default to 64 bit
 #define VAL long
 #endif
 
-// Usage function to display help message
-void usage ()
+using petri::cli::Options;
+
+/** Exports and inspections of a loaded net requested by the options. */
+static void exportNet (const Options &o, SparsePetriNet<VAL> &pn)
 {
-  std::cerr << "Usage: petri -i <model.pnml> [options]\n\n"
-      << "PetriSpot: A tool for analyzing Petri nets from PNML files.\n\n"
-      << "Required Arguments:\n"
-      << "  -i <path>            Specify the input PNML model file.\n\n"
-      << "Options:\n"
-      << "  --draw               Export the Petri net to a <modelName>.dot file with no size limit.\n"
-      << "  --findDeadlock       Run deadlock detection with forward and backward walks (up to 1M steps).\n"
-      << "  --Pflows             Compute minimal P-flows (place invariants) of the net.\n"
-      << "  --Psemiflows         Compute minimal P-semiflows (positive place invariants).\n"
-      << "  --Tflows             Compute minimal T-flows (transition invariants).\n"
-      << "  --Tsemiflows         Compute minimal T-semiflows (positive transition invariants).\n"
-      << "  --minBasis           Force minimization of the semi flows basis (default: false).\n"
-      << "  --exportAsMatrix=<file>  Export the incidence matrix to <file> in ASCII sparse format.\n"
-      << "  --exportAsKERS=<file>    Export the incidence matrix to <file> in KERS binary format.\n"
-      << "  --loadKERS=<file>        Load a sparse integer matrix in KERS binary format instead of PNML.\n"
-      << "                           Use with --Pflows/--Psemiflows (rows=places, cols=transitions)\n"
-      << "                           or --Tflows/--Tsemiflows (matrix is transposed internally).\n"
-      << "                           Implies program-to-program mode when combined with --basisKERS.\n"
-      << "  --basisKERS=<file>       Export computed invariant basis to <file> in KERS binary format.\n"
-      << "                           Suppresses human-readable invariant output (program-to-program mode).\n"
-      << "  --normalizePNML[=<file>] Exports a normalized PNML model to <file> (default: <input_path>.norm.pnml).\n"
-      << "                       All places and transitions have id and name set to p0,p1... and t0,t1...\n"
-      << "                       respectively, graphical and tool-specific information is removed.\n"
-      << "  -q                   Quiet mode: Suppress detailed invariant output.\n"
-      << "  -t <seconds>         Set timeout for computations (default: "
-      << DEFAULT_TIMEOUT << "s).\n"
-      << "  --noSingleSignRow    Disable single sign row heuristic in invariant computation.\n"
-      << "  --noTrivialCull      Disable test for equal or empty columns before algorithm.\n"
-      << "  --useCompression     Enable compression for the basis of semiflows.\n"
-      << "  --pivot=<strategy>   Set pivot strategy for elimination heuristic:\n"
-      << "                       - best: Optimize for best pivot (default).\n"
-      << "                       - worst: Use worst pivot (for testing).\n"
-      << "                       - first: Use first valid pivot.\n"
-      << "  --loopLimit=<n>      Limit elimination loops to <n> iterations (-1 for no limit).\n\n"
-      << "Reachability (explicit walk):\n"
-      << "  --props=<file>       Load an MCC property XML file (Reachability*.xml).\n"
-      << "  --query=<n>          Select property number <n> (0-based, file order); default all.\n"
-      << "  --printProps         Print the selected properties (parsed, then normalised) and exit.\n"
-      << "  --walkSteps=<n>      Total step budget for the walk (default: until timeout).\n"
-      << "  --runLength=<n>      Steps between restarts from the initial marking (default 1000000).\n"
-      << "  --seed=<n>           Random seed (default: clock).\n"
-      << "  --trace              Record the witness trace, verify it by replay and print it\n"
-      << "                       as a transition sequence (off by default: no trace is kept).\n"
-      << "  --strategy=<s>       random (default) | bestfirst (greedy on goal distance) |\n"
-      << "                       structural (greedy on hop-based goal distance) |\n"
-      << "                       relaxed (planning-style relaxed plan, helpful transitions).\n"
-      << "  --threads=<n>        Run n walkers in parallel (default 1); first witness wins.\n"
-      << "  --strategies=<list>  Pool of strategies assigned round-robin to threads, comma\n"
-      << "                       separated, each as name[:epsilon[:stall]] (default with\n"
-      << "                       several threads: random,bestfirst,structural,relaxed).\n"
-      << "  --share=<n>          Shared pool of up to n promising markings that restarts may\n"
-      << "                       draw from (default 0: disabled).\n"
-      << "  --shareProb=<p>      Percentage of restarts drawn from the pool (default 50).\n"
-      << "  --totalTime=<s>      Global budget for all selected properties: they are walked in\n"
-      << "                       rounds, each open property getting --roundTime seconds in round 1,\n"
-      << "                       ten times more per round, the remainder shared in the last round.\n"
-      << "  --roundTime=<s>      Per-property budget of the first round (default 1).\n"
-      << "  --epsilon=<n>        bestfirst: percentage of uniformly random moves (default 10).\n"
-      << "  --sample=<n>         bestfirst: score at most n random candidates per step (default all).\n"
-      << "  --stall=<n>          bestfirst/structural: restart after n steps without distance improvement.\n"
-      << "  --netStats           Print structural histograms of the net (arities, fan-out).\n\n"
-      << "Notes:\n" << "  - P-flows and P-semiflows are mutually exclusive.\n"
-      << "  - T-flows and T-semiflows are mutually exclusive.\n"
-      << "  - Invariant options enable invariant analysis.\n"
-      << "  - Output files (e.g., .dot, .mat, .pnml) are written to the current directory.\n\n"
-      << "Examples:\n" << "  petri -i model.pnml --draw\n"
-      << "  petri -i model.pnml --findDeadlock -t 300\n"
-      << "  petri -i model.pnml --Psemiflows -q --minBasis\n"
-      << "  petri -i model.pnml --exportAsMatrix=model.mat\n"
-      << "  petri -i x/y/model.pnml --normalizePNML\n"
-      << "  petri -i model.pnml --normalizePNML=normalized.pnml\n";
+  if (o.normalizePNML) {
+    std::string out = o.normalizePNMLFile.empty () ? o.modelPath + ".norm.pnml" : o.normalizePNMLFile;
+    pn.normalizeNames ();
+    PNMLExport<VAL>::transform (pn, out);
+  }
+  if (o.draw) {
+    std::string filename = FlowPrinter<VAL>::drawNet (pn, "Petri Net: " + pn.getName (), std::set<size_t> (),
+                                                      std::set<size_t> (), std::numeric_limits<size_t>::max ());
+    std::string target = o.modelPath + ".dot";
+    if (std::rename (filename.c_str (), target.c_str ()) == 0) {
+      std::cout << "Renamed output to " << target << std::endl;
+    } else {
+      std::cerr << "Warning: Could not rename " << filename << " to " << target << std::endl;
+    }
+  }
+  if (!o.exportMatrixFile.empty () || !o.exportAsKERSFile.empty ()) {
+    MatrixCol<VAL> sumMatrix = MatrixCol<VAL>::sumProd (-1, pn.getFlowPT (), 1, pn.getFlowTP ());
+    if (!o.exportMatrixFile.empty ()) MatrixExporter<VAL>::exportMatrix (sumMatrix, o.exportMatrixFile);
+    if (!o.exportAsKERSFile.empty ()) SparseMatrixIO<VAL>::write (sumMatrix, o.exportAsKERSFile);
+  }
+  if (o.netStats) {
+    petri::walk::WalkNet<VAL> wnet (pn);
+    petri::walk::printNetStats (std::cout, wnet);
+  }
 }
 
-/** Print a sparse marking with place names. */
-template<typename T>
-  void printMarking (std::ostream &os, const SparseArray<T> &m, const std::vector<std::string> &pnames)
-  {
-    for (size_t i = 0; i < m.size (); ++i) {
-      if (i > 0) os << " ";
-      os << pnames[m.keyAt (i)];
-      if (m.valueAt (i) != 1) os << "=" << m.valueAt (i);
-    }
-  }
-
-/** Run the portfolio toward target; print the MCC verdict line if reached. */
-template<typename T>
-  bool runWalk (const petri::walk::WalkNet<T> &wnet, const petri::walk::Target<T> &target,
-                const std::string &name, const std::string &verdict,
-                const petri::walk::WalkBudget &budget, uint64_t seed, bool quiet,
-                const std::vector<petri::walk::StrategySpec> &specs, unsigned threads,
-                size_t share, unsigned shareProb, uint64_t debugSteps)
-  {
-    std::unique_ptr<petri::walk::SharedPool<T>> pool;
-    if (share > 0) pool = std::make_unique<petri::walk::SharedPool<T>> (share, shareProb);
-    petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, target, specs, threads,
-                                                                     budget, seed, pool.get (), debugSteps);
-    for (size_t i = 0; i < res.reports.size (); ++i) {
-      const petri::walk::ThreadReport &rep = res.reports[i];
-      const petri::walk::WalkStats &st = rep.stats;
-      uint64_t ms = st.millis == 0 ? 1 : st.millis;
-      if (quiet && !rep.found && res.found) continue;
-      std::cout << "Thread " << i << " [" << rep.strategy << "] " << (rep.found ? "found a witness" : "stopped")
-          << " after " << st.steps << " steps, " << st.resets << " resets (" << st.deadEnds
-          << " dead ends, " << st.stalls << " stalls, " << st.poolRestarts << " from pool), " << st.millis
-          << " ms (" << (st.steps / ms) << " steps/ms; " << (st.steps ? st.arcVisits / st.steps : 0)
-          << " arc visits/step)";
-      if (rep.strategy != "random") std::cout << ", best heuristic " << rep.minHeuristic;
-      std::cout << "." << std::endl;
-    }
-    if (pool) {
-      std::cout << "Shared pool: " << pool->publishedCount () << " published, " << pool->drawnCount ()
-          << " drawn, " << pool->evictedCount () << " evicted, " << pool->size () << " held." << std::endl;
-    }
-    if (!res.found) {
-      std::cout << "No witness found for " << name << "." << std::endl;
-      return false;
-    }
-    std::cout << "FORMULA " << name << " " << verdict << " TECHNIQUES EXPLICIT "
-        << (res.winnerStrategy == "random" ? "RANDOM_WALK" : "HEURISTIC_WALK")
-        << (threads > 1 ? " PARALLEL_PROCESSING" : "") << std::endl;
-    if (res.result.hasTrace) {
-      const auto &tnames = wnet.getNet ().getTnames ();
-      std::cout << "Witness (" << res.result.trace.size () << " transitions):";
-      for (uint32_t t : res.result.trace) std::cout << " " << tnames[t];
-      std::cout << std::endl;
-    } else if (!quiet) {
-      std::cout << "Witness marking ";
-      printMarking (std::cout, res.witness, wnet.getNet ().getPnames ());
-      std::cout << std::endl;
-    }
-    return true;
-  }
-
-int main_noex (int argc, char *argv[])
+static int main_noex (int argc, char *argv[])
 {
   std::string logMessage = "Running PetriSpot with arguments : [";
-  int i = 0;
-  for (i = 1; i < argc - 1; ++i) {
-    logMessage += std::string (argv[i]) + ", ";
-  }
-  logMessage += (argc == 1 ? "Empty" : std::string (argv[i])) + "]";
-  InvariantMiddle<VAL>::writeToLog (logMessage);
+  for (int i = 1; i < argc; ++i) logMessage += std::string (argv[i]) + (i + 1 < argc ? ", " : "");
+  petri::writeToLog (logMessage + (argc == 1 ? "Empty" : "") + "]");
   auto runtime = std::chrono::steady_clock::now ();
-  std::string modelPath;
-  bool findDeadlock = false;
-  bool pflows = false;
-  bool tflows = false;
-  bool psemiflows = false;
-  bool tsemiflows = false;
-  bool invariants = false;
-  bool quiet = false;
-  bool draw = false;
-  int timeout = DEFAULT_TIMEOUT;
-  bool useSingleSignRow = true;
-  bool useCulling = true;
-  bool minimizeFlows = false;
-  std::string exportMatrixFile;
-  std::string exportAsKERSFile;
-  bool doNormalize = false;
-  std::string normalizePnmlFile;
-  std::string loadKERSFile;
-  std::string basisKERSFile;
-  EliminationHeuristic::PivotStrategy pivotStrategy =
-      EliminationHeuristic::PivotStrategy::FindBest;
-  ssize_t loopLimit = 500;
-  std::string propsFile;
-  long query = -1;
-  bool printProps = false;
-  petri::walk::WalkBudget budget;
-  uint64_t seed = static_cast<uint64_t> (std::chrono::steady_clock::now ().time_since_epoch ().count ());
-  bool printTrace = false;
-  std::string strategyName = "random";
-  unsigned epsilon = 10;
-  size_t sample = 0;
-  bool netStats = false;
-  uint64_t stall = 0;
-  uint64_t debugSteps = 0;
-  unsigned threads = 1;
-  std::string strategies;
-  size_t share = 0;
-  unsigned shareProb = 50;
-  long totalTime = 0;
-  long roundTime = 1;
-  bool doUseQPlusBasis = false;
-  bool doUseCompression = false;
 
+  Options o;
+  CLI::App app ("PetriSpot: invariants and explicit reachability walks for P/T Petri nets.");
+  petri::cli::addOptions (app, o);
   if (argc == 1) {
-    usage ();
-    exit (1);
-  }
-
-  for (int i = 1; i < argc; i++) {
-    if (argv[i] == PATH) {
-      modelPath = argv[++i];
-    } else if (argv[i] == TIMEOUT) {
-      timeout = atoi (argv[++i]);
-    } else if (argv[i] == QUIET) {
-      quiet = true;
-    } else if (argv[i] == FINDDEADLOCK) {
-      findDeadlock = true;
-    } else if (argv[i] == PFLOW) {
-      pflows = true;
-      invariants = true;
-    } else if (argv[i] == PSEMIFLOW) {
-      psemiflows = true;
-      invariants = true;
-    } else if (argv[i] == TFLOW) {
-      tflows = true;
-      invariants = true;
-    } else if (argv[i] == TSEMIFLOW) {
-      tsemiflows = true;
-      invariants = true;
-    } else if (argv[i] == DRAW) {
-      draw = true;
-    } else if (argv[i] == USEQPLUS) {
-      doUseQPlusBasis = true;
-    } else if (argv[i] == USECOMPRESSION) {
-      doUseCompression = true;
-    } else if (std::string (argv[i]) == "--noSingleSignRow") {
-      useSingleSignRow = false;
-    } else if (std::string (argv[i]) == "--noTrivialCull") {
-      useCulling = false;
-    } else if (std::string (argv[i]).substr (0, 8) == "--pivot=") {
-      std::string pivotStr = std::string (argv[i]).substr (8);
-      if (pivotStr == "best") {
-        pivotStrategy = EliminationHeuristic::PivotStrategy::FindBest;
-      } else if (pivotStr == "worst") {
-        pivotStrategy = EliminationHeuristic::PivotStrategy::FindWorst;
-      } else if (pivotStr == "first") {
-        pivotStrategy = EliminationHeuristic::PivotStrategy::FindFirst;
-      } else {
-        std::cerr << "Unknown pivot strategy: " << pivotStr << std::endl;
-        exit (1);
-      }
-    } else if (std::string (argv[i]).substr (0, 12) == "--loopLimit=") {
-      std::string limitStr = std::string (argv[i]).substr (12);
-      try {
-        loopLimit = std::stoll (limitStr);
-      } catch (const std::exception &e) {
-        std::cerr << "Invalid loopLimit value: " << limitStr << std::endl;
-        exit (1);
-      }
-    } else if (std::string (argv[i]).substr (0, PROPS.size ()) == PROPS) {
-      propsFile = std::string (argv[i]).substr (PROPS.size ());
-    } else if (std::string (argv[i]).substr (0, QUERY.size ()) == QUERY) {
-      query = std::stol (std::string (argv[i]).substr (QUERY.size ()));
-    } else if (std::string (argv[i]) == PRINT_PROPS) {
-      printProps = true;
-    } else if (std::string (argv[i]).substr (0, WALK_STEPS.size ()) == WALK_STEPS) {
-      budget.maxSteps = std::stoull (std::string (argv[i]).substr (WALK_STEPS.size ()));
-    } else if (std::string (argv[i]).substr (0, RUN_LENGTH.size ()) == RUN_LENGTH) {
-      budget.runLength = std::stoull (std::string (argv[i]).substr (RUN_LENGTH.size ()));
-    } else if (std::string (argv[i]).substr (0, SEED.size ()) == SEED) {
-      seed = std::stoull (std::string (argv[i]).substr (SEED.size ()));
-    } else if (std::string (argv[i]) == TRACE) {
-      printTrace = true;
-    } else if (std::string (argv[i]).substr (0, STRATEGY.size ()) == STRATEGY) {
-      strategyName = std::string (argv[i]).substr (STRATEGY.size ());
-    } else if (std::string (argv[i]).substr (0, EPSILON.size ()) == EPSILON) {
-      epsilon = static_cast<unsigned> (std::stoul (std::string (argv[i]).substr (EPSILON.size ())));
-    } else if (std::string (argv[i]) == NET_STATS) {
-      netStats = true;
-    } else if (std::string (argv[i]).substr (0, THREADS.size ()) == THREADS) {
-      threads = static_cast<unsigned> (std::stoul (std::string (argv[i]).substr (THREADS.size ())));
-    } else if (std::string (argv[i]).substr (0, STRATEGIES.size ()) == STRATEGIES) {
-      strategies = std::string (argv[i]).substr (STRATEGIES.size ());
-    } else if (std::string (argv[i]).substr (0, SHARE.size ()) == SHARE) {
-      share = std::stoul (std::string (argv[i]).substr (SHARE.size ()));
-    } else if (std::string (argv[i]).substr (0, TOTAL_TIME.size ()) == TOTAL_TIME) {
-      totalTime = std::stol (std::string (argv[i]).substr (TOTAL_TIME.size ()));
-    } else if (std::string (argv[i]).substr (0, ROUND_TIME.size ()) == ROUND_TIME) {
-      roundTime = std::stol (std::string (argv[i]).substr (ROUND_TIME.size ()));
-    } else if (std::string (argv[i]).substr (0, SHARE_PROB.size ()) == SHARE_PROB) {
-      shareProb = static_cast<unsigned> (std::stoul (std::string (argv[i]).substr (SHARE_PROB.size ())));
-    } else if (std::string (argv[i]).substr (0, DEBUG_STEPS.size ()) == DEBUG_STEPS) {
-      debugSteps = std::stoull (std::string (argv[i]).substr (DEBUG_STEPS.size ()));
-    } else if (std::string (argv[i]).substr (0, STALL.size ()) == STALL) {
-      stall = std::stoull (std::string (argv[i]).substr (STALL.size ()));
-    } else if (std::string (argv[i]).substr (0, SAMPLE.size ()) == SAMPLE) {
-      sample = std::stoul (std::string (argv[i]).substr (SAMPLE.size ()));
-    } else if (std::string (argv[i]) == MINFLOWS) {
-      minimizeFlows = true;
-    } else if (std::string (argv[i]).substr (0, 17) == "--exportAsMatrix=") {
-      exportMatrixFile = std::string (argv[i]).substr (17);
-    } else if (std::string (argv[i]).substr (0, 15) == "--exportAsKERS=") {
-      exportAsKERSFile = std::string (argv[i]).substr (15);
-    } else if (std::string (argv[i]).substr (0, 11) == "--loadKERS=") {
-      loadKERSFile = std::string (argv[i]).substr (11);
-    } else if (std::string (argv[i]).substr (0, 12) == "--basisKERS=") {
-      basisKERSFile = std::string (argv[i]).substr (12);
-    } else if (std::string (argv[i]).substr (0, 15) == "--normalizePNML") {
-      doNormalize = true;  // Set the flag when we see --normalizePNML
-      std::string arg = std::string(argv[i]);
-      if (arg == NORMALIZE_PNML) {
-        normalizePnmlFile = "";  // Empty string means use default later
-      } else if (arg.substr(0, 16) == "--normalizePNML=") {
-        normalizePnmlFile = arg.substr(16);  // Specific filename provided
-      }
-    } else {
-      std::cout << "[WARNING   ] Option : " << argv[i] << " not recognized"
-          << std::endl;
-    }
-  }
-
-  EliminationHeuristic heur (useSingleSignRow, pivotStrategy, loopLimit,
-                             useCulling, minimizeFlows, doUseQPlusBasis, doUseCompression);
-
-  if (pflows && psemiflows) {
-    std::cout << "Cannot compute P flows and P semi-flows at the same time."
-        << std::endl;
+    std::cerr << app.help () << std::endl;
     return 1;
   }
-  if (tflows && tsemiflows) {
-    std::cout << "Cannot compute T flows and T semi-flows at the same time."
-        << std::endl;
+  try {
+    app.parse (argc, argv);
+  } catch (const CLI::ParseError &e) {
+    return app.exit (e);
+  }
+  if (o.pflows && o.psemiflows) {
+    std::cout << "Cannot compute P flows and P semi-flows at the same time." << std::endl;
+    return 1;
+  }
+  if (o.tflows && o.tsemiflows) {
+    std::cout << "Cannot compute T flows and T semi-flows at the same time." << std::endl;
     return 1;
   }
 
-  // --- KERS matrix-input path (bypass PNML entirely) ---
-  if (!loadKERSFile.empty ()) {
-    if (!invariants) {
-      std::cerr << "Error: --loadKERS requires a flow/semiflow flag (--Pflows, --Psemiflows, --Tflows, --Tsemiflows)." << std::endl;
+  int status = 0;
+  if (!o.loadKERSFile.empty ()) {
+    status = petri::cli::runInvariantsFromKERS<VAL> (o);
+  } else {
+    if (o.modelPath.empty ()) {
+      std::cerr << "Error: no model file specified." << std::endl;
       return 1;
     }
-    if (doUseCompression) {
-      std::cerr << "Warning: --useCompression is not supported with --loadKERS (no net structure); flag ignored." << std::endl;
-      doUseCompression = false;
-    }
-
-    MatrixCol<VAL> M = SparseMatrixIO<VAL>::read (loadKERSFile);
-    if (M.getColumnCount () == 0 && M.getRowCount () == 0) {
+    if (!std::ifstream (o.modelPath).good ()) {
+      std::cerr << "Error: file not found: " << o.modelPath << std::endl;
       return 1;
     }
-    bool semi = psemiflows || tsemiflows;
-    MatrixCol<VAL> toUse = (tflows || tsemiflows) ? M.transpose () : M;
-    EliminationHeuristic heurM (useSingleSignRow, pivotStrategy, loopLimit,
-                                useCulling, minimizeFlows, doUseQPlusBasis, false);
-    auto time = std::chrono::steady_clock::now ();
-    auto [mat, perms] = InvariantMiddle<VAL>::computePInvariants (toUse, semi, timeout, heurM);
-    std::string flowKind = (tflows || tsemiflows) ? "T" : "P";
-    std::string flowType = semi ? "semi" : "";
-    std::cout << "Computed " << mat.getColumnCount () << " " << flowKind << " "
-        << flowType << "flows in "
-        << std::chrono::duration_cast<std::chrono::milliseconds> (
-               std::chrono::steady_clock::now () - time).count () << " ms." << std::endl;
-    // basisKERS implies program-to-program mode: skip human-readable output
-    bool printHuman = quiet ? false : basisKERSFile.empty ();
-    if (printHuman) {
-      size_t ndim = M.getRowCount ();
-      std::vector<std::string> names;
-      names.reserve (ndim);
-      for (size_t i = 0; i < ndim; ++i) names.push_back ("x" + std::to_string (i));
-      std::vector<VAL> zeros (ndim, 0);
-      InvariantMiddle<VAL>::printInvariant (mat, perms, names, zeros);
-    }
-    if (!basisKERSFile.empty ()) {
-      if (!SparseMatrixIO<VAL>::write (mat, basisKERSFile)) return 1;
-      std::cout << "Exported basis to " << basisKERSFile << std::endl;
-    }
-    std::cout << "Total runtime "
-        << std::chrono::duration_cast<std::chrono::milliseconds> (
-            std::chrono::steady_clock::now () - runtime).count () << " ms." << std::endl;
-    return 0;
+    std::unique_ptr<SparsePetriNet<VAL>> pn (loadXML<VAL> (o.modelPath));
+    exportNet (o, *pn);
+    if (!o.propsFile.empty ()) petri::cli::runProperties (o, *pn);
+    if (o.findDeadlock) petri::cli::runDeadlock (o, *pn);
+    if (o.invariants ()) petri::cli::runInvariants (o, *pn);
   }
-
-  if (modelPath.empty ()) {
-    std::cerr << "Error: no model file specified." << std::endl;
-    usage ();
-    return 1;
-  }
-
-  std::ifstream file (modelPath);
-  if (!file.good ()) {
-    std::cerr << "Error: file not found: " << modelPath << std::endl;
-    return 1;
-  }
-
-  {
-    SparsePetriNet<VAL> *pn = loadXML<VAL> (modelPath);
-
-    // Handle PNML normalization and export only if flag is present
-    if (doNormalize) {
-      std::string outputFile = normalizePnmlFile;
-      if (outputFile.empty()) {
-        outputFile = modelPath + ".norm.pnml";
-      }
-      pn->normalizeNames();
-      PNMLExport<VAL>::transform(*pn, outputFile);
-    }
-
-    if (draw) {
-      std::string title = "Petri Net: " + pn->getName ();
-      std::string filename = FlowPrinter<VAL>::drawNet (
-          *pn, title, std::set<size_t> (), std::set<size_t> (),
-          std::numeric_limits<size_t>::max ());
-      std::string targetFile = modelPath + ".dot";
-      if (std::rename (filename.c_str (), targetFile.c_str ()) == 0) {
-        std::cout << "Renamed output to " << targetFile << std::endl;
-      } else {
-        std::cerr << "Warning: Could not rename " << filename << " to "
-            << targetFile << std::endl;
-      }
-    }
-
-    // Export matrix if requested (ASCII or KERS binary)
-    if (!exportMatrixFile.empty () || !exportAsKERSFile.empty ()) {
-      MatrixCol<VAL> sumMatrix = MatrixCol<VAL>::sumProd (-1, pn->getFlowPT (),
-                                                          1, pn->getFlowTP ());
-      if (!exportMatrixFile.empty ())
-        MatrixExporter<VAL>::exportMatrix (sumMatrix, exportMatrixFile);
-      if (!exportAsKERSFile.empty ())
-        SparseMatrixIO<VAL>::write (sumMatrix, exportAsKERSFile);
-    }
-
-    if (netStats) {
-      petri::walk::WalkNet<VAL> wnet (*pn);
-      petri::walk::printNetStats (std::cout, wnet);
-    }
-
-    if (!propsFile.empty ()) {
-      std::vector<petri::expr::Property> props = petri::mcc::loadProperties (propsFile, *pn);
-      if (query >= 0) {
-        if (static_cast<size_t> (query) >= props.size ()) {
-          std::cerr << "Error: --query=" << query << " but the file holds " << props.size () << " properties." << std::endl;
-          delete pn;
-          return 1;
-        }
-        props = { props[static_cast<size_t> (query)] };
-      }
-      if (printProps) {
-        for (const auto &prop : props) {
-          prop.print (std::cout, &pn->getPnames ());
-          std::cout << "\n  goal (" << prop.goal ().size () << " nodes) : ";
-          prop.goal ().print (std::cout, &pn->getPnames ());
-          std::cout << std::endl;
-        }
-        delete pn;
-        return 0;
-      }
-      budget.timeoutMillis = static_cast<uint64_t> (timeout) * 1000;
-      budget.recordTrace = printTrace;
-      petri::walk::WalkNet<VAL> wnet (*pn);
-      std::vector<petri::walk::StrategySpec> specs = petri::walk::parseStrategySpecs (
-          !strategies.empty () ? strategies : (strategyName != "random" || threads == 1 ? strategyName : "random,bestfirst,structural,relaxed"),
-          epsilon, stall, sample);
-      std::vector<size_t> open;
-      for (size_t k = 0; k < props.size (); ++k) {
-        const auto &prop = props[k];
-        if (prop.kind == petri::expr::PropertyKind::Unsupported) {
-          std::cout << "Skipping " << prop.name << " : " << prop.comment << std::endl;
-          continue;
-        }
-        if (prop.kind != petri::expr::PropertyKind::Deadlock
-            && prop.goal ().kind == petri::expr::Expression::Kind::False) {
-          std::cout << "FORMULA " << prop.name << " " << (prop.kind == petri::expr::PropertyKind::Invariant ? "TRUE" : "FALSE")
-              << " TECHNIQUES TOPOLOGICAL TRIVIAL" << std::endl;
-          continue;
-        }
-        open.push_back (k);
-      }
-      auto walkStart = std::chrono::steady_clock::now ();
-      long perProperty = totalTime > 0 ? roundTime : timeout;
-      for (int round = 1; !open.empty (); ++round) {
-        if (totalTime > 0) {
-          long elapsed = std::chrono::duration_cast<std::chrono::seconds> (std::chrono::steady_clock::now () - walkStart).count ();
-          long left = totalTime - elapsed;
-          if (left < static_cast<long> (open.size ())) break; // not even a second each
-          // last round when the geometric budget would exceed what is left
-          if (perProperty * static_cast<long> (open.size ()) >= left) perProperty = std::max (1L, left / static_cast<long> (open.size ()));
-          std::cout << "Round " << round << ": " << open.size () << " open properties, " << perProperty
-              << " s each, " << left << " s left." << std::endl;
-        }
-        budget.timeoutMillis = static_cast<uint64_t> (perProperty) * 1000;
-        std::vector<size_t> still;
-        for (size_t k : open) {
-          const auto &prop = props[k];
-          petri::walk::Target<VAL> target = prop.kind == petri::expr::PropertyKind::Deadlock
-              ? petri::walk::Target<VAL>::deadlockTarget ()
-              : petri::walk::Target<VAL> (prop.goal ());
-          bool solved = runWalk<VAL> (wnet, target, prop.name, prop.verdictIfReached (), budget, seed, quiet, specs, threads, share, shareProb, debugSteps);
-          if (!solved) still.push_back (k);
-          if (totalTime > 0) {
-            long elapsed = std::chrono::duration_cast<std::chrono::seconds> (std::chrono::steady_clock::now () - walkStart).count ();
-            if (elapsed >= totalTime) { still.insert (still.end (), open.begin () + (&k - &open[0]) + 1, open.end ()); break; }
-          }
-        }
-        open = still;
-        if (totalTime <= 0) break;
-        perProperty *= 10;
-      }
-    }
-
-    if (findDeadlock) {
-      budget.timeoutMillis = static_cast<uint64_t> (timeout) * 1000;
-      budget.recordTrace = printTrace;
-      petri::walk::WalkNet<VAL> wnet (*pn);
-      std::vector<petri::walk::StrategySpec> specs = petri::walk::parseStrategySpecs ("random", epsilon, stall, sample);
-      petri::walk::Target<VAL> target = petri::walk::Target<VAL>::deadlockTarget ();
-      runWalk<VAL> (wnet, target, "ReachabilityDeadlock", "TRUE", budget, seed, quiet, specs, threads, share, shareProb, debugSteps);
-    }
-
-    if (invariants) {
-      vector<int> repr;
-      if (pflows || psemiflows) {
-        auto time = std::chrono::steady_clock::now ();
-        MatrixCol<VAL> sumMatrix = MatrixCol<VAL>::sumProd (-1,
-                                                            pn->getFlowPT (), 1,
-                                                            pn->getFlowTP ());
-        auto [mat,perms] = InvariantMiddle<VAL>::computePInvariants (sumMatrix,
-                                                               psemiflows,
-                                                               timeout, heur);
-        std::cout << "Computed " << mat.getColumnCount () << " P "
-            << (psemiflows ? "semi" : "") << "flows " ;
-        if (!perms.empty()) {
-          std::cout << "with " << perms.size() << " permutations.\n";
-          std::cout << "Total decompressed invariants :" << InvariantMiddle<VAL>::countInvariant(mat,perms) << std::endl;
-        }
-        std::cout << " in " << std::chrono::duration_cast<std::chrono::milliseconds> (
-                std::chrono::steady_clock::now () - time).count () << " ms."
-            << std::endl;
-        if (!quiet && basisKERSFile.empty ()) {
-          InvariantMiddle<VAL>::printInvariant (mat, perms, pn->getPnames (),
-                                                (*pn).getMarks ());
-        }
-        if (!basisKERSFile.empty ()) {
-          SparseMatrixIO<VAL>::write (mat, basisKERSFile);
-          std::cout << "Exported basis to " << basisKERSFile << std::endl;
-        }
-      }
-      if (tflows || tsemiflows) {
-        auto time = std::chrono::steady_clock::now ();
-        MatrixCol<VAL> sumMatrix =
-            MatrixCol<VAL>::sumProd (-1, pn->getFlowPT (), 1, pn->getFlowTP ()).transpose ();
-        auto [mat,perms] = InvariantMiddle<VAL>::computePInvariants (sumMatrix,
-                                                               tsemiflows,
-                                                               timeout, heur);
-        std::cout << "Computed " << mat.getColumnCount () << " T "
-            << (tsemiflows ? "semi" : "") << "flows ";
-        if (!perms.empty()) {
-          std::cout << "with " << perms.size() << " permutations.\n";
-          std::cout << "Total decompressed invariants :" << InvariantMiddle<VAL>::countInvariant(mat,perms) << std::endl;
-        }
-        std::cout << " in " << std::chrono::duration_cast<std::chrono::milliseconds> (
-                std::chrono::steady_clock::now () - time).count () << " ms."
-            << std::endl;
-        if (!quiet && basisKERSFile.empty ()) {
-          std::vector<VAL> emptyVector (pn->getTnames ().size (), 0);
-          InvariantMiddle<VAL>::printInvariant (mat, perms, pn->getTnames (),
-                                                emptyVector);
-        }
-        if (!basisKERSFile.empty ()) {
-          SparseMatrixIO<VAL>::write (mat, basisKERSFile);
-          std::cout << "Exported basis to " << basisKERSFile << std::endl;
-        }
-      }
-    }
-
-    delete pn;
-  }
-
-  std::cout << "Total runtime "
-      << std::chrono::duration_cast<std::chrono::milliseconds> (
-          std::chrono::steady_clock::now () - runtime).count () << " ms."
-      << std::endl;
-
-  return 0;
+  std::cout << "Total runtime " << petri::cli::millisSince (runtime) << " ms." << std::endl;
+  return status;
 }
 
 int main (int argc, char *argv[])
