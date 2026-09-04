@@ -30,7 +30,11 @@ kind handled by the exploration engine.
    through `And`/`Or` by De Morgan;
 2. `<` and `>` are rewritten to `<=` and `>=` on integers (`x < k` is
    `x <= k-1`);
-3. an atom with no term is folded to `True`/`False`;
+3. the leading coefficient of an atom is positive (the whole atom is negated
+   otherwise: `-p <= -1` becomes `p >= 1`); an atom with no term is folded to
+   `True`/`False`, and so is an atom whose coefficients are all positive when
+   the non-negativity of markings decides it (`p + q <= -1` is `False`,
+   `p >= 0` is `True`);
 4. `And`/`Or` are flattened (a child of the same kind is spliced in), neutral
    children are dropped, an absorbing child collapses the node, duplicate
    children are removed, a single child replaces the node, an empty `And` is

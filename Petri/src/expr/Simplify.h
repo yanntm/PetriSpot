@@ -16,7 +16,12 @@ namespace petri::expr
 namespace detail
 {
 
-/** Normalise an atom; fold to a constant when no place remains. */
+/**
+ * Normalise an atom: sorted merged terms, strict comparisons rewritten,
+ * leading coefficient positive (the atom is negated as a whole when needed),
+ * and folding when no place remains or when the non-negativity of markings
+ * decides the comparison (all coefficients positive, constant out of range).
+ */
 inline Expression simplifyAtom (LinearAtom a)
 {
   a.normalize ();
@@ -29,6 +34,24 @@ inline Expression simplifyAtom (LinearAtom a)
   }
   if (a.terms.empty ()) {
     return Expression::constant (compare (0, a.op, a.constant));
+  }
+  if (a.terms[0].second < 0) {
+    for (auto &t : a.terms) t.second = -t.second;
+    a.constant = -a.constant;
+    if (a.op == Cmp::LE) a.op = Cmp::GE;
+    else if (a.op == Cmp::GE) a.op = Cmp::LE;
+  }
+  bool allPositive = true;
+  for (const auto &t : a.terms) if (t.second < 0) allPositive = false;
+  if (allPositive) {
+    // the value is a non-negative integer
+    switch (a.op) {
+    case Cmp::LE: if (a.constant < 0) return Expression::constant (false); break;
+    case Cmp::GE: if (a.constant <= 0) return Expression::constant (true); break;
+    case Cmp::EQ: if (a.constant < 0) return Expression::constant (false); break;
+    case Cmp::NEQ: if (a.constant < 0) return Expression::constant (true); break;
+    default: break;
+    }
   }
   return Expression::makeAtom (std::move (a));
 }
