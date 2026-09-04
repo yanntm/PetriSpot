@@ -645,7 +645,17 @@ are rough effort calibration.
   that fail to lead to improvements. Not decisive so far on the two open
   challenge queries (the relaxed plan runs too few restarts there to feed
   it), to be evaluated on the cluster.
-* Open: the two remaining challenge queries; h_add cost on wide nets
+* MCC harness (2026-09-04): `~/git/MCC-drivers/petrispot/` is the driver
+  (PT reachability only, `BK_TOOL=petrispot`, or `petrispotxred` to run the
+  ITS-Tools reducer first). Harness and oracles now follow
+  pnmcc-models-2026 (formula ids verbatim). On the challenge model with a
+  300 s confinement: alone 9/16 (all witnesses except 12 and 15); with the
+  reducer 15/16, ITS-Tools settling the 5 queries without witness in its 30 s
+  slice and the walk taking 10 residual ones on the reduced net. The residual
+  properties come as `p <= 1 && -p <= -1`, which exposed a normal-form gap
+  (negative leading coefficients) now fixed. `--totalTime` schedules open
+  properties in rounds of growing budget. Logs in `Petri/test/logs/`.
+* Open: the last challenge query (12); h_add cost on wide nets
   (bounded/backward variants); autotools still kept in sync with CMake.
 
 Development models (outside the repo, `bench/models/`, git-ignored):
