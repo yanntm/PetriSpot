@@ -7,6 +7,8 @@
 * `bench_kers.sh` — KERS input/output benchmark of the invariant solver.
 * `sexpr_roundtrip.sh` — MCC XML to s-expressions and back on the property
   files of the given model folders; the ASTs must agree.
+* `probes/` — one-off analysis scripts kept for reference (place projection
+  and the BridgeAndVehicles bound finding).
 * `pnet_roundtrip.sh` — PNML versus PNET input on the given model folders:
   same invariant counts, same verdicts and step counts (step-bound walks).
 
