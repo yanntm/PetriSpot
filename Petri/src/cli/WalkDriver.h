@@ -98,13 +98,22 @@ template<typename T>
     }
   }
 
+/** True iff every walker stopped because it exhausted the step budget. */
+template<typename T>
+  bool stepBound (const petri::walk::PortfolioResult<T> &res, const petri::walk::WalkBudget &budget)
+  {
+    if (budget.maxSteps == 0) return false;
+    for (const auto &rep : res.reports)
+      if (rep.stats.steps < budget.maxSteps) return false;
+    return true;
+  }
+
 /**
  * Run the portfolio on targets toward focus (or as a sweep with NO_FOCUS);
- * FORMULA lines are printed as claims happen. Returns true iff the focus was
- * solved (always false for a sweep).
+ * FORMULA lines are printed as claims happen and the reports afterwards.
  */
 template<typename T>
-  bool runWalk (const Options &o, const petri::walk::WalkNet<T> &wnet, petri::walk::TargetSet<T> &targets,
+  petri::walk::PortfolioResult<T> runWalk (const Options &o, const petri::walk::WalkNet<T> &wnet, petri::walk::TargetSet<T> &targets,
                 uint32_t focus, const petri::walk::WalkBudget &budget,
                 const std::vector<petri::walk::StrategySpec> &specs)
   {
@@ -124,7 +133,7 @@ template<typename T>
     if (focus != petri::walk::NO_FOCUS && !res.found) {
       std::cout << "No witness found for " << targets.name (focus) << "." << std::endl;
     }
-    return res.found;
+    return res;
   }
 
 /** Load the property file, keep --query if given. Throws std::string on error. */
@@ -199,7 +208,9 @@ template<typename T>
  * Walk every property of the file: a sweep round (random walks, all targets
  * checked at once) when at least two are open, then focused rounds with a
  * per-property budget growing tenfold per round under --totalTime, or the -t
- * timeout for each otherwise.
+ * timeout for each otherwise. The rounds stop early when one of them solved
+ * nothing and every walk in it ended on the step budget: more time would
+ * change nothing.
  */
 template<typename T>
   void runProperties (const Options &o, const SparsePetriNet<T> &pn)
@@ -242,12 +253,20 @@ template<typename T>
             << " ms each, " << left << " ms left." << std::endl;
       }
       budget.timeoutMillis = static_cast<uint64_t> (perProperty);
+      size_t openBefore = targets.openCount ();
+      bool allStepBound = true;
       for (uint32_t k : open) {
         if (targets.isSolved (k)) continue; // claimed on the way to another focus
-        runWalk (o, wnet, targets, k, budget, specs);
+        petri::walk::PortfolioResult<T> res = runWalk (o, wnet, targets, k, budget, specs);
+        if (!stepBound (res, budget)) allStepBound = false;
         if (totalMs > 0 && elapsedMs () >= totalMs) break;
       }
       if (totalMs <= 0) break;
+      if (allStepBound && targets.openCount () == openBefore) {
+        std::cout << "Round " << round << " solved nothing and every walk ended on the step budget: stopping."
+            << std::endl;
+        break;
+      }
       perProperty *= 10;
     }
     if (o.printUnknown) {
