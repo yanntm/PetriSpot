@@ -539,7 +539,7 @@ int main_noex (int argc, char *argv[])
         if (totalTime > 0) {
           long elapsed = std::chrono::duration_cast<std::chrono::seconds> (std::chrono::steady_clock::now () - walkStart).count ();
           long left = totalTime - elapsed;
-          if (left <= 0) break;
+          if (left < static_cast<long> (open.size ())) break; // not even a second each
           // last round when the geometric budget would exceed what is left
           if (perProperty * static_cast<long> (open.size ()) >= left) perProperty = std::max (1L, left / static_cast<long> (open.size ()));
           std::cout << "Round " << round << ": " << open.size () << " open properties, " << perProperty
