@@ -52,8 +52,10 @@ the number of transitions or places.
 ## Target and TargetSet
 
 A `Target` is one goal: a normal-form `Expression` evaluated on the marking
-(`reached` is `goal.eval(marking)`), or deadlock (`reached` is "the enabled
-list is empty").
+(`reached` is `goal.eval(marking)`), deadlock (`reached` is "the enabled list
+is empty"), or a bound: a weighted sum of places to maximise, with an optional
+limit (a known upper bound) whose value, once reached, ends the target as a
+goal would (`reached` is `value >= limit`).
 
 A `TargetSet` is every open goal of a run, shared by the threads, so that one
 walk answers many questions:
@@ -64,7 +66,10 @@ walk answers many questions:
 * `targetsOf(p)`: the targets whose goal mentions place `p`, built once
   (sparse: only the places that appear in some atom have a non-empty list);
 * `deadlocks()`: the deadlock targets, checked only when the enabled list is
-  empty.
+  empty;
+* per bound target, an atomic running maximum: a walker publishes a value
+  only when it beats the last one it published (a thread-local array), so
+  the atomic is touched at improvements only; the driver prints it at exit.
 
 A walker re-evaluates a target only when the fired transition changed a place
 the goal mentions: the places touched by `Marking::apply` are collected, their
@@ -121,6 +126,13 @@ exposes the marking, the enabled set, the net and the RNG.
   the goal is far it visits the whole net, which on a net with 60k
   transitions costs a few milliseconds per step. Bookkeeping uses epoch
   stamps so nothing is cleared between steps.
+
+* `BoundDistance`, for a bound target without a limit: a large offset minus
+  the value of the form. Never zero (there is nothing to reach), monotone in
+  the value, so best-first climbs the form and its stall detection and the
+  shared pool see improvements. With a limit the bound is the atom
+  `form >= limit` and every heuristic strategy applies unchanged; without a
+  limit they all become this best-first.
 
 The relaxed plan is what solves coordination-shaped goals (several
 components that must each reach a specific state, gated by a shared control

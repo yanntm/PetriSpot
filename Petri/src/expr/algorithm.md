@@ -53,6 +53,10 @@ A `Property` has a name, a kind and a body:
 * `Invariant`: body is `psi` from `AG psi`; a state violating `psi` makes the
   property FALSE. The exploration goal is `simplify(Not(psi))`.
 * `Deadlock`: `EF deadlock`; body unused.
+* `Bound`: maximise a weighted sum of places (the terms of the single atom in
+  `body`); `boundHint` is a known upper bound or -1. The exploration goal is
+  `form >= hint` when there is a hint, and there is no reachable goal without
+  one: the engine reports the largest value seen.
 * `Unsupported`: parsed but out of the fragment (nested temporal operators,
   bounds, LTL, CTL); `comment` says why.
 

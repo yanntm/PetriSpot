@@ -95,7 +95,11 @@ template<typename T>
     }
   };
 
-/** The strategy of spec aimed at focus; random when there is no focus or it is a deadlock. */
+/**
+ * The strategy of spec aimed at focus; random when there is no focus or it is
+ * a deadlock. A bound without a known limit has no goal atom: every heuristic
+ * strategy becomes best-first on the value of the form (BoundDistance).
+ */
 template<typename T>
   StrategyBundle<T> makeStrategy (const StrategySpec &spec, const WalkNet<T> &net, const Target<T> *focus)
   {
@@ -105,6 +109,12 @@ template<typename T>
     if (!focus || focus->isDeadlock () || n == "random") {
       b.strategy = std::make_unique<RandomStrategy<T>> ();
       b.spec.name = "random";
+    } else if (focus->isBound () && !focus->hasLimit ()) {
+      b.distance = std::make_unique<BoundDistance<T>> (focus->boundForm ());
+      auto s = std::make_unique<BestFirstStrategy<T>> (*b.distance, spec.epsilon, spec.sample, spec.stall);
+      b.bestFirst = s.get ();
+      b.strategy = std::move (s);
+      b.spec.name = "bestfirst";
     } else if (n == "bestfirst" || n == "structural") {
       if (n == "bestfirst") b.distance = std::make_unique<MarkingDistance<T>> (focus->expression ());
       else b.distance = std::make_unique<StructuralDistance<T>> (focus->expression (), net);

@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <random>
 #include <vector>
 
@@ -82,6 +83,7 @@ template<typename T>
     bool recordTrace = false;
 
     std::vector<size_t> touched;    // places changed by the last firing
+    std::vector<long long> published; // per bound target: last value sent to the shared maximum
     std::vector<uint32_t> stamp;    // per target: epoch of its last candidacy
     std::vector<uint32_t> candidates;
     uint32_t epoch = 0;
@@ -132,12 +134,21 @@ template<typename T>
       if (recordTrace) trace.push_back (t);
     }
 
-    /** Evaluate an open target here; claim it if it holds. */
+    /** Evaluate an open target here; record a bound's value, claim a target that holds. */
     void check (uint32_t id, WalkResult &result)
     {
       if (targets.isSolved (id)) return;
       ++result.stats.targetChecks;
-      if (!targets.target (id).reached (marking, enabled)) return;
+      const Target<T> &tg = targets.target (id);
+      if (tg.isBound ()) {
+        long long v = tg.value (marking);
+        if (v <= published[id]) return;
+        published[id] = v;
+        targets.recordValue (id, v);
+        if (!tg.hasLimit () || v < tg.getLimit ()) return;
+      } else if (!tg.reached (marking, enabled)) {
+        return;
+      }
       if (!targets.claim (id)) return;
       ++result.claims;
       if (id == focus) result.found = true;
@@ -180,7 +191,8 @@ template<typename T>
     Walker (const WalkNet<T> &n, TargetSet<T> &tgs, uint32_t focusTarget, Strategy<T> &st, uint64_t seed)
         : net (n), targets (tgs), focus (focusTarget), strategy (st), rng (seed),
           initialMarking (n.initialMarking ()), initialEnabled (n),
-          marking (n.initialMarking ()), enabled (n), stamp (tgs.size (), 0)
+          marking (n.initialMarking ()), enabled (n),
+          published (tgs.size (), std::numeric_limits<long long>::min ()), stamp (tgs.size (), 0)
     {
       initialEnabled.initialize (initialMarking);
       enabled.assign (initialEnabled);

@@ -171,6 +171,16 @@ template<typename T>
     std::cout.flush ();
   }
 
+/** The running maxima of the bound targets (progress measure of a round). */
+template<typename T>
+  std::vector<long long> boundValues (const petri::walk::TargetSet<T> &targets)
+  {
+    std::vector<long long> v;
+    for (uint32_t i = 0; i < targets.size (); ++i)
+      if (targets.target (i).isBound ()) v.push_back (targets.bestValue (i));
+    return v;
+  }
+
 /**
  * The target set of the supported, non-trivial properties. Unsupported ones
  * are reported, trivially false goals are answered here.
@@ -188,6 +198,8 @@ template<typename T>
       }
       if (prop.kind == PropertyKind::Deadlock) {
         targets.push_back (petri::walk::Target<T>::deadlockTarget ());
+      } else if (prop.kind == PropertyKind::Bound) {
+        targets.push_back (petri::walk::Target<T>::boundTarget (prop.boundForm (), prop.boundHint));
       } else {
         petri::expr::Expression goal = prop.goal ();
         if (goal.kind == petri::expr::Expression::Kind::False) {
@@ -209,8 +221,8 @@ template<typename T>
  * checked at once) when at least two are open, then focused rounds with a
  * per-property budget growing tenfold per round under --totalTime, or the -t
  * timeout for each otherwise. The rounds stop early when one of them solved
- * nothing and every walk in it ended on the step budget: more time would
- * change nothing.
+ * nothing, improved no bound, and every walk in it ended on the step budget:
+ * more time would change nothing. Every bound target ends with a BOUND line.
  */
 template<typename T>
   void runProperties (const Options &o, const SparsePetriNet<T> &pn)
@@ -254,6 +266,7 @@ template<typename T>
       }
       budget.timeoutMillis = static_cast<uint64_t> (perProperty);
       size_t openBefore = targets.openCount ();
+      std::vector<long long> boundsBefore = boundValues (targets);
       bool allStepBound = true;
       for (uint32_t k : open) {
         if (targets.isSolved (k)) continue; // claimed on the way to another focus
@@ -262,15 +275,21 @@ template<typename T>
         if (totalMs > 0 && elapsedMs () >= totalMs) break;
       }
       if (totalMs <= 0) break;
-      if (allStepBound && targets.openCount () == openBefore) {
+      if (allStepBound && targets.openCount () == openBefore && boundValues (targets) == boundsBefore) {
         std::cout << "Round " << round << " solved nothing and every walk ended on the step budget: stopping."
             << std::endl;
         break;
       }
       perProperty *= 10;
     }
+    for (uint32_t i = 0; i < targets.size (); ++i) {
+      if (targets.target (i).isBound ()) {
+        std::cout << "BOUND " << targets.name (i) << " " << targets.bestValue (i) << std::endl;
+      }
+    }
     if (o.printUnknown) {
-      for (uint32_t k : targets.openTargets ()) std::cout << "UNKNOWN " << targets.name (k) << std::endl;
+      for (uint32_t k : targets.openTargets ())
+        if (!targets.target (k).isBound ()) std::cout << "UNKNOWN " << targets.name (k) << std::endl;
     }
   }
 

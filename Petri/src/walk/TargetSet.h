@@ -33,6 +33,7 @@ template<typename T>
     std::vector<std::string> names;
     std::vector<std::string> verdicts;
     std::unique_ptr<std::atomic<bool>[]> solved;
+    std::unique_ptr<std::atomic<long long>[]> best; // bound targets: largest value seen
     std::atomic<size_t> open { 0 };
     std::vector<std::vector<uint32_t>> byPlace; // targets whose goal mentions the place
     std::vector<uint32_t> deadlockTargets;
@@ -53,18 +54,24 @@ template<typename T>
     TargetSet (size_t placeCount, std::vector<Target<T>> tgs, std::vector<std::string> nms,
                std::vector<std::string> vds)
         : targets (std::move (tgs)), names (std::move (nms)), verdicts (std::move (vds)),
-          solved (new std::atomic<bool>[targets.size ()]), byPlace (placeCount)
+          solved (new std::atomic<bool>[targets.size ()]), best (new std::atomic<long long>[targets.size ()]),
+          byPlace (placeCount)
     {
       open.store (targets.size ());
       std::vector<size_t> places;
       for (uint32_t i = 0; i < targets.size (); ++i) {
         solved[i].store (false);
+        best[i].store (std::numeric_limits<long long>::min ());
         if (targets[i].isDeadlock ()) {
           deadlockTargets.push_back (i);
           continue;
         }
         places.clear ();
-        collectPlaces (targets[i].expression (), places);
+        if (targets[i].isBound ()) {
+          for (const auto &t : targets[i].boundForm ().terms) places.push_back (t.first);
+        } else {
+          collectPlaces (targets[i].expression (), places);
+        }
         std::sort (places.begin (), places.end ());
         places.erase (std::unique (places.begin (), places.end ()), places.end ());
         for (size_t p : places) byPlace[p].push_back (i);
@@ -94,6 +101,18 @@ template<typename T>
     const Target<T>& target (uint32_t i) const
     {
       return targets[i];
+    }
+    /** Bound targets: raise the shared maximum to v if larger. */
+    void recordValue (uint32_t i, long long v)
+    {
+      long long cur = best[i].load (std::memory_order_relaxed);
+      while (v > cur && !best[i].compare_exchange_weak (cur, v, std::memory_order_relaxed)) {
+      }
+    }
+    /** Bound targets: the largest value seen so far (LLONG_MIN before any). */
+    long long bestValue (uint32_t i) const
+    {
+      return best[i].load (std::memory_order_relaxed);
     }
     const std::string& name (uint32_t i) const
     {
