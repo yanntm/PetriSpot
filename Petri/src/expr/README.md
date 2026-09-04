@@ -8,3 +8,8 @@
 * `Property.h` — `Property`, `PropertyKind`, `goal`, verdict helpers.
 * `Distance.h` — TAPAAL-style estimated distance of a marking to an
   expression (zero iff it holds).
+
+Markings are natural numbers and the normal form relies on it: leading
+coefficients are positive and atoms decided by non-negativity are folded (see
+`algorithm.md`). Anything consuming atoms downstream (distances, relaxed plan
+goal places) may assume that form.
