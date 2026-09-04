@@ -120,3 +120,30 @@ the marking reached. When on, the trace holds the transitions fired since the
 last reset, so a witness is the sequence from the initial marking; before it
 is reported the walker replays it on a fresh marking and checks the goal
 again.
+
+## Portfolio (threads)
+
+`runPortfolio` starts N threads; thread i runs its own `Walker` with its own
+`Marking`, `EnabledSet`, RNG (seed + 7919 i) and a fresh strategy instance
+built from `specs[i mod |specs|]`, so all hot state is thread-local. The
+`WalkNet`, the `Target` and the goal expression are shared read-only. A
+thread that reaches the goal verifies its trace (when recorded), publishes
+the result under a mutex if it is the first, and raises an atomic stop flag
+that every walker polls every 1024 steps. Strategy specs are
+`name[:epsilon[:stall]]`, e.g. `relaxed:0:300`.
+
+## Shared pool of restart states (optional)
+
+`SharedPool` is a mutex-protected, bounded set of markings with their
+heuristic value. At the end of a run (dead end, run length, stall) a walker
+whose strategy exposes a best-of-run state (`Strategy::bestOfRun`) offers it;
+the pool keeps it if there is room or it beats the worst entry, and refuses
+duplicates. A restarting walker draws an entry with probability `shareProb`
+instead of the initial marking, recomputing its enabled set from scratch. A
+run that started from an entry reports whether it improved on the entry's
+value; an entry that fails three times is evicted, which is the defence
+against sharing states doomed by an earlier irreversible choice. A witness
+found from a pooled restart has no trace (the pool does not keep traces), so
+it is reported as a marking.
+
+Random strategies neither publish nor benefit beyond drawing.

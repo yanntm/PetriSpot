@@ -7,6 +7,7 @@
 #ifndef PETRI_WALK_WALKER_H_
 #define PETRI_WALK_WALKER_H_
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <random>
@@ -14,6 +15,7 @@
 
 #include "walk/EnabledSet.h"
 #include "walk/Marking.h"
+#include "walk/SharedPool.h"
 #include "walk/Strategy.h"
 #include "walk/Target.h"
 #include "walk/WalkNet.h"
@@ -27,6 +29,7 @@ struct WalkStats
   uint64_t resets = 0;
   uint64_t deadEnds = 0;
   uint64_t stalls = 0;    // restarts requested by the strategy
+  uint64_t poolRestarts = 0; // restarts drawn from the shared pool
   uint64_t millis = 0;
   uint64_t arcVisits = 0; // consumer arcs visited by the enabled-set update
   uint64_t flips = 0;     // enabled-status changes
@@ -46,6 +49,7 @@ struct WalkBudget
   uint64_t runLength = 1000000; // steps between resets
   uint64_t timeoutMillis = 0;  // 0: unlimited
   bool recordTrace = false;    // keep the fired transitions of the current run
+  const std::atomic<bool> *stop = nullptr; // external stop request, polled
 };
 
 template<typename T>
@@ -63,10 +67,38 @@ template<typename T>
     std::vector<uint32_t> trace;
     bool recordTrace = false;
 
-    void reset ()
+    SharedPool<T> *pool = nullptr;
+    typename SharedPool<T>::Entry poolEntry; // origin of the current run when drawn
+    bool fromPool = false;
+    SparseArray<T> scratchMarking;
+
+    /** Offer the best state of the finished run to the pool, report the origin. */
+    void publishRun ()
     {
-      marking.assign (initialMarking);
-      enabled.assign (initialEnabled);
+      if (!pool) return;
+      uint64_t h = 0;
+      bool has = strategy.bestOfRun (scratchMarking, h);
+      if (fromPool) pool->report (poolEntry.id, has && h < poolEntry.heuristic);
+      if (has && (!fromPool || h < poolEntry.heuristic)) {
+        // the trace to the published state is not tracked; share it only
+        // when traces are off (a pooled restart then yields no witness trace)
+        pool->publish (scratchMarking, h, std::vector<uint32_t> ());
+      }
+    }
+
+    void reset (WalkStats *st = nullptr)
+    {
+      publishRun ();
+      fromPool = false;
+      if (pool && pool->draw (rng, poolEntry)) {
+        fromPool = true;
+        marking = Marking<T> (poolEntry.marking);
+        enabled.initialize (marking);
+        if (st) ++st->poolRestarts;
+      } else {
+        marking.assign (initialMarking);
+        enabled.assign (initialEnabled);
+      }
       trace.clear ();
       strategy.onReset ();
     }
@@ -100,21 +132,27 @@ template<typename T>
       WalkStats &st = result.stats;
       WalkContext<T> ctx { net, marking, enabled, rng };
       uint64_t runSteps = 0;
-      reset ();
+      fromPool = false;
+      marking.assign (initialMarking);
+      enabled.assign (initialEnabled);
+      trace.clear ();
+      strategy.onReset ();
       for (;;) {
         if (target.reached (marking, enabled)) {
           result.found = true;
-          if (recordTrace) result.trace = trace;
+          if (recordTrace && !fromPool) result.trace = trace;
+          else result.hasTrace = false;
           break;
         }
         if (enabled.empty () || runSteps >= budget.runLength) {
           if (enabled.empty ()) ++st.deadEnds;
           ++st.resets;
           runSteps = 0;
-          reset ();
+          reset (&st);
           continue;
         }
         if ((st.steps & 1023) == 0) {
+          if (budget.stop && budget.stop->load (std::memory_order_relaxed)) break;
           if (budget.maxSteps && st.steps >= budget.maxSteps) break;
           if (budget.timeoutMillis) {
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - start).count ();
@@ -126,7 +164,7 @@ template<typename T>
           ++st.stalls;
           ++st.resets;
           runSteps = 0;
-          reset ();
+          reset (&st);
           continue;
         }
         fire (t);
@@ -144,7 +182,10 @@ template<typename T>
     bool verify (const std::vector<uint32_t> &witness)
     {
       recordTrace = false;
+      SharedPool<T> *saved = pool;
+      pool = nullptr;
       reset ();
+      pool = saved;
       for (uint32_t t : witness) {
         if (!enabled.isEnabled (t)) return false;
         fire (t);
@@ -155,6 +196,10 @@ template<typename T>
     const Marking<T>& currentMarking () const
     {
       return marking;
+    }
+    void setPool (SharedPool<T> *p)
+    {
+      pool = p;
     }
   };
 

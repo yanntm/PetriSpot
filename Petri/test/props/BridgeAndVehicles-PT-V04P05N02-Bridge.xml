@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<property-set xmlns="http://mcc.lip6.fr/">
+   <property>
+      <id>BridgeAndVehicles-PT-V04P05N02-Bridge-00</id>
+      <description>All vehicles of both sides have crossed (hand-written, not an MCC property)</description>
+      <formula>
+         <exists-path>
+            <finally>
+               <conjunction>
+                  <integer-le>
+                     <integer-constant>4</integer-constant>
+                     <tokens-count><place>SORTI_A</place></tokens-count>
+                  </integer-le>
+                  <integer-le>
+                     <integer-constant>4</integer-constant>
+                     <tokens-count><place>SORTI_B</place></tokens-count>
+                  </integer-le>
+               </conjunction>
+            </finally>
+         </exists-path>
+      </formula>
+   </property>
+   <property>
+      <id>BridgeAndVehicles-PT-V04P05N02-Bridge-01</id>
+      <description>All vehicles of side A have crossed (hand-written, not an MCC property)</description>
+      <formula>
+         <exists-path>
+            <finally>
+               <integer-le>
+                  <integer-constant>4</integer-constant>
+                  <tokens-count><place>SORTI_A</place></tokens-count>
+               </integer-le>
+            </finally>
+         </exists-path>
+      </formula>
+   </property>
+   <property>
+      <id>BridgeAndVehicles-PT-V04P05N02-Bridge-02</id>
+      <description>The bridge is full of vehicles from side A (capacity reached) (hand-written, not an MCC property)</description>
+      <formula>
+         <exists-path>
+            <finally>
+               <integer-le>
+                  <integer-constant>4</integer-constant>
+                  <tokens-count><place>SUR_PONT_A</place></tokens-count>
+               </integer-le>
+            </finally>
+         </exists-path>
+      </formula>
+   </property>
+   <property>
+      <id>BridgeAndVehicles-PT-V04P05N02-Bridge-03</id>
+      <description>The bridge is full of vehicles from side B (capacity reached) (hand-written, not an MCC property)</description>
+      <formula>
+         <exists-path>
+            <finally>
+               <integer-le>
+                  <integer-constant>4</integer-constant>
+                  <tokens-count><place>SUR_PONT_B</place></tokens-count>
+               </integer-le>
+            </finally>
+         </exists-path>
+      </formula>
+   </property>
+</property-set>

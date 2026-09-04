@@ -15,4 +15,6 @@ the data structures and the step.
 * `RelaxedPlan.h`, `RelaxedPlanStrategy.h` — delete-relaxation cost (h_add),
   relaxed plan extraction, helpful-transition choice.
 * `NetStats.h` — structural histograms (`--netStats`).
-* `Walker.h` — restart loop, budget, witness trace and its verification.
+* `Walker.h` — restart loop, budget, stop flag, optional trace, pooled restarts.
+* `Portfolio.h` — strategy specs and factory, N racing threads, first winner.
+* `SharedPool.h` — bounded shared pool of promising markings for restarts.

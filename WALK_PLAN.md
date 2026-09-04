@@ -633,9 +633,18 @@ are rough effort calibration.
   step (places with 6561 consumers each flip between 0 and 1) for 2 real
   status changes, giving 80 steps/ms; the relaxed plan costs 0.5 to 3 ms per
   step there.
-* Portfolio is now the obvious next step: random wins on dense biochemical
-  nets (Angiogenesis), relaxed on coordination nets; neither dominates.
-  Threads (Phase 4) are the natural vehicle.
+* Portfolio (2026-09-04): `--threads=N --strategies=name[:eps[:stall]],...`
+  runs N walkers with thread-local state, round-robin strategies, first
+  verified witness wins. On Angiogenesis fireability a 4-thread portfolio
+  solves 15/16 in 1 s each (the union of what each strategy solved alone);
+  on the hand-written "bridge full" query of BridgeAndVehicles-PT-V50P50N50
+  (`Petri/test/props/`) best-first finds the witness in 75 ms where the
+  random walk fails. ThreadSanitizer clean.
+* `--share=N` is the first Knowledge Base piece: a bounded shared pool of
+  best-of-run markings that restarts may draw from, with eviction of entries
+  that fail to lead to improvements. Not decisive so far on the two open
+  challenge queries (the relaxed plan runs too few restarts there to feed
+  it), to be evaluated on the cluster.
 * Open: the two remaining challenge queries; h_add cost on wide nets
   (bounded/backward variants); autotools still kept in sync with CMake.
 

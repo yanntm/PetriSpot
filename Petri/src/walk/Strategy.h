@@ -39,6 +39,15 @@ template<typename T>
     virtual void onReset ()
     {
     }
+    /**
+     * Best state of the current run according to the strategy's heuristic,
+     * if it has one: fills m and h and returns true. Random strategies
+     * return false.
+     */
+    virtual bool bestOfRun (SparseArray<T> &, uint64_t &) const
+    {
+      return false;
+    }
   };
 
 /** Uniform choice among enabled transitions. */

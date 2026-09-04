@@ -7,6 +7,8 @@
 #include "walk/GoalDistance.h"
 #include "walk/StructuralDistance.h"
 #include "walk/RelaxedPlanStrategy.h"
+#include "walk/Portfolio.h"
+#include "walk/SharedPool.h"
 #include "walk/Target.h"
 #include "parse/PTNetLoader.h"
 #include "invariants/InvariantMiddle.h"
@@ -54,6 +56,10 @@ const string SAMPLE = "--sample=";
 const string NET_STATS = "--netStats";
 const string STALL = "--stall=";
 const string DEBUG_STEPS = "--debugSteps=";
+const string THREADS = "--threads=";
+const string STRATEGIES = "--strategies=";
+const string SHARE = "--share=";
+const string SHARE_PROB = "--shareProb=";
 
 #define DEFAULT_TIMEOUT 150
 
@@ -111,6 +117,13 @@ void usage ()
       << "  --strategy=<s>       random (default) | bestfirst (greedy on goal distance) |\n"
       << "                       structural (greedy on hop-based goal distance) |\n"
       << "                       relaxed (planning-style relaxed plan, helpful transitions).\n"
+      << "  --threads=<n>        Run n walkers in parallel (default 1); first witness wins.\n"
+      << "  --strategies=<list>  Pool of strategies assigned round-robin to threads, comma\n"
+      << "                       separated, each as name[:epsilon[:stall]] (default with\n"
+      << "                       several threads: random,bestfirst,structural,relaxed).\n"
+      << "  --share=<n>          Shared pool of up to n promising markings that restarts may\n"
+      << "                       draw from (default 0: disabled).\n"
+      << "  --shareProb=<p>      Percentage of restarts drawn from the pool (default 50).\n"
       << "  --epsilon=<n>        bestfirst: percentage of uniformly random moves (default 10).\n"
       << "  --sample=<n>         bestfirst: score at most n random candidates per step (default all).\n"
       << "  --stall=<n>          bestfirst/structural: restart after n steps without distance improvement.\n"
@@ -138,73 +151,50 @@ template<typename T>
     }
   }
 
-/** Run one random walk toward target; print the MCC verdict line if reached. */
+/** Run the portfolio toward target; print the MCC verdict line if reached. */
 template<typename T>
   bool runWalk (const petri::walk::WalkNet<T> &wnet, const petri::walk::Target<T> &target,
                 const std::string &name, const std::string &verdict,
                 const petri::walk::WalkBudget &budget, uint64_t seed, bool quiet,
-                const std::string &strategyName, unsigned epsilon, size_t sample, uint64_t stall, uint64_t debugSteps)
+                const std::vector<petri::walk::StrategySpec> &specs, unsigned threads,
+                size_t share, unsigned shareProb, uint64_t debugSteps)
   {
-    petri::walk::RandomStrategy<T> randomStrategy;
-    petri::walk::MarkingDistance<T> markingDistance (target.expression ());
-    petri::walk::StructuralDistance<T> structuralDistance (target.expression (), wnet);
-    const petri::walk::GoalDistance<T> &goalDistance = strategyName == "structural"
-        ? static_cast<const petri::walk::GoalDistance<T>&> (structuralDistance)
-        : static_cast<const petri::walk::GoalDistance<T>&> (markingDistance);
-    petri::walk::BestFirstStrategy<T> bestFirst (goalDistance, epsilon, sample, stall);
-    petri::walk::RelaxedPlanStrategy<T> relaxed (wnet, target.expression (), epsilon, stall);
-    relaxed.debugSteps = debugSteps;
-    petri::walk::Strategy<T> *strategy = &randomStrategy;
-    if ((strategyName == "bestfirst" || strategyName == "structural") && !target.isDeadlock ()) {
-      strategy = &bestFirst;
-    } else if (strategyName == "relaxed" && !target.isDeadlock ()) {
-      strategy = &relaxed;
-    } else if (strategyName != "random") {
-      std::cerr << "Unknown strategy " << strategyName << ", using random." << std::endl;
+    std::unique_ptr<petri::walk::SharedPool<T>> pool;
+    if (share > 0) pool = std::make_unique<petri::walk::SharedPool<T>> (share, shareProb);
+    petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, target, specs, threads,
+                                                                     budget, seed, pool.get (), debugSteps);
+    for (size_t i = 0; i < res.reports.size (); ++i) {
+      const petri::walk::ThreadReport &rep = res.reports[i];
+      const petri::walk::WalkStats &st = rep.stats;
+      uint64_t ms = st.millis == 0 ? 1 : st.millis;
+      if (quiet && !rep.found && res.found) continue;
+      std::cout << "Thread " << i << " [" << rep.strategy << "] " << (rep.found ? "found a witness" : "stopped")
+          << " after " << st.steps << " steps, " << st.resets << " resets (" << st.deadEnds
+          << " dead ends, " << st.stalls << " stalls, " << st.poolRestarts << " from pool), " << st.millis
+          << " ms (" << (st.steps / ms) << " steps/ms; " << (st.steps ? st.arcVisits / st.steps : 0)
+          << " arc visits/step)";
+      if (rep.strategy != "random") std::cout << ", best heuristic " << rep.minHeuristic;
+      std::cout << "." << std::endl;
     }
-    petri::walk::Walker<T> walker (wnet, target, *strategy, seed);
-    petri::walk::WalkResult res = walker.run (budget);
-    const petri::walk::WalkStats &st = res.stats;
-    uint64_t ms = st.millis == 0 ? 1 : st.millis;
-    std::cout << "Walk " << (res.found ? "found a witness" : "exhausted its budget") << " for " << name
-        << " after " << st.steps << " steps, " << st.resets << " resets (" << st.deadEnds
-        << " dead ends, " << st.stalls << " stalls), " << st.millis << " ms (" << (st.steps / ms) << " steps/ms; "
-        << (st.steps ? st.arcVisits / st.steps : 0) << " arc visits and "
-        << (st.steps ? st.flips / st.steps : 0) << " flips per step)." << std::endl;
-    if (strategy == &relaxed) {
-      std::cout << "Relaxed plan reached heuristic " << relaxed.minHeuristic << " in "
-          << relaxed.runsReachingMin << " run(s); initial " << relaxed.initialHeuristic (petri::walk::Marking<T> (wnet.initialMarking ()))
-          << "; " << relaxed.stepsWithoutHelpful << " steps without helpful transition." << std::endl;
-      if (!quiet && !res.found) {
-        std::cout << "Marking at best heuristic: ";
-        printMarking (std::cout, relaxed.bestMarking, wnet.getNet ().getPnames ());
-        std::cout << std::endl;
-      }
+    if (pool) {
+      std::cout << "Shared pool: " << pool->publishedCount () << " published, " << pool->drawnCount ()
+          << " drawn, " << pool->evictedCount () << " evicted, " << pool->size () << " held." << std::endl;
     }
-    if (strategy == &bestFirst) {
-      std::cout << "Best-first reached goal distance " << bestFirst.minDistance << " in "
-          << bestFirst.runsReachingMin << " run(s); initial distance "
-          << goalDistance.of (petri::walk::Marking<T> (wnet.initialMarking ())) << "." << std::endl;
-      if (!quiet && !res.found) {
-        std::cout << "Marking at best distance: ";
-        printMarking (std::cout, bestFirst.bestMarking, wnet.getNet ().getPnames ());
-        std::cout << std::endl;
-      }
-    }
-    if (!res.found) return false;
-    if (res.hasTrace && !walker.verify (res.trace)) {
-      std::cerr << "Internal error: witness trace does not replay to the goal." << std::endl;
+    if (!res.found) {
+      std::cout << "No witness found for " << name << "." << std::endl;
       return false;
     }
-    std::cout << "FORMULA " << name << " " << verdict << " TECHNIQUES EXPLICIT " << (strategyName == "random" ? "RANDOM_WALK" : "HEURISTIC_WALK") << std::endl;
-    if (res.hasTrace) {
+    std::cout << "FORMULA " << name << " " << verdict << " TECHNIQUES EXPLICIT "
+        << (res.winnerStrategy == "random" ? "RANDOM_WALK" : "HEURISTIC_WALK")
+        << (threads > 1 ? " PARALLEL_PROCESSING" : "") << std::endl;
+    if (res.result.hasTrace) {
       const auto &tnames = wnet.getNet ().getTnames ();
-      std::cout << "Witness (" << res.trace.size () << " transitions):";
-      for (uint32_t t : res.trace) std::cout << " " << tnames[t];
+      std::cout << "Witness (" << res.result.trace.size () << " transitions):";
+      for (uint32_t t : res.result.trace) std::cout << " " << tnames[t];
       std::cout << std::endl;
     } else if (!quiet) {
       std::cout << "Witness marking ";
-      walker.currentMarking ().sparse ().print (std::cout);
+      printMarking (std::cout, res.witness, wnet.getNet ().getPnames ());
       std::cout << std::endl;
     }
     return true;
@@ -254,6 +244,10 @@ int main_noex (int argc, char *argv[])
   bool netStats = false;
   uint64_t stall = 0;
   uint64_t debugSteps = 0;
+  unsigned threads = 1;
+  std::string strategies;
+  size_t share = 0;
+  unsigned shareProb = 50;
   bool doUseQPlusBasis = false;
   bool doUseCompression = false;
 
@@ -333,6 +327,14 @@ int main_noex (int argc, char *argv[])
       epsilon = static_cast<unsigned> (std::stoul (std::string (argv[i]).substr (EPSILON.size ())));
     } else if (std::string (argv[i]) == NET_STATS) {
       netStats = true;
+    } else if (std::string (argv[i]).substr (0, THREADS.size ()) == THREADS) {
+      threads = static_cast<unsigned> (std::stoul (std::string (argv[i]).substr (THREADS.size ())));
+    } else if (std::string (argv[i]).substr (0, STRATEGIES.size ()) == STRATEGIES) {
+      strategies = std::string (argv[i]).substr (STRATEGIES.size ());
+    } else if (std::string (argv[i]).substr (0, SHARE.size ()) == SHARE) {
+      share = std::stoul (std::string (argv[i]).substr (SHARE.size ()));
+    } else if (std::string (argv[i]).substr (0, SHARE_PROB.size ()) == SHARE_PROB) {
+      shareProb = static_cast<unsigned> (std::stoul (std::string (argv[i]).substr (SHARE_PROB.size ())));
     } else if (std::string (argv[i]).substr (0, DEBUG_STEPS.size ()) == DEBUG_STEPS) {
       debugSteps = std::stoull (std::string (argv[i]).substr (DEBUG_STEPS.size ()));
     } else if (std::string (argv[i]).substr (0, STALL.size ()) == STALL) {
@@ -501,6 +503,9 @@ int main_noex (int argc, char *argv[])
       budget.timeoutMillis = static_cast<uint64_t> (timeout) * 1000;
       budget.recordTrace = printTrace;
       petri::walk::WalkNet<VAL> wnet (*pn);
+      std::vector<petri::walk::StrategySpec> specs = petri::walk::parseStrategySpecs (
+          !strategies.empty () ? strategies : (strategyName != "random" || threads == 1 ? strategyName : "random,bestfirst,structural,relaxed"),
+          epsilon, stall, sample);
       for (const auto &prop : props) {
         if (prop.kind == petri::expr::PropertyKind::Unsupported) {
           std::cout << "Skipping " << prop.name << " : " << prop.comment << std::endl;
@@ -514,7 +519,7 @@ int main_noex (int argc, char *argv[])
               << " TECHNIQUES TOPOLOGICAL TRIVIAL" << std::endl;
           continue;
         }
-        runWalk<VAL> (wnet, target, prop.name, prop.verdictIfReached (), budget, seed, quiet, strategyName, epsilon, sample, stall, debugSteps);
+        runWalk<VAL> (wnet, target, prop.name, prop.verdictIfReached (), budget, seed, quiet, specs, threads, share, shareProb, debugSteps);
       }
     }
 
@@ -522,8 +527,9 @@ int main_noex (int argc, char *argv[])
       budget.timeoutMillis = static_cast<uint64_t> (timeout) * 1000;
       budget.recordTrace = printTrace;
       petri::walk::WalkNet<VAL> wnet (*pn);
+      std::vector<petri::walk::StrategySpec> specs = petri::walk::parseStrategySpecs ("random", epsilon, stall, sample);
       petri::walk::Target<VAL> target = petri::walk::Target<VAL>::deadlockTarget ();
-      runWalk<VAL> (wnet, target, "ReachabilityDeadlock", "TRUE", budget, seed, quiet, strategyName, epsilon, sample, stall, debugSteps);
+      runWalk<VAL> (wnet, target, "ReachabilityDeadlock", "TRUE", budget, seed, quiet, specs, threads, share, shareProb, debugSteps);
     }
 
     if (invariants) {

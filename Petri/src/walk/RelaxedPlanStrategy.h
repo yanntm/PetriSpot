@@ -39,6 +39,7 @@ template<typename T>
     uint64_t runsReachingMin = 0;
     uint64_t stepsWithoutHelpful = 0;
     SparseArray<T> bestMarking;
+    SparseArray<T> bestMarkingThisRun;
 
     RelaxedPlanStrategy (const WalkNet<T> &net, const petri::expr::Expression &goal,
                          unsigned epsilon = 5, uint64_t stall = 0)
@@ -50,6 +51,14 @@ template<typename T>
     {
       sinceImprovement = 0;
       bestThisRun = petri::expr::INFINITE_DISTANCE;
+    }
+
+    bool bestOfRun (SparseArray<T> &m, uint64_t &h) const override
+    {
+      if (bestThisRun >= petri::expr::INFINITE_DISTANCE) return false;
+      m = bestMarkingThisRun;
+      h = bestThisRun;
+      return true;
     }
 
     uint32_t choose (WalkContext<T> &ctx) override
@@ -66,6 +75,7 @@ template<typename T>
       if (h < bestThisRun) {
         bestThisRun = h;
         sinceImprovement = 0;
+        bestMarkingThisRun = ctx.marking.sparse ();
         if (h < minHeuristic) {
           minHeuristic = h;
           runsReachingMin = 1;

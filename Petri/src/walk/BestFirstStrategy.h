@@ -33,11 +33,20 @@ template<typename T>
     uint64_t minDistanceThisRun = petri::expr::INFINITE_DISTANCE;
     uint64_t runsReachingMin = 0;
     SparseArray<T> bestMarking; // marking from which the best successor was chosen
+    SparseArray<T> bestMarkingThisRun;
 
     void onReset () override
     {
       minDistanceThisRun = petri::expr::INFINITE_DISTANCE;
       sinceImprovement = 0;
+    }
+
+    bool bestOfRun (SparseArray<T> &m, uint64_t &h) const override
+    {
+      if (minDistanceThisRun >= petri::expr::INFINITE_DISTANCE) return false;
+      m = bestMarkingThisRun;
+      h = minDistanceThisRun;
+      return true;
     }
 
     BestFirstStrategy (const GoalDistance<T> &g, unsigned epsilon = 10,
@@ -75,6 +84,7 @@ template<typename T>
       if (bestDist < minDistanceThisRun) {
         minDistanceThisRun = bestDist;
         sinceImprovement = 0;
+        bestMarkingThisRun = m.sparse ();
         if (bestDist < minDistance) {
           minDistance = bestDist;
           runsReachingMin = 1;

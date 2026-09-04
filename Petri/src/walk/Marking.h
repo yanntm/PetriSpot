@@ -25,6 +25,12 @@ template<typename T>
         : m (dense)
     {
     }
+    explicit Marking (const SparseArray<T> &sparse)
+        : m (sparse)
+    {
+    }
+    Marking& operator= (const Marking &o) = default;
+    Marking (const Marking &o) = default;
 
     T get (size_t p) const
     {
