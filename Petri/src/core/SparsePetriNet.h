@@ -27,6 +27,26 @@ template<typename T>
     {
     }
 
+    /**
+     * A net from its flow matrices (places x transitions) and initial
+     * marking; places are named p<i>, transitions t<i>.
+     */
+    SparsePetriNet (MatrixCol<T> &&pt, MatrixCol<T> &&tp, std::vector<T> &&initial)
+        : name ("Petri"), marks (std::move (initial)), flowPT (std::move (pt)), flowTP (std::move (tp)),
+          maxArcValue (0)
+    {
+      tnames.reserve (flowPT.getColumnCount ());
+      for (size_t t = 0; t < flowPT.getColumnCount (); ++t) {
+        tnames.push_back ("t" + std::to_string (t));
+        for (const MatrixCol<T> *m : { &flowPT, &flowTP }) {
+          const SparseArray<T> &col = m->getColumn (t);
+          for (size_t i = 0; i < col.size (); ++i) maxArcValue = std::max (maxArcValue, col.valueAt (i));
+        }
+      }
+      pnames.reserve (marks.size ());
+      for (size_t p = 0; p < marks.size (); ++p) pnames.push_back ("p" + std::to_string (p));
+    }
+
     const std::string& getName () const
     {
       return this->name;
