@@ -32,7 +32,7 @@ inline bool needsQuotes (const std::string &s)
   if (indexLike) return true;
   if (std::isdigit (static_cast<unsigned char> (s[0])) || s[0] == '-' || s[0] == '+') return true;
   static const char *keywords[] = { "true", "false", "and", "or", "not", "fireable", "reach", "invariant",
-      "deadlock" };
+      "deadlock", "bound" };
   for (const char *k : keywords) if (s == k) return true;
   return false;
 }
@@ -57,22 +57,28 @@ inline void printSexprPlace (std::ostream &os, size_t p, const std::vector<std::
   else os << "p" << p;
 }
 
+/** The weighted sum of places of an atom: a place, (* k place), or (+ ...). */
+inline void printSexprForm (std::ostream &os, const LinearAtom &a, const std::vector<std::string> *pnames)
+{
+  if (a.terms.empty ()) {
+    os << "0";
+    return;
+  }
+  if (a.terms.size () > 1) os << "(+ ";
+  for (size_t i = 0; i < a.terms.size (); ++i) {
+    if (i > 0) os << " ";
+    long long c = a.terms[i].second;
+    if (c != 1) os << "(* " << c << " ";
+    printSexprPlace (os, a.terms[i].first, pnames);
+    if (c != 1) os << ")";
+  }
+  if (a.terms.size () > 1) os << ")";
+}
+
 inline void printSexpr (std::ostream &os, const LinearAtom &a, const std::vector<std::string> *pnames)
 {
   os << "(" << to_string (a.op) << " ";
-  if (a.terms.empty ()) {
-    os << "0";
-  } else {
-    if (a.terms.size () > 1) os << "(+ ";
-    for (size_t i = 0; i < a.terms.size (); ++i) {
-      if (i > 0) os << " ";
-      long long c = a.terms[i].second;
-      if (c != 1) os << "(* " << c << " ";
-      printSexprPlace (os, a.terms[i].first, pnames);
-      if (c != 1) os << ")";
-    }
-    if (a.terms.size () > 1) os << ")";
-  }
+  printSexprForm (os, a, pnames);
   os << " " << a.constant << ")";
 }
 
@@ -114,6 +120,14 @@ inline void printSexpr (std::ostream &os, const Property &p, const std::vector<s
   case PropertyKind::Deadlock:
     os << "(deadlock ";
     printSexprName (os, p.name);
+    os << ")";
+    break;
+  case PropertyKind::Bound:
+    os << "(bound ";
+    printSexprName (os, p.name);
+    os << " ";
+    printSexprForm (os, p.boundForm (), pnames);
+    if (p.boundHint >= 0) os << " " << p.boundHint;
     os << ")";
     break;
   case PropertyKind::Unsupported:

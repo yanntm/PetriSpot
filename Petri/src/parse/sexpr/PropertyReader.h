@@ -184,13 +184,28 @@ template<typename T>
       const std::string &h = d.head ();
       const auto &items = d.items ();
       if (!d.isList () || items.size () < 2 || !items[1].isAtom ()) {
-        fail (d, "expected (reach NAME e), (invariant NAME e) or (deadlock NAME)");
+        fail (d, "expected (reach NAME e), (invariant NAME e), (deadlock NAME) or (bound NAME e [k])");
       }
       Property p;
       p.name = items[1].unquoted ();
       if (h == "deadlock") {
         if (items.size () != 2) fail (d, "(deadlock NAME) takes no body");
         p.kind = PropertyKind::Deadlock;
+      } else if (h == "bound") {
+        if (items.size () != 3 && items.size () != 4) fail (d, "(bound NAME e [k]) takes a form and an optional bound");
+        LinearForm f = readInt (items[2]);
+        if (f.constant != 0) fail (d, "a bound form is a weighted sum of places, without constant");
+        LinearAtom a;
+        for (const auto &t : f.terms) a.addTerm (t.first, t.second);
+        a.normalize ();
+        a.op = Cmp::GE;
+        p.kind = PropertyKind::Bound;
+        p.body = Expression::makeAtom (std::move (a));
+        if (items.size () == 4) {
+          if (!items[3].isAtom () || !isInteger (items[3].text ()) || std::stoll (items[3].text ()) < 0)
+            fail (d, "the known bound must be a non-negative integer");
+          p.boundHint = std::stoll (items[3].text ());
+        }
       } else if (h == "reach" || h == "invariant") {
         if (items.size () != 3) fail (d, "(" + h + " NAME e) takes one body");
         p.kind = h == "reach" ? PropertyKind::Reachability : PropertyKind::Invariant;

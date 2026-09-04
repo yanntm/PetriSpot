@@ -4,9 +4,10 @@
  * expat SAX handler for the MCC property XML (property-set / property /
  * formula). Builds expr::Property values over a SparsePetriNet: places and
  * transitions are resolved by id through NetResolver, tokens-count becomes a
- * sum of places, is-fireable is desugared into marking conditions. Only the reachability fragment (EF phi, AG phi, EF deadlock)
- * yields a supported property; anything else is kept as Unsupported with a
- * comment.
+ * sum of places, is-fireable is desugared into marking conditions. The
+ * reachability fragment (EF phi, AG phi, EF deadlock) and place-bound
+ * (UpperBounds, a Bound property without hint) yield supported properties;
+ * anything else is kept as Unsupported with a comment.
  */
 #ifndef PETRI_PARSE_MCC_PROPERTYHANDLER_H_
 #define PETRI_PARSE_MCC_PROPERTYHANDLER_H_
@@ -48,6 +49,7 @@ template<typename T>
       std::vector<size_t> transitions;
       std::string temporal; // set by a temporal child: globally, finally...
       bool deadlock = false;
+      bool bound = false;   // a place-bound child (UpperBounds)
     };
 
     NetResolver<T> net;
@@ -159,7 +161,18 @@ template<typename T>
       } else if (tag == "description" || tag == "property-set") {
         // ignored
       } else if (tag == "formula") {
-        if (f.deadlock && current.kind != PropertyKind::Deadlock) {
+        if (f.bound) {
+          if (f.ints.size () != 1 || !f.bools.empty () || f.deadlock) {
+            unsupported ("place-bound combined with other operators");
+          } else {
+            LinearAtom a;
+            for (size_t p : f.ints[0].places) a.addTerm (p, 1);
+            a.normalize ();
+            a.op = Cmp::GE;
+            current.kind = PropertyKind::Bound;
+            current.body = Expression::makeAtom (std::move (a));
+          }
+        } else if (f.deadlock && current.kind != PropertyKind::Deadlock) {
           unsupported ("deadlock outside EF deadlock");
         } else if (f.bools.size () != 1 && current.kind != PropertyKind::Deadlock) {
           unsupported ("formula without a single body");
@@ -228,8 +241,12 @@ template<typename T>
       } else if (tag == "is-fireable") {
         pushBool (parent, net.anyFireable (f.transitions));
       } else if (tag == "place-bound") {
-        unsupported ("place-bound (UpperBounds)");
-        if (parent) parent->ints.push_back (IntOperand ());
+        IntOperand op;
+        op.places = std::move (f.places);
+        if (parent) {
+          parent->ints.push_back (std::move (op));
+          parent->bound = true;
+        }
       } else {
         unsupported ("unknown element " + tag);
       }

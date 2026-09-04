@@ -10,7 +10,9 @@ copied so the two projects keep one syntax without depending on each other.
   non-delimiter characters or `"quoted strings"` (kept with their quotes in
   the atom text, `\"` and `\\` escapes); `;` comments to end of line.
 * `PropertyReader.h` — forms to `expr::Property` values over a net:
-  `(reach NAME BEXP)`, `(invariant NAME BEXP)`, `(deadlock NAME)`. Booleans
+  `(reach NAME BEXP)`, `(invariant NAME BEXP)`, `(deadlock NAME)`,
+  `(bound NAME EXPR [K])` (maximise a weighted sum of places, `K` a known
+  upper bound). Booleans
   are `true`, `false`, `(and ...)`, `(or ...)`, `(not e)`, `(CMP e e)` with
   `CMP` in `== != <= >= < >`, `(fireable t...)`; integers are literals, place
   references, `(+ ...)`, `(- a b...)` or `(- a)`, `(* k e)`. A comparison is

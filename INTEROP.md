@@ -161,6 +161,7 @@ whitespace is free. A NAME is an atom or a `"quoted string"`.
 FORM  ::= (reach NAME BEXP)          ; find a marking satisfying BEXP; verdict TRUE  (EF)
         | (invariant NAME BEXP)      ; find a marking violating BEXP;  verdict FALSE (AG)
         | (deadlock NAME)            ; find a dead marking;             verdict TRUE
+        | (bound NAME EXPR [INT])    ; maximise EXPR; the optional INT is a known upper bound
 BEXP  ::= true | false
         | (and BEXP+) | (or BEXP+) | (not BEXP)
         | (CMP EXPR EXPR)            ; CMP in == != <= >= < >
@@ -180,13 +181,24 @@ is fine: MCC has none and neither does ITS-Tools after `toPredicates`.
 `fireable` is desugared from `flowPT` into the disjunction of conjunctions of
 `place >= weight`, as the MCC parser does today; the AST does not change.
 
-Example request written by ITS-Tools for three predicates and a deadlock:
+A `bound` target is pure exploration: the walk reports the largest value of
+`EXPR` it saw. The optional integer is a hint the caller knows to be an upper
+bound (structural, from invariants or the state equation; it may
+over-approximate but is never below the truth): reaching it ends the target
+with a `FORMULA` verdict, since the value is then exact. Without it the target
+stays open for the whole budget and only a `BOUND` line is reported. Where the
+hint comes from is the caller's business; PetriSpot does not compute it.
+
+Example request written by ITS-Tools for three predicates, a deadlock and two
+bounds, one with a structural hint:
 
 ```
 (reach prop0 (and (>= (+ p12 (* 2 p40)) 5) (not (fireable t7 t9))))
 (reach prop1 (<= (- p3 p4) 0))
 (invariant prop2 (<= p1 1))
 (deadlock prop3)
+(bound prop4 (+ p5 p6) 3)
+(bound prop5 p9)
 ```
 
 ### 4.3 Printer and converter
@@ -220,9 +232,14 @@ contain whitespace (MCC ids and ITS-Tools names never do).
 
 ```
 FORMULA <name> TRUE|FALSE TECHNIQUES <words>     verdict (unchanged MCC line)
+FORMULA <name> <k> TECHNIQUES <words>            bound target whose hint k was reached: the bound is k
+BOUND <name> <max>                               every bound target, at exit: the largest value seen
 WITNESS <name> <k> t3 t9 t3 ...                  only with --trace: the k transitions fired from the initial marking
 UNKNOWN <name>                                   only with --printUnknown: at exit, one per property without verdict
 ```
+
+A bound target without a hint never gets a `FORMULA` line nor an `UNKNOWN`
+line; its answer is the `BOUND` line.
 
 Witnesses are not part of the fast path: without `--trace` the walker never
 records anything, and the MCC does not ask for traces. With `--trace` the
@@ -311,12 +328,26 @@ Later the same hint can weight the relaxed-plan or best-first choice rather
 than restrict it. Comes with the `--hints` input (4.4), after the random and
 directed parts are integrated in ITS-Tools.
 
-### 6.4 Later: bound targets
+### 6.4 Bound targets (implemented)
 
-`Target` kind `Bound`: a linear expression, the maximum seen so far, an
-optional known upper bound (a hint) that ends the target. Best-first for
-bounds is greedy on the increase of the expression. The `UpperBoundsSolver`
-also relies on `CoverWalker`, which stays in Java.
+`PropertyKind::Bound`: a linear form to maximise and an optional hint. In the
+walk a bound is a `Target` with the form and a limit (the hint, or none); it
+lives in the `TargetSet` like the others, with a shared atomic running maximum
+per target updated by the walkers when they improve on it (each walker keeps
+its own last published value to stay off the atomic). The place-to-targets
+index covers bound forms, so the value is re-read only when a place of the
+form changed. Reaching the limit claims the target as any other goal.
+
+Heuristics are inherited from reachability: with a hint K the focus goal is
+the atom `form >= K`, and best-first, structural and relaxed strategies work
+unchanged. Without a hint the goal moves: `BoundDistance` aims at the running
+maximum plus one, so best-first climbs; structural and relaxed strategies
+need a fixed atom and fall back to that best-first. The shared restart pool
+naturally keeps the highest markings as restart points.
+
+Not done: witnessing unboundedness (a pumping segment along the path, what
+`CoverWalker` does in Java); the Java side keeps its structural methods and
+`CoverWalker`, PetriSpot reports the best value seen.
 
 ### 6.5 Documentation
 

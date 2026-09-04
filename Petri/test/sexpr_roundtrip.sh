@@ -13,7 +13,7 @@ strip() { grep -v '^\[\|^Total runtime\|^;' ; }
 fail=0
 for dir in "$@"; do
   m=$(basename "$dir")
-  for ex in ReachabilityCardinality ReachabilityFireability; do
+  for ex in ReachabilityCardinality ReachabilityFireability UpperBounds; do
     xml="$dir/$ex.xml"; [ -f "$xml" ] || continue
     a="$LOGS/$m-$ex.a.sexpr"; b="$LOGS/$m-$ex.b.sexpr"
     ai="$LOGS/$m-$ex.ai.sexpr"; bi="$LOGS/$m-$ex.bi.sexpr"

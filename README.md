@@ -152,9 +152,10 @@ petri64 -i model.pnml --findDeadlock -t 30
 Output follows the MCC convention, one line per solved property, flushed as
 soon as it is known:
 `FORMULA <id> TRUE|FALSE TECHNIQUES EXPLICIT HEURISTIC_WALK PARALLEL_PROCESSING`.
-The other machine-readable lines are `WITNESS` (with `--trace`) and `UNKNOWN`
-(with `--printUnknown`); everything else on stdout is a log (`INTEROP.md`
-section 5).
+The other machine-readable lines are `BOUND <id> <max>` (bound properties: the
+largest value seen, `FORMULA <id> <k>` when a known bound `k` is reached),
+`WITNESS` (with `--trace`) and `UNKNOWN` (with `--printUnknown`); everything
+else on stdout is a log (`INTEROP.md` section 5).
 
 ### How it works
 
@@ -190,7 +191,7 @@ section 5).
 | Option | Meaning |
 |---|---|
 | `--net=<file>` | load the net from a PNET binary file instead of PNML (`--exportNet=<file>` writes one; see `KERS.md`) |
-| `--props=<file>` | property file: MCC XML (`.xml`, reachability fragment) or s-expressions (any other extension, see `INTEROP.md`) |
+| `--props=<file>` | property file: MCC XML (`.xml`: reachability fragment and UpperBounds) or s-expressions (any other extension, see `INTEROP.md`; `(bound NAME EXPR [K])` maximises a sum of places, `K` an optional known bound) |
 | `--propsSyntax=<s>` | `auto` (by extension, default), `mcc`, `sexpr` |
 | `--query=<n>` | select the n-th property of the file (0-based) |
 | `--printProps[=<f>]` | print the properties and exit: `infix` (parsed and normalised, default), `sexpr`, `sexpr-index`; converts MCC XML to s-expressions |
