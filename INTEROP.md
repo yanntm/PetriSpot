@@ -1,7 +1,7 @@
 # ITS-Tools and PetriSpot: tool-to-tool reachability
 
 Status: design document, revision 2 (2026-09-04). Revision 1 was discussed
-with the user; section 10 records the decisions. Phases 0 to 5 (section 9)
+with the user; section 10 records the decisions. Phases 0 to 6a (section 9)
 are implemented: the PetriSpot side here, the Java side in ITS-Tools
 (`petrispot/fr.lip6.move.petrispot.runner`). Sections 3 to 5 are the
 reference for the formats until they move next to `KERS.md`.
@@ -454,11 +454,19 @@ way: the structural plugin's SAX `PTNetHandler` added post arcs with place
 and transition swapped (fixed; production loads nets through the `nupn`
 reader, which was correct).
 
-### Phase 6: hints and bounds
+### Phase 6a (done): bounds
 
-`--hints`, the Parikh strategy (6.3), `bound` targets (6.4), then their Java
-call sites (`tryReplayParikh`, `DeadlockSolver` guided walks,
-`UpperBoundsSolver`).
+`bound` targets (6.4) on both sides: `PetriSpotWalker.runBounds` sends the
+bound expressions with the structural bound as hint when ITS-Tools knows one,
+and `UpperBoundsSolver.randomCheckReachability` uses it in place of the
+random and best-first phases. Checked through the MCC harness on the
+reinstalled release: Angiogenesis and Airplane UpperBounds all match the
+oracle, the walker reporting the 16 bounds in 20 to 35 ms.
+
+### Phase 6b: hints
+
+`--hints`, the Parikh strategy (6.3), then their Java call sites
+(`tryReplayParikh`, `DeadlockSolver` guided walks).
 
 ---
 
