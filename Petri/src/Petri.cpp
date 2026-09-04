@@ -19,6 +19,7 @@
 #include "core/SparsePetriNet.h"
 #include "io/FlowPrinter.h"
 #include "io/MatrixExporter.h"
+#include "io/PNETIO.h"
 #include "io/PNMLExport.h"
 #include "io/SparseMatrixIO.h"
 #include "parse/PTNetLoader.h"
@@ -36,14 +37,15 @@ using petri::cli::Options;
 static void exportNet (const Options &o, SparsePetriNet<VAL> &pn)
 {
   if (o.normalizePNML) {
-    std::string out = o.normalizePNMLFile.empty () ? o.modelPath + ".norm.pnml" : o.normalizePNMLFile;
+    std::string base = o.modelPath.empty () ? o.netFile : o.modelPath;
+    std::string out = o.normalizePNMLFile.empty () ? base + ".norm.pnml" : o.normalizePNMLFile;
     pn.normalizeNames ();
     PNMLExport<VAL>::transform (pn, out);
   }
   if (o.draw) {
     std::string filename = FlowPrinter<VAL>::drawNet (pn, "Petri Net: " + pn.getName (), std::set<size_t> (),
                                                       std::set<size_t> (), std::numeric_limits<size_t>::max ());
-    std::string target = o.modelPath + ".dot";
+    std::string target = (o.modelPath.empty () ? o.netFile : o.modelPath) + ".dot";
     if (std::rename (filename.c_str (), target.c_str ()) == 0) {
       std::cout << "Renamed output to " << target << std::endl;
     } else {
@@ -54,6 +56,9 @@ static void exportNet (const Options &o, SparsePetriNet<VAL> &pn)
     MatrixCol<VAL> sumMatrix = MatrixCol<VAL>::sumProd (-1, pn.getFlowPT (), 1, pn.getFlowTP ());
     if (!o.exportMatrixFile.empty ()) MatrixExporter<VAL>::exportMatrix (sumMatrix, o.exportMatrixFile);
     if (!o.exportAsKERSFile.empty ()) SparseMatrixIO<VAL>::write (sumMatrix, o.exportAsKERSFile);
+  }
+  if (!o.exportNetFile.empty () && PNETIO<VAL>::write (pn, o.exportNetFile)) {
+    std::cout << "Exported net to " << o.exportNetFile << std::endl;
   }
   if (o.netStats) {
     petri::walk::WalkNet<VAL> wnet (pn);
@@ -93,15 +98,24 @@ static int main_noex (int argc, char *argv[])
   if (!o.loadKERSFile.empty ()) {
     status = petri::cli::runInvariantsFromKERS<VAL> (o);
   } else {
-    if (o.modelPath.empty ()) {
-      std::cerr << "Error: no model file specified." << std::endl;
+    if (o.modelPath.empty () && o.netFile.empty ()) {
+      std::cerr << "Error: no model file specified (-i or --net)." << std::endl;
       return 1;
     }
-    if (!std::ifstream (o.modelPath).good ()) {
-      std::cerr << "Error: file not found: " << o.modelPath << std::endl;
-      return 1;
+    std::unique_ptr<SparsePetriNet<VAL>> pn;
+    if (!o.netFile.empty ()) {
+      auto time = std::chrono::steady_clock::now ();
+      pn.reset (PNETIO<VAL>::read (o.netFile));
+      petri::writeToLog ("Loaded PNET net with " + std::to_string (pn->getPlaceCount ()) + " places, "
+          + std::to_string (pn->getTransitionCount ()) + " transitions and " + std::to_string (pn->getArcCount ())
+          + " arcs in " + std::to_string (petri::cli::millisSince (time)) + " ms.");
+    } else {
+      if (!std::ifstream (o.modelPath).good ()) {
+        std::cerr << "Error: file not found: " << o.modelPath << std::endl;
+        return 1;
+      }
+      pn.reset (loadXML<VAL> (o.modelPath));
     }
-    std::unique_ptr<SparsePetriNet<VAL>> pn (loadXML<VAL> (o.modelPath));
     exportNet (o, *pn);
     if (!o.propsFile.empty ()) petri::cli::runProperties (o, *pn);
     if (o.findDeadlock) petri::cli::runDeadlock (o, *pn);

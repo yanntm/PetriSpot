@@ -180,6 +180,7 @@ Output follows the MCC convention, one line per solved property:
 
 | Option | Meaning |
 |---|---|
+| `--net=<file>` | load the net from a PNET binary file instead of PNML (`--exportNet=<file>` writes one; see `KERS.md`) |
 | `--props=<file>` | property file: MCC XML (`.xml`, reachability fragment) or s-expressions (any other extension, see `INTEROP.md`) |
 | `--propsSyntax=<s>` | `auto` (by extension, default), `mcc`, `sexpr` |
 | `--query=<n>` | select the n-th property of the file (0-based) |
@@ -209,7 +210,7 @@ each source folder documents itself (`Petri/src/*/README.md`, and
 | `Petri/src/parse/` | PNML parser; `mcc/` MCC property XML parser |
 | `Petri/src/expr/` | property AST, simplifier, goal distance |
 | `Petri/src/invariants/` | flow and semi-flow solver |
-| `Petri/src/io/` | KERS, ASCII matrix, PNML and dot exporters |
+| `Petri/src/io/` | KERS and PNET binary formats, ASCII matrix, PNML and dot exporters |
 | `Petri/src/walk/` | the explicit walk engine: net view, marking, enabled set, strategies, portfolio |
 | `Petri/test/` | scripts, hand-written property files, logs (ignored) |
 

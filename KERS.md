@@ -75,6 +75,35 @@ When written by PetriSpot via `--basisKERS`:
 
 No constant terms are stored (constants depend on the initial marking and are not part of the basis).
 
+## PNET: a net as three KERS blocks
+
+PNET is the tool-to-tool net format of the reachability side (`INTEROP.md`
+section 3): a 16-byte header followed by three KERS blocks, `flowPT` (places x
+transitions, pre-arcs), `flowTP` (post-arcs) and the initial marking (places x
+1), each exactly as above. Places and transitions are identified by index; the
+loaded net names them `p<i>` and `t<i>`.
+
+| Offset | Size | Type | Description |
+|--------|------|------|-------------|
+| 0 | 4 | char[4] | Magic: `P` `N` `E` `T` |
+| 4 | 1 | uint8 | Version: `1` |
+| 5 | 1 | uint8 | Flags: reserved, must be `0` |
+| 6 | 4 | uint32 | Number of places |
+| 10 | 4 | uint32 | Number of transitions |
+| 14 | 2 | | Padding (zero) |
+| 16 | | KERS | `flowPT`, then `flowTP`, then the marking |
+
+The block dimensions must agree with the header. Size is about
+`12 x arcs + 8 x transitions` bytes: the 59k-transition, 1.26M-arc
+ErlangenMainframe net is 16 MB against 66 MB of PNML and loads in 40 ms.
+
+```
+petri64 -i model.pnml --exportNet=model.pnet          # PNML -> PNET
+petri64 --net=model.pnet --props=req.sexpr --threads=4 # walk from PNET
+petri64 --net=model.pnet --Pflows                      # invariants from PNET
+kersconv --decode-net model.pnet                       # inspect as text
+```
+
 ## Usage with PetriSpot
 
 ```
@@ -91,13 +120,14 @@ petri64 -i model.pnml --Psemiflows --basisKERS=basis.kers
 ## kersconv — ASCII conversion utility
 
 `kersconv` is a small companion tool for inspecting and constructing KERS files without PetriSpot.
-It is built alongside the `petri*` binaries by the autoconf/automake build system.
+It is built alongside the `petri*` binaries.
 
 ### Usage
 
 ```
-kersconv --decode <input.kers> [output.txt]   # KERS binary → ASCII (stdout if no output file)
-kersconv --encode <input.txt>  <output.kers>  # ASCII → KERS binary
+kersconv --decode <input.kers> [output.txt]      # KERS binary → ASCII (stdout if no output file)
+kersconv --encode <input.txt>  <output.kers>     # ASCII → KERS binary
+kersconv --decode-net <input.pnet> [output.txt]  # PNET → ASCII (counts, flowPT, flowTP, marking)
 ```
 
 ### ASCII format

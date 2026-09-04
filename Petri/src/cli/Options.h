@@ -24,6 +24,7 @@ struct Options
 {
   // input
   std::string modelPath;     // -i, PNML
+  std::string netFile;       // --net, PNET binary net
   std::string loadKERSFile;  // --loadKERS, incidence matrix instead of a net
   bool quiet = false;
   int timeout = 150;         // seconds, invariants and single walks
@@ -32,6 +33,7 @@ struct Options
   bool draw = false;
   std::string exportMatrixFile;
   std::string exportAsKERSFile;
+  std::string exportNetFile;  // --exportNet, PNET
   bool normalizePNML = false;
   std::string normalizePNMLFile; // empty: <model>.norm.pnml
   bool netStats = false;
@@ -96,7 +98,9 @@ inline void addOptions (CLI::App &app, Options &o)
               "  petri -i model.pnml --findDeadlock -t 30");
 
   auto *in = app.add_option_group ("Input");
-  in->add_option ("-i", o.modelPath, "Input model file (PNML, ISO/IEC 15909-2).");
+  auto *pnml = in->add_option ("-i", o.modelPath, "Input model file (PNML, ISO/IEC 15909-2).");
+  in->add_option ("--net", o.netFile, "Input net in PNET binary format (places p<i>, transitions t<i>; see INTEROP.md).")
+      ->excludes (pnml);
   in->add_option ("--loadKERS", o.loadKERSFile,
                   "Sparse integer matrix in KERS format instead of a net, for --Pflows/--Psemiflows (rows are the "
                   "variables) or --Tflows/--Tsemiflows (transposed internally).");
@@ -107,6 +111,7 @@ inline void addOptions (CLI::App &app, Options &o)
   ex->add_flag ("--draw", o.draw, "Write the net as <model>.dot (Graphviz).");
   ex->add_option ("--exportAsMatrix", o.exportMatrixFile, "Write the incidence matrix in ASCII sparse format.");
   ex->add_option ("--exportAsKERS", o.exportAsKERSFile, "Write the incidence matrix in KERS format.");
+  ex->add_option ("--exportNet", o.exportNetFile, "Write the net in PNET binary format.");
   ex->add_option_function<std::vector<std::string>> ("--normalizePNML",
       [&o] (const std::vector<std::string> &v) {
         o.normalizePNML = true;

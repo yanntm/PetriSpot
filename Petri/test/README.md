@@ -7,6 +7,11 @@
 * `bench_kers.sh` — KERS input/output benchmark of the invariant solver.
 * `sexpr_roundtrip.sh` — MCC XML to s-expressions and back on the property
   files of the given model folders; the ASTs must agree.
+* `pnet_roundtrip.sh` — PNML versus PNET input on the given model folders:
+  same invariant counts, same verdicts and step counts (step-bound walks).
+
+Keep the development loop on the small models (Airplane, Angiogenesis, the
+small Bridge); the challenge model goes through the MCC harness.
 
 Models: extract MCC archives (`~/git/pnmcc-models-2026/website/INPUTS/*.tgz`)
 into `bench/models/<model>/` at the repository root (git-ignored). Development
