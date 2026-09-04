@@ -1,8 +1,9 @@
 /*
  * Walker.h
  *
- * One explicit walk toward a Target: restart loop, step budget, wall clock,
- * witness trace. See algorithm.md.
+ * One explicit walk over a TargetSet with an optional focus: restart loop,
+ * step budget, wall clock, incremental target checks, claims, witness trace.
+ * See algorithm.md.
  */
 #ifndef PETRI_WALK_WALKER_H_
 #define PETRI_WALK_WALKER_H_
@@ -10,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <random>
 #include <vector>
 
@@ -17,7 +19,7 @@
 #include "walk/Marking.h"
 #include "walk/SharedPool.h"
 #include "walk/Strategy.h"
-#include "walk/Target.h"
+#include "walk/TargetSet.h"
 #include "walk/WalkNet.h"
 
 namespace petri::walk
@@ -33,13 +35,13 @@ struct WalkStats
   uint64_t millis = 0;
   uint64_t arcVisits = 0; // consumer arcs visited by the enabled-set update
   uint64_t flips = 0;     // enabled-status changes
+  uint64_t targetChecks = 0; // goal evaluations
 };
 
 struct WalkResult
 {
-  bool found = false;
-  bool hasTrace = false;       // trace was recorded (WalkBudget::recordTrace)
-  std::vector<uint32_t> trace; // transitions fired from the initial marking
+  bool found = false;    // the focus was claimed by this walker
+  uint64_t claims = 0;   // targets claimed by this walker, focus included
   WalkStats stats;
 };
 
@@ -55,10 +57,22 @@ struct WalkBudget
 template<typename T>
   class Walker
   {
+  public:
+    /**
+     * Called when this walker wins a target: the marking reached and the
+     * trace from the initial marking, or nullptr when not recorded or when
+     * the run started from a pooled state.
+     */
+    using OnClaim = std::function<void (uint32_t target, const Marking<T> &marking,
+                                        const std::vector<uint32_t> *trace)>;
+
+  private:
     const WalkNet<T> &net;
-    const Target<T> &target;
+    TargetSet<T> &targets;
+    uint32_t focus;
     Strategy<T> &strategy;
     std::mt19937_64 rng;
+    OnClaim onClaim;
 
     Marking<T> initialMarking;
     EnabledSet<T> initialEnabled;
@@ -66,6 +80,11 @@ template<typename T>
     EnabledSet<T> enabled;
     std::vector<uint32_t> trace;
     bool recordTrace = false;
+
+    std::vector<size_t> touched;    // places changed by the last firing
+    std::vector<uint32_t> stamp;    // per target: epoch of its last candidacy
+    std::vector<uint32_t> candidates;
+    uint32_t epoch = 0;
 
     SharedPool<T> *pool = nullptr;
     typename SharedPool<T>::Entry poolEntry; // origin of the current run when drawn
@@ -105,21 +124,75 @@ template<typename T>
 
     void fire (uint32_t t)
     {
+      touched.clear ();
       marking.apply (net.effect (t), [this] (size_t p, T oldv, T newv) {
         enabled.onPlaceChanged (p, oldv, newv);
+        touched.push_back (p);
       });
       if (recordTrace) trace.push_back (t);
     }
 
+    /** Evaluate an open target here; claim it if it holds. */
+    void check (uint32_t id, WalkResult &result)
+    {
+      if (targets.isSolved (id)) return;
+      ++result.stats.targetChecks;
+      if (!targets.target (id).reached (marking, enabled)) return;
+      if (!targets.claim (id)) return;
+      ++result.claims;
+      if (id == focus) result.found = true;
+      if (onClaim) onClaim (id, marking, recordTrace && !fromPool ? &trace : nullptr);
+    }
+
+    void checkAll (WalkResult &result)
+    {
+      for (uint32_t id = 0; id < targets.size (); ++id)
+        if (!targets.target (id).isDeadlock ()) check (id, result);
+    }
+
+    /** The open targets mentioning a place changed by the last firing. */
+    void checkTouched (WalkResult &result)
+    {
+      ++epoch;
+      candidates.clear ();
+      for (size_t p : touched) {
+        for (uint32_t id : targets.targetsOf (p)) {
+          if (stamp[id] == epoch) continue;
+          stamp[id] = epoch;
+          candidates.push_back (id);
+        }
+      }
+      for (uint32_t id : candidates) check (id, result);
+    }
+
+    void checkDeadlocks (WalkResult &result)
+    {
+      for (uint32_t id : targets.deadlocks ()) check (id, result);
+    }
+
+    bool done () const
+    {
+      if (focus != NO_FOCUS && targets.isSolved (focus)) return true;
+      return targets.openCount () == 0;
+    }
+
   public:
-    Walker (const WalkNet<T> &n, const Target<T> &tg, Strategy<T> &st,
-            uint64_t seed)
-        : net (n), target (tg), strategy (st), rng (seed),
+    Walker (const WalkNet<T> &n, TargetSet<T> &tgs, uint32_t focusTarget, Strategy<T> &st, uint64_t seed)
+        : net (n), targets (tgs), focus (focusTarget), strategy (st), rng (seed),
           initialMarking (n.initialMarking ()), initialEnabled (n),
-          marking (n.initialMarking ()), enabled (n)
+          marking (n.initialMarking ()), enabled (n), stamp (tgs.size (), 0)
     {
       initialEnabled.initialize (initialMarking);
       enabled.assign (initialEnabled);
+    }
+
+    void setOnClaim (OnClaim cb)
+    {
+      onClaim = std::move (cb);
+    }
+    void setPool (SharedPool<T> *p)
+    {
+      pool = p;
     }
 
     WalkResult run (const WalkBudget &budget)
@@ -128,7 +201,6 @@ template<typename T>
       auto start = clock::now ();
       WalkResult result;
       recordTrace = budget.recordTrace;
-      result.hasTrace = recordTrace;
       WalkStats &st = result.stats;
       WalkContext<T> ctx { net, marking, enabled, rng };
       uint64_t runSteps = 0;
@@ -137,18 +209,18 @@ template<typename T>
       enabled.assign (initialEnabled);
       trace.clear ();
       strategy.onReset ();
-      for (;;) {
-        if (target.reached (marking, enabled)) {
-          result.found = true;
-          if (recordTrace && !fromPool) result.trace = trace;
-          else result.hasTrace = false;
-          break;
+      checkAll (result);
+      while (!done ()) {
+        if (enabled.empty ()) {
+          checkDeadlocks (result);
+          if (done ()) break;
+          ++st.deadEnds;
         }
         if (enabled.empty () || runSteps >= budget.runLength) {
-          if (enabled.empty ()) ++st.deadEnds;
           ++st.resets;
           runSteps = 0;
           reset (&st);
+          checkAll (result);
           continue;
         }
         if ((st.steps & 1023) == 0) {
@@ -165,11 +237,13 @@ template<typename T>
           ++st.resets;
           runSteps = 0;
           reset (&st);
+          checkAll (result);
           continue;
         }
         fire (t);
         ++st.steps;
         ++runSteps;
+        checkTouched (result);
       }
       st.millis = static_cast<uint64_t> (
           std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - start).count ());
@@ -178,8 +252,8 @@ template<typename T>
       return result;
     }
 
-    /** Replay a trace from the initial marking; true iff the target holds at its end. */
-    bool verify (const std::vector<uint32_t> &witness)
+    /** Replay a trace from the initial marking; true iff target id holds at its end. */
+    bool verify (uint32_t id, const std::vector<uint32_t> &witness)
     {
       recordTrace = false;
       SharedPool<T> *saved = pool;
@@ -190,16 +264,12 @@ template<typename T>
         if (!enabled.isEnabled (t)) return false;
         fire (t);
       }
-      return target.reached (marking, enabled);
+      return targets.target (id).reached (marking, enabled);
     }
 
     const Marking<T>& currentMarking () const
     {
       return marking;
-    }
-    void setPool (SharedPool<T> *p)
-    {
-      pool = p;
     }
   };
 

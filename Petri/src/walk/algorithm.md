@@ -49,13 +49,37 @@ weight, nothing is visited. Cost per fired transition:
 `O(sum over touched p of log(fanout(p)) + number of flips)`, independent of
 the number of transitions or places.
 
-## Target
+## Target and TargetSet
 
-The goal predicate of the run: either a normal-form `Expression` evaluated on
-the marking (`reached` is `goal.eval(marking)`), or deadlock (`reached` is
-"the enabled list is empty"). Evaluation is currently from scratch at each
-step; an incremental evaluation indexed by touched places is the next step
-once profiling shows it matters.
+A `Target` is one goal: a normal-form `Expression` evaluated on the marking
+(`reached` is `goal.eval(marking)`), or deadlock (`reached` is "the enabled
+list is empty").
+
+A `TargetSet` is every open goal of a run, shared by the threads, so that one
+walk answers many questions:
+
+* per target: name, MCC verdict word, the `Target`, and an atomic `solved`
+  flag; `claim(i)` is a compare-and-swap, so exactly one thread wins a target
+  and the count of open targets is exact;
+* `targetsOf(p)`: the targets whose goal mentions place `p`, built once
+  (sparse: only the places that appear in some atom have a non-empty list);
+* `deadlocks()`: the deadlock targets, checked only when the enabled list is
+  empty.
+
+A walker re-evaluates a target only when the fired transition changed a place
+the goal mentions: the places touched by `Marking::apply` are collected, their
+target lists merged with an epoch stamp per target (no clearing), and each
+candidate still open is evaluated in full (goal expressions are small trees).
+The cost per step is proportional to the arcs touched and to the targets that
+depend on them, never to the number of targets. Every open target is evaluated
+in full once at the start of a run and after each reset (the marking is then
+the initial one or a pooled state).
+
+A walker has an optional *focus*: the target its strategy is built for. It
+claims any open target it happens to reach, and stops when its focus is
+solved (by itself or by another thread), when no target is open, or when the
+budget is exhausted. A walker without focus (random strategy) runs until no
+target is open or the budget ends: that is the sweep round of the driver.
 
 ## Strategy
 
@@ -105,32 +129,44 @@ token): the marking and structural distances see no gradient there.
 ## Walker: one run
 
 ```
-restore initial marking and enabled snapshot; clear trace
+restore initial marking and enabled snapshot; clear trace; check every open target
 loop:
-  if target reached: return witness (trace, marking)
-  if enabled empty or run length exhausted: count a reset, restore, continue
-  t = strategy.choose()
-  marking.apply(effect(t), enabled.onPlaceChanged); trace.push(t)
-  every 1024 steps: check the wall clock and the step budget
+  if focus solved or no target open: stop
+  if enabled empty: claim the deadlock targets; count a reset, restore, check all, continue
+  if run length exhausted: count a reset, restore, check all, continue
+  t = strategy.choose()  (RESTART: same as above)
+  marking.apply(effect(t), enabled.onPlaceChanged, collect touched places); trace.push(t)
+  check the open targets mentioning a touched place; claim those that hold
+  every 1024 steps: check the wall clock, the step budget, the stop flag
 ```
 
-Trace recording is optional (`WalkBudget::recordTrace`, CLI `--trace`). When
-off, the walker never touches the trace vector and a witness is reported as
-the marking reached. When on, the trace holds the transitions fired since the
-last reset, so a witness is the sequence from the initial marking; before it
-is reported the walker replays it on a fresh marking and checks the goal
-again.
+A claim calls back the owner (the portfolio) with the marking and, when
+recording, the trace since the last reset; the callback prints the `FORMULA`
+line at once. Trace recording is optional (`WalkBudget::recordTrace`, CLI
+`--trace`). When off, the walker never touches the trace vector and a witness
+is reported as the marking reached. When on, the trace holds the transitions
+fired since the last reset, so a witness is the sequence from the initial
+marking; it is replayed on a fresh marking and checked before it is printed.
+A witness found from a pooled restart has no trace.
 
 ## Portfolio (threads)
 
-`runPortfolio` starts N threads; thread i runs its own `Walker` with its own
-`Marking`, `EnabledSet`, RNG (seed + 7919 i) and a fresh strategy instance
-built from `specs[i mod |specs|]`, so all hot state is thread-local. The
-`WalkNet`, the `Target` and the goal expression are shared read-only. A
-thread that reaches the goal verifies its trace (when recorded), publishes
-the result under a mutex if it is the first, and raises an atomic stop flag
-that every walker polls every 1024 steps. Strategy specs are
-`name[:epsilon[:stall]]`, e.g. `relaxed:0:300`.
+`runPortfolio` starts N threads on one `TargetSet` and one focus; thread i
+runs its own `Walker` with its own `Marking`, `EnabledSet`, RNG (seed + 7919 i)
+and a fresh strategy instance built from `specs[i mod |specs|]` on the focus
+goal (random when there is no focus), so all hot state is thread-local. The
+`WalkNet`, the `TargetSet` and the goal expressions are shared read-only,
+except the atomic solved flags. Claims are published under a mutex, in claim
+order, through a callback; when the focus is claimed an atomic stop flag is
+raised, which every walker polls every 1024 steps. After the threads join,
+recorded traces are replayed by one verifier walker before being reported.
+Strategy specs are `name[:epsilon[:stall]]`, e.g. `relaxed:0:300`.
+
+The driver (`cli/WalkDriver.h`) applies a policy on top: an optional sweep
+round (all threads random, no focus, all targets open) followed by rounds with
+one focus per open target and a per-property budget growing tenfold per round
+under `--totalTime`. Which mix works is an empirical question; the options
+`--sweepTime`, `--roundTime` and `--strategies` are the knobs.
 
 ## Shared pool of restart states (optional)
 

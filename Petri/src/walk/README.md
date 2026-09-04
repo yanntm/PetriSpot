@@ -8,6 +8,8 @@ the data structures and the step.
 * `Marking.h` — sparse marking with in-place `apply(effect, onChange)`.
 * `EnabledSet.h` — enabled transitions by delta (unsatisfied-arc counters).
 * `Target.h` — goal predicate (normal-form expression) or deadlock.
+* `TargetSet.h` — the open targets of a run: atomic solved flags, the
+  place-to-targets index, the deadlock targets.
 * `Strategy.h` — transition choice interface (`RESTART` sentinel), `RandomStrategy`.
 * `GoalDistance.h` — distance interface, `MarkingDistance` (expression distance).
 * `StructuralDistance.h` — hop-based refinement for `place >= k` atoms.
@@ -15,8 +17,10 @@ the data structures and the step.
 * `RelaxedPlan.h`, `RelaxedPlanStrategy.h` — delete-relaxation cost (h_add),
   relaxed plan extraction, helpful-transition choice.
 * `NetStats.h` — structural histograms (`--netStats`).
-* `Walker.h` — restart loop, budget, stop flag, optional trace, pooled restarts.
-* `Portfolio.h` — strategy specs and factory, N racing threads, first winner.
+* `Walker.h` — restart loop over a `TargetSet` with an optional focus, budget,
+  stop flag, incremental target checks, optional trace, pooled restarts.
+* `Portfolio.h` — strategy specs and factory, N threads on one target set,
+  claims published as they happen, trace verification.
 * `SharedPool.h` — bounded shared pool of promising markings for restarts.
 
 ## Extending
@@ -30,7 +34,7 @@ the data structures and the step.
   into `BestFirstStrategy` through `makeStrategy`. Distances must be zero
   exactly when the goal holds.
 * **Hot loop**: `Walker::run` -> `Strategy::choose` -> `Marking::apply` ->
-  `EnabledSet::onPlaceChanged`. Anything added there must stay proportional to
+  `EnabledSet::onPlaceChanged` -> `TargetSet::targetsOf` on touched places. Anything added there must stay proportional to
   the arcs touched by the fired transition; per-transition or per-place scans
   belong in the strategy's restart path or in one-time tables of `WalkNet`.
 * **Instrumentation**: `WalkStats` (steps, resets, arc visits, flips) is printed

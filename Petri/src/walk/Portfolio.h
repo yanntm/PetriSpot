@@ -1,9 +1,11 @@
 /*
  * Portfolio.h
  *
- * Several walkers in parallel threads, each with its own strategy instance,
- * seed and thread-local state, racing toward the same Target. The first
- * verified witness stops the others. Strategies are named by specs
+ * Several walkers in parallel threads on one TargetSet, each with its own
+ * strategy instance, seed and thread-local state. All aim at the same focus
+ * (or none) and claim any target they reach; claims are published in order
+ * through a callback, the focus claim stops the others, recorded traces are
+ * verified before being reported. Strategies are named by specs
  * ("relaxed:0:300" = name:epsilon:stall) assigned round-robin to threads. An
  * optional SharedPool lets restarts draw promising states from other threads.
  */
@@ -12,6 +14,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -25,7 +28,7 @@
 #include "walk/SharedPool.h"
 #include "walk/Strategy.h"
 #include "walk/StructuralDistance.h"
-#include "walk/Target.h"
+#include "walk/TargetSet.h"
 #include "walk/Walker.h"
 
 namespace petri::walk
@@ -92,24 +95,24 @@ template<typename T>
     }
   };
 
+/** The strategy of spec aimed at focus; random when there is no focus or it is a deadlock. */
 template<typename T>
-  StrategyBundle<T> makeStrategy (const StrategySpec &spec, const WalkNet<T> &net,
-                                  const Target<T> &target)
+  StrategyBundle<T> makeStrategy (const StrategySpec &spec, const WalkNet<T> &net, const Target<T> *focus)
   {
     StrategyBundle<T> b;
     b.spec = spec;
     const std::string &n = spec.name;
-    if (target.isDeadlock () || n == "random") {
+    if (!focus || focus->isDeadlock () || n == "random") {
       b.strategy = std::make_unique<RandomStrategy<T>> ();
       b.spec.name = "random";
     } else if (n == "bestfirst" || n == "structural") {
-      if (n == "bestfirst") b.distance = std::make_unique<MarkingDistance<T>> (target.expression ());
-      else b.distance = std::make_unique<StructuralDistance<T>> (target.expression (), net);
+      if (n == "bestfirst") b.distance = std::make_unique<MarkingDistance<T>> (focus->expression ());
+      else b.distance = std::make_unique<StructuralDistance<T>> (focus->expression (), net);
       auto s = std::make_unique<BestFirstStrategy<T>> (*b.distance, spec.epsilon, spec.sample, spec.stall);
       b.bestFirst = s.get ();
       b.strategy = std::move (s);
     } else if (n == "relaxed") {
-      auto s = std::make_unique<RelaxedPlanStrategy<T>> (net, target.expression (), spec.epsilon, spec.stall);
+      auto s = std::make_unique<RelaxedPlanStrategy<T>> (net, focus->expression (), spec.epsilon, spec.stall);
       b.relaxed = s.get ();
       b.strategy = std::move (s);
     } else {
@@ -123,59 +126,84 @@ struct ThreadReport
   std::string strategy;
   WalkStats stats;
   uint64_t minHeuristic = 0;
-  bool found = false;
+  bool found = false;   // claimed the focus
+  uint64_t claims = 0;
 };
+
+/** A target won by a thread: where, by whom, and how it was reached. */
+template<typename T>
+  struct Claim
+  {
+    uint32_t target = 0;
+    unsigned thread = 0;
+    std::string strategy;       // label of the claiming thread's strategy
+    SparseArray<T> marking;     // marking reached
+    bool hasTrace = false;      // trace recorded and verified
+    std::vector<uint32_t> trace;
+  };
 
 template<typename T>
   struct PortfolioResult
   {
-    bool found = false;
-    size_t winner = 0;
+    bool found = false;         // the focus was claimed during this run
+    size_t winner = 0;          // thread that claimed the focus
     std::string winnerStrategy;
-    WalkResult result;          // of the winner (trace only if recorded and verified)
-    SparseArray<T> witness;     // marking reached by the winner
+    std::vector<Claim<T>> claims; // every target claimed, in claim order
     std::vector<ThreadReport> reports;
   };
 
+/**
+ * Run threads walkers on targets toward focus (NO_FOCUS: sweep). onClaim, if
+ * given, is called under a lock as each claim is published; traces are only
+ * verified after the threads join (Claim::hasTrace).
+ */
 template<typename T>
-  PortfolioResult<T> runPortfolio (const WalkNet<T> &net, const Target<T> &target,
+  PortfolioResult<T> runPortfolio (const WalkNet<T> &net, TargetSet<T> &targets, uint32_t focus,
                                    const std::vector<StrategySpec> &specs, unsigned threads,
                                    WalkBudget budget, uint64_t seed, SharedPool<T> *pool,
-                                   uint64_t debugSteps)
+                                   uint64_t debugSteps,
+                                   const std::function<void (const Claim<T>&)> &onClaim = {})
   {
     PortfolioResult<T> out;
     out.reports.resize (threads);
     std::atomic<bool> stop (false);
     std::mutex mutex;
     budget.stop = &stop;
+    const Target<T> *focusTarget = focus == NO_FOCUS ? nullptr : &targets.target (focus);
 
     auto body = [&] (unsigned i) {
-      StrategyBundle<T> bundle = makeStrategy (specs[i % specs.size ()], net, target);
+      StrategyBundle<T> bundle = makeStrategy (specs[i % specs.size ()], net, focusTarget);
       if (bundle.relaxed && i == 0) bundle.relaxed->debugSteps = debugSteps;
-      Walker<T> walker (net, target, *bundle.strategy, seed + 7919u * i);
+      std::string label = bundle.spec.label ();
+      Walker<T> walker (net, targets, focus, *bundle.strategy, seed + 7919u * i);
       walker.setPool (pool);
+      walker.setOnClaim ([&, i, label] (uint32_t id, const Marking<T> &m, const std::vector<uint32_t> *trace) {
+        Claim<T> c;
+        c.target = id;
+        c.thread = i;
+        c.strategy = label;
+        c.marking = m.sparse ();
+        if (trace) {
+          c.hasTrace = true;
+          c.trace = *trace;
+        }
+        std::lock_guard<std::mutex> lock (mutex);
+        if (id == focus) {
+          out.found = true;
+          out.winner = i;
+          out.winnerStrategy = label;
+          stop.store (true);
+        }
+        out.claims.push_back (std::move (c));
+        if (onClaim) onClaim (out.claims.back ());
+      });
       WalkResult res = walker.run (budget);
       ThreadReport &rep = out.reports[i];
-      rep.strategy = bundle.spec.label ();
+      rep.strategy = label;
       rep.stats = res.stats;
       rep.minHeuristic = bundle.minHeuristic ();
       rep.found = res.found;
-      if (!res.found) return;
-      SparseArray<T> witness = walker.currentMarking ().sparse ();
-      if (res.hasTrace && !walker.verify (res.trace)) {
-        std::lock_guard<std::mutex> lock (mutex);
-        std::cerr << "Internal error: witness trace of thread " << i << " does not replay to the goal." << std::endl;
-        return;
-      }
-      std::lock_guard<std::mutex> lock (mutex);
-      if (!out.found) {
-        out.found = true;
-        out.winner = i;
-        out.winnerStrategy = bundle.spec.label ();
-        out.result = std::move (res);
-        out.witness = std::move (witness);
-        stop.store (true);
-      }
+      rep.claims = res.claims;
     };
 
     if (threads <= 1) {
@@ -184,6 +212,20 @@ template<typename T>
       std::vector<std::thread> pool_;
       for (unsigned i = 0; i < threads; ++i) pool_.emplace_back (body, i);
       for (auto &th : pool_) th.join ();
+    }
+
+    bool anyTrace = false;
+    for (const auto &c : out.claims) anyTrace = anyTrace || c.hasTrace;
+    if (anyTrace) {
+      RandomStrategy<T> rs;
+      Walker<T> verifier (net, targets, NO_FOCUS, rs, 0);
+      for (auto &c : out.claims) {
+        if (c.hasTrace && !verifier.verify (c.target, c.trace)) {
+          std::cerr << "Internal error: witness trace of thread " << c.thread << " for " << targets.name (c.target)
+              << " does not replay to the goal." << std::endl;
+          c.hasTrace = false;
+        }
+      }
     }
     return out;
   }
