@@ -60,6 +60,8 @@ const string THREADS = "--threads=";
 const string STRATEGIES = "--strategies=";
 const string SHARE = "--share=";
 const string SHARE_PROB = "--shareProb=";
+const string TOTAL_TIME = "--totalTime=";
+const string ROUND_TIME = "--roundTime=";
 
 #define DEFAULT_TIMEOUT 150
 
@@ -124,6 +126,10 @@ void usage ()
       << "  --share=<n>          Shared pool of up to n promising markings that restarts may\n"
       << "                       draw from (default 0: disabled).\n"
       << "  --shareProb=<p>      Percentage of restarts drawn from the pool (default 50).\n"
+      << "  --totalTime=<s>      Global budget for all selected properties: they are walked in\n"
+      << "                       rounds, each open property getting --roundTime seconds in round 1,\n"
+      << "                       ten times more per round, the remainder shared in the last round.\n"
+      << "  --roundTime=<s>      Per-property budget of the first round (default 1).\n"
       << "  --epsilon=<n>        bestfirst: percentage of uniformly random moves (default 10).\n"
       << "  --sample=<n>         bestfirst: score at most n random candidates per step (default all).\n"
       << "  --stall=<n>          bestfirst/structural: restart after n steps without distance improvement.\n"
@@ -248,6 +254,8 @@ int main_noex (int argc, char *argv[])
   std::string strategies;
   size_t share = 0;
   unsigned shareProb = 50;
+  long totalTime = 0;
+  long roundTime = 1;
   bool doUseQPlusBasis = false;
   bool doUseCompression = false;
 
@@ -333,6 +341,10 @@ int main_noex (int argc, char *argv[])
       strategies = std::string (argv[i]).substr (STRATEGIES.size ());
     } else if (std::string (argv[i]).substr (0, SHARE.size ()) == SHARE) {
       share = std::stoul (std::string (argv[i]).substr (SHARE.size ()));
+    } else if (std::string (argv[i]).substr (0, TOTAL_TIME.size ()) == TOTAL_TIME) {
+      totalTime = std::stol (std::string (argv[i]).substr (TOTAL_TIME.size ()));
+    } else if (std::string (argv[i]).substr (0, ROUND_TIME.size ()) == ROUND_TIME) {
+      roundTime = std::stol (std::string (argv[i]).substr (ROUND_TIME.size ()));
     } else if (std::string (argv[i]).substr (0, SHARE_PROB.size ()) == SHARE_PROB) {
       shareProb = static_cast<unsigned> (std::stoul (std::string (argv[i]).substr (SHARE_PROB.size ())));
     } else if (std::string (argv[i]).substr (0, DEBUG_STEPS.size ()) == DEBUG_STEPS) {
@@ -506,20 +518,50 @@ int main_noex (int argc, char *argv[])
       std::vector<petri::walk::StrategySpec> specs = petri::walk::parseStrategySpecs (
           !strategies.empty () ? strategies : (strategyName != "random" || threads == 1 ? strategyName : "random,bestfirst,structural,relaxed"),
           epsilon, stall, sample);
-      for (const auto &prop : props) {
+      std::vector<size_t> open;
+      for (size_t k = 0; k < props.size (); ++k) {
+        const auto &prop = props[k];
         if (prop.kind == petri::expr::PropertyKind::Unsupported) {
           std::cout << "Skipping " << prop.name << " : " << prop.comment << std::endl;
           continue;
         }
-        petri::walk::Target<VAL> target = prop.kind == petri::expr::PropertyKind::Deadlock
-            ? petri::walk::Target<VAL>::deadlockTarget ()
-            : petri::walk::Target<VAL> (prop.goal ());
-        if (!target.isDeadlock () && target.expression ().kind == petri::expr::Expression::Kind::False) {
+        if (prop.kind != petri::expr::PropertyKind::Deadlock
+            && prop.goal ().kind == petri::expr::Expression::Kind::False) {
           std::cout << "FORMULA " << prop.name << " " << (prop.kind == petri::expr::PropertyKind::Invariant ? "TRUE" : "FALSE")
               << " TECHNIQUES TOPOLOGICAL TRIVIAL" << std::endl;
           continue;
         }
-        runWalk<VAL> (wnet, target, prop.name, prop.verdictIfReached (), budget, seed, quiet, specs, threads, share, shareProb, debugSteps);
+        open.push_back (k);
+      }
+      auto walkStart = std::chrono::steady_clock::now ();
+      long perProperty = totalTime > 0 ? roundTime : timeout;
+      for (int round = 1; !open.empty (); ++round) {
+        if (totalTime > 0) {
+          long elapsed = std::chrono::duration_cast<std::chrono::seconds> (std::chrono::steady_clock::now () - walkStart).count ();
+          long left = totalTime - elapsed;
+          if (left <= 0) break;
+          // last round when the geometric budget would exceed what is left
+          if (perProperty * static_cast<long> (open.size ()) >= left) perProperty = std::max (1L, left / static_cast<long> (open.size ()));
+          std::cout << "Round " << round << ": " << open.size () << " open properties, " << perProperty
+              << " s each, " << left << " s left." << std::endl;
+        }
+        budget.timeoutMillis = static_cast<uint64_t> (perProperty) * 1000;
+        std::vector<size_t> still;
+        for (size_t k : open) {
+          const auto &prop = props[k];
+          petri::walk::Target<VAL> target = prop.kind == petri::expr::PropertyKind::Deadlock
+              ? petri::walk::Target<VAL>::deadlockTarget ()
+              : petri::walk::Target<VAL> (prop.goal ());
+          bool solved = runWalk<VAL> (wnet, target, prop.name, prop.verdictIfReached (), budget, seed, quiet, specs, threads, share, shareProb, debugSteps);
+          if (!solved) still.push_back (k);
+          if (totalTime > 0) {
+            long elapsed = std::chrono::duration_cast<std::chrono::seconds> (std::chrono::steady_clock::now () - walkStart).count ();
+            if (elapsed >= totalTime) { still.insert (still.end (), open.begin () + (&k - &open[0]) + 1, open.end ()); break; }
+          }
+        }
+        open = still;
+        if (totalTime <= 0) break;
+        perProperty *= 10;
       }
     }
 
