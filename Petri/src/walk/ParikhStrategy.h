@@ -51,26 +51,25 @@ template<typename T>
       ++resets;
     }
 
+    void onFired (uint32_t t, uint64_t times) override
+    {
+      long long &left = remaining[net.effectClassOf (t)];
+      left = std::max (0LL, left - static_cast<long long> (times));
+    }
+
     uint32_t choose (WalkContext<T> &ctx) override
     {
       const size_t n = ctx.enabled.size ();
       // the Java decay: skip the restriction with probability resets per mille
       bool relaxed = (ctx.rng () % 1000) < std::min<uint64_t> (resets, 1000);
-      uint32_t chosen;
-      if (relaxed) {
-        chosen = ctx.enabled.at (ctx.rng () % n);
-      } else {
-        candidates.clear ();
-        for (size_t i = 0; i < n; ++i) {
-          uint32_t t = ctx.enabled.at (i);
-          if (remaining[net.effectClassOf (t)] > 0) candidates.push_back (t);
-        }
-        if (candidates.empty ()) return RESTART;
-        chosen = candidates[ctx.rng () % candidates.size ()];
+      if (relaxed) return ctx.enabled.at (ctx.rng () % n);
+      candidates.clear ();
+      for (size_t i = 0; i < n; ++i) {
+        uint32_t t = ctx.enabled.at (i);
+        if (remaining[net.effectClassOf (t)] > 0) candidates.push_back (t);
       }
-      long long &left = remaining[net.effectClassOf (chosen)];
-      if (left > 0) --left;
-      return chosen;
+      if (candidates.empty ()) return RESTART;
+      return candidates[ctx.rng () % candidates.size ()];
     }
   };
 

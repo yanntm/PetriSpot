@@ -167,8 +167,16 @@ inline void addOptions (CLI::App &app, Options &o)
   wk->add_option ("--seed", o.seed, "Random seed (default: clock).");
   wk->add_flag ("--trace", o.trace, "Record the witness trace, verify it by replay and print it as a WITNESS line.");
   wk->add_flag ("--printUnknown", o.printUnknown, "At exit, print an UNKNOWN line for every property left without verdict.");
-  wk->add_option ("--strategy", o.strategy, "random (default) | bestfirst | structural | relaxed | parikh.")
-      ->check (CLI::IsMember ({ "random", "bestfirst", "structural", "relaxed", "parikh" }));
+  wk->add_option ("--strategy", o.strategy,
+                  "random (default) | bestfirst | structural | relaxed | parikh, each optionally with a +sat suffix "
+                  "(fire the chosen transition as many times as the marking allows).")
+      ->check (CLI::Validator ([] (std::string &s) {
+        std::string base = s;
+        if (base.size () > 4 && base.compare (base.size () - 4, 4, "+sat") == 0) base.erase (base.size () - 4);
+        for (const char *k : { "random", "bestfirst", "structural", "relaxed", "parikh" })
+          if (base == k) return std::string ();
+        return "unknown strategy " + s;
+      }, "STRATEGY"));
   wk->add_option ("--threads", o.threads, "Parallel walkers (default 1); first witness wins.");
   wk->add_option ("--strategies", o.strategies,
                   "Pool assigned round-robin to threads: name[:epsilon[:stall]],... (default with several "

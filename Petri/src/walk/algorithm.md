@@ -162,7 +162,17 @@ loop:
 
 A claim calls back the owner (the portfolio) with the marking and, when
 recording, the trace since the last reset; the callback prints the `FORMULA`
-line at once. Trace recording is optional (`WalkBudget::recordTrace`, CLI
+line at once. A strategy spec with the `+sat` suffix (`random+sat`, `bestfirst+sat:10:2000`)
+puts the walker in saturation mode: the chosen transition is fired as many
+times as the marking allows in one update (the largest k such that every
+place it depletes keeps its input weight for k firings; 1 when it depletes
+nothing). Stacks of tokens move in one step and places empty where a random
+walk would rarely empty them; the trace records k firings and the strategy is
+told through `onFired(t, k)` (the Parikh strategy consumes k). A poor choice
+when only part of a stack should move, hence a modifier for some threads of a
+portfolio, not the default.
+
+Trace recording is optional (`WalkBudget::recordTrace`, CLI
 `--trace`). When off, the walker never touches the trace vector and a witness
 is reported as the marking reached. When on, the trace holds the transitions
 fired since the last reset, so a witness is the sequence from the initial

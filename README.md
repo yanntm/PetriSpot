@@ -196,7 +196,7 @@ else on stdout is a log (`INTEROP.md` section 5).
 | `--query=<n>` | select the n-th property of the file (0-based) |
 | `--printProps[=<f>]` | print the properties and exit: `infix` (parsed and normalised, default), `sexpr`, `sexpr-index`; converts MCC XML to s-expressions |
 | `--findDeadlock` | look for a deadlock |
-| `--strategy=<s>` / `--strategies=<list>` | one strategy, or the pool for the threads (`random`, `bestfirst`, `structural`, `relaxed`, `parikh`) |
+| `--strategy=<s>` / `--strategies=<list>` | one strategy, or the pool for the threads (`random`, `bestfirst`, `structural`, `relaxed`, `parikh`; a `+sat` suffix fires the chosen transition as many times as the marking allows in one step) |
 | `--hints=<file>` | `(parikh NAME (t k)...)` forms: a Parikh vector per property, used by the `parikh` strategy (`INTEROP.md` 4.4) |
 | `--hintStrategies=<list>` | pool for a property that has a hint (default `parikh,parikh,relaxed,bestfirst`) |
 | `--threads=<n>` | parallel walkers (default 1) |

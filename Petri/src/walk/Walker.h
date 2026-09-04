@@ -37,6 +37,7 @@ struct WalkStats
   uint64_t arcVisits = 0; // consumer arcs visited by the enabled-set update
   uint64_t flips = 0;     // enabled-status changes
   uint64_t targetChecks = 0; // goal evaluations
+  uint64_t saturations = 0;  // updates that fired a transition more than once
 };
 
 struct WalkResult
@@ -81,6 +82,7 @@ template<typename T>
     EnabledSet<T> enabled;
     std::vector<uint32_t> trace;
     bool recordTrace = false;
+    bool saturate = false;          // fire the chosen transition as many times as the marking allows
 
     std::vector<size_t> touched;    // places changed by the last firing
     std::vector<long long> published; // per bound target: last value sent to the shared maximum
@@ -124,14 +126,34 @@ template<typename T>
       strategy.onReset ();
     }
 
-    void fire (uint32_t t)
+    /**
+     * How many times t can be fired in a row from the current marking: it stays
+     * enabled as long as every place it depletes keeps its input weight;
+     * 1 when t depletes nothing (it would never stop).
+     */
+    uint64_t maxFirings (uint32_t t) const
+    {
+      const SparseArray<T> &eff = net.effect (t);
+      const SparseArray<T> &pre = net.pre (t);
+      uint64_t k = std::numeric_limits<uint64_t>::max ();
+      for (size_t i = 0; i < eff.size (); ++i) {
+        T d = eff.valueAt (i);
+        if (d >= 0) continue;
+        size_t p = eff.keyAt (i);
+        T have = marking.get (p) - pre.get (p); // tokens beyond the first firing
+        k = std::min (k, static_cast<uint64_t> (have / -d) + 1);
+      }
+      return k == std::numeric_limits<uint64_t>::max () ? 1 : k;
+    }
+
+    void fire (uint32_t t, uint64_t times)
     {
       touched.clear ();
       marking.apply (net.effect (t), [this] (size_t p, T oldv, T newv) {
         enabled.onPlaceChanged (p, oldv, newv);
         touched.push_back (p);
-      });
-      if (recordTrace) trace.push_back (t);
+      }, static_cast<long long> (times));
+      if (recordTrace) trace.insert (trace.end (), times, t);
     }
 
     /** Evaluate an open target here; record a bound's value, claim a target that holds. */
@@ -206,6 +228,10 @@ template<typename T>
     {
       pool = p;
     }
+    void setSaturate (bool s)
+    {
+      saturate = s;
+    }
 
     WalkResult run (const WalkBudget &budget)
     {
@@ -216,6 +242,7 @@ template<typename T>
       WalkStats &st = result.stats;
       WalkContext<T> ctx { net, marking, enabled, rng };
       uint64_t runSteps = 0;
+      uint64_t iterations = 0;
       fromPool = false;
       marking.assign (initialMarking);
       enabled.assign (initialEnabled);
@@ -235,7 +262,7 @@ template<typename T>
           checkAll (result);
           continue;
         }
-        if ((st.steps & 1023) == 0) {
+        if ((iterations++ & 1023) == 0) {
           if (budget.stop && budget.stop->load (std::memory_order_relaxed)) break;
           if (budget.maxSteps && st.steps >= budget.maxSteps) break;
           if (budget.timeoutMillis) {
@@ -252,9 +279,12 @@ template<typename T>
           checkAll (result);
           continue;
         }
-        fire (t);
-        ++st.steps;
-        ++runSteps;
+        uint64_t times = saturate ? maxFirings (t) : 1;
+        fire (t, times);
+        if (times > 1) ++st.saturations;
+        strategy.onFired (t, times);
+        st.steps += times;
+        runSteps += times;
         checkTouched (result);
       }
       st.millis = static_cast<uint64_t> (
@@ -274,7 +304,7 @@ template<typename T>
       pool = saved;
       for (uint32_t t : witness) {
         if (!enabled.isEnabled (t)) return false;
-        fire (t);
+        fire (t, 1);
       }
       return targets.target (id).reached (marking, enabled);
     }

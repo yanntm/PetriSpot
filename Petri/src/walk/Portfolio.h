@@ -38,18 +38,31 @@ namespace petri::walk
 struct StrategySpec
 {
   std::string name;      // random | bestfirst | structural | relaxed | parikh
+  bool saturate = false; // "+sat": fire the chosen transition as many times as possible
   unsigned epsilon = 10; // percent of random moves (heuristic strategies)
   uint64_t stall = 0;    // restart after this many steps without improvement
   size_t sample = 0;     // best-first: candidates scored per step (0: all)
 
   std::string label () const
   {
-    if (name == "random" || name == "parikh") return name;
-    return name + ":" + std::to_string (epsilon) + ":" + std::to_string (stall);
+    std::string l = name + (saturate ? "+sat" : "");
+    if (name == "random" || name == "parikh") return l;
+    return l + ":" + std::to_string (epsilon) + ":" + std::to_string (stall);
   }
 };
 
-/** Parse "name[:epsilon[:stall]],name..." with defaults for omitted fields. */
+/** Strip a "+sat" suffix from a strategy name; true iff it was there. */
+inline bool stripSaturate (std::string &name)
+{
+  const std::string suffix = "+sat";
+  if (name.size () > suffix.size () && name.compare (name.size () - suffix.size (), suffix.size (), suffix) == 0) {
+    name.erase (name.size () - suffix.size ());
+    return true;
+  }
+  return false;
+}
+
+/** Parse "name[+sat][:epsilon[:stall]],name..." with defaults for omitted fields. */
 inline std::vector<StrategySpec> parseStrategySpecs (const std::string &list,
                                                      unsigned epsilon, uint64_t stall,
                                                      size_t sample)
@@ -67,7 +80,10 @@ inline std::vector<StrategySpec> parseStrategySpecs (const std::string &list,
     std::string field;
     int k = 0;
     while (std::getline (is, field, ':')) {
-      if (k == 0) spec.name = field;
+      if (k == 0) {
+        spec.name = field;
+        spec.saturate = stripSaturate (spec.name);
+      }
       else if (k == 1 && !field.empty ()) spec.epsilon = static_cast<unsigned> (std::stoul (field));
       else if (k == 2 && !field.empty ()) spec.stall = std::stoull (field);
       ++k;
@@ -195,6 +211,7 @@ template<typename T>
       std::string label = bundle.spec.label ();
       Walker<T> walker (net, targets, focus, *bundle.strategy, seed + 7919u * i);
       walker.setPool (pool);
+      walker.setSaturate (bundle.spec.saturate);
       walker.setOnClaim ([&, i, label] (uint32_t id, const Marking<T> &m, const std::vector<uint32_t> *trace) {
         Claim<T> c;
         c.target = id;

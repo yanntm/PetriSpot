@@ -39,6 +39,10 @@ template<typename T>
     virtual void onReset ()
     {
     }
+    /** The walker fired t, times times in one update (more than once under saturation). */
+    virtual void onFired (uint32_t, uint64_t)
+    {
+    }
     /**
      * Best state of the current run according to the strategy's heuristic,
      * if it has one: fills m and h and returns true. Random strategies
