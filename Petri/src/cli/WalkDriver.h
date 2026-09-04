@@ -1,15 +1,16 @@
 /*
  * WalkDriver.h
  *
- * Reachability from the command line: load and print properties, schedule
- * the open ones in rounds, run the portfolio on one target and print the
- * MCC verdict line.
+ * Reachability from the command line: load and print properties, build the
+ * target set, run the sweep round and the focused rounds, print the FORMULA
+ * lines as targets fall and the witnesses afterwards.
  */
 #ifndef PETRI_CLI_WALKDRIVER_H_
 #define PETRI_CLI_WALKDRIVER_H_
 
 #include <algorithm>
 #include <chrono>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -23,6 +24,7 @@
 #include "walk/Portfolio.h"
 #include "walk/SharedPool.h"
 #include "walk/Target.h"
+#include "walk/TargetSet.h"
 #include "walk/WalkNet.h"
 
 namespace petri::cli
@@ -49,16 +51,18 @@ inline std::vector<petri::walk::StrategySpec> strategyPool (const Options &o)
   return petri::walk::parseStrategySpecs (list, o.epsilon, o.stall, o.sample);
 }
 
-/** Run the portfolio toward target; print the MCC verdict line if reached. */
+/** The MCC verdict line, printed the moment a target is claimed. */
 template<typename T>
-  bool runWalk (const Options &o, const petri::walk::WalkNet<T> &wnet, const petri::walk::Target<T> &target,
-                const std::string &name, const std::string &verdict, const petri::walk::WalkBudget &budget,
-                const std::vector<petri::walk::StrategySpec> &specs)
+  void printFormula (const Options &o, const petri::walk::TargetSet<T> &targets, const petri::walk::Claim<T> &c)
   {
-    std::unique_ptr<petri::walk::SharedPool<T>> pool;
-    if (o.share > 0) pool = std::make_unique<petri::walk::SharedPool<T>> (o.share, o.shareProb);
-    petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, target, specs, o.threads, budget,
-                                                                     o.seed, pool.get (), o.debugSteps);
+    std::cout << "FORMULA " << targets.name (c.target) << " " << targets.verdict (c.target) << " TECHNIQUES EXPLICIT "
+        << (c.strategy == "random" ? "RANDOM_WALK" : "HEURISTIC_WALK") << (o.threads > 1 ? " PARALLEL_PROCESSING" : "")
+        << std::endl;
+  }
+
+template<typename T>
+  void printReports (const Options &o, const petri::walk::PortfolioResult<T> &res)
+  {
     for (size_t i = 0; i < res.reports.size (); ++i) {
       const petri::walk::ThreadReport &rep = res.reports[i];
       const petri::walk::WalkStats &st = rep.stats;
@@ -67,32 +71,60 @@ template<typename T>
       std::cout << "Thread " << i << " [" << rep.strategy << "] " << (rep.found ? "found a witness" : "stopped")
           << " after " << st.steps << " steps, " << st.resets << " resets (" << st.deadEnds << " dead ends, "
           << st.stalls << " stalls, " << st.poolRestarts << " from pool), " << st.millis << " ms ("
-          << (st.steps / ms) << " steps/ms; " << (st.steps ? st.arcVisits / st.steps : 0) << " arc visits/step)";
+          << (st.steps / ms) << " steps/ms; " << (st.steps ? st.arcVisits / st.steps : 0) << " arc visits/step, "
+          << (st.steps ? st.targetChecks / st.steps : 0) << " checks/step)";
       if (rep.strategy != "random") std::cout << ", best heuristic " << rep.minHeuristic;
+      if (rep.claims > 1 || (rep.claims == 1 && !rep.found)) std::cout << ", " << rep.claims << " targets claimed";
       std::cout << "." << std::endl;
     }
+  }
+
+/** WITNESS lines (verified traces) or, when not quiet, the witness markings. */
+template<typename T>
+  void printWitnesses (const Options &o, const petri::walk::WalkNet<T> &wnet,
+                       const petri::walk::TargetSet<T> &targets, const petri::walk::PortfolioResult<T> &res)
+  {
+    for (const auto &c : res.claims) {
+      if (c.hasTrace) {
+        const auto &tnames = wnet.getNet ().getTnames ();
+        std::cout << "WITNESS " << targets.name (c.target) << " " << c.trace.size ();
+        for (uint32_t t : c.trace) std::cout << " " << tnames[t];
+        std::cout << std::endl;
+      } else if (!o.quiet) {
+        std::cout << "Witness marking for " << targets.name (c.target) << ": ";
+        printMarking (std::cout, c.marking, wnet.getNet ().getPnames ());
+        std::cout << std::endl;
+      }
+    }
+  }
+
+/**
+ * Run the portfolio on targets toward focus (or as a sweep with NO_FOCUS);
+ * FORMULA lines are printed as claims happen. Returns true iff the focus was
+ * solved (always false for a sweep).
+ */
+template<typename T>
+  bool runWalk (const Options &o, const petri::walk::WalkNet<T> &wnet, petri::walk::TargetSet<T> &targets,
+                uint32_t focus, const petri::walk::WalkBudget &budget,
+                const std::vector<petri::walk::StrategySpec> &specs)
+  {
+    std::unique_ptr<petri::walk::SharedPool<T>> pool;
+    if (o.share > 0) pool = std::make_unique<petri::walk::SharedPool<T>> (o.share, o.shareProb);
+    std::function<void (const petri::walk::Claim<T>&)> onClaim = [&] (const petri::walk::Claim<T> &c) {
+      printFormula (o, targets, c);
+    };
+    petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, targets, focus, specs, o.threads, budget,
+                                                                     o.seed, pool.get (), o.debugSteps, onClaim);
+    printReports (o, res);
     if (pool) {
       std::cout << "Shared pool: " << pool->publishedCount () << " published, " << pool->drawnCount ()
           << " drawn, " << pool->evictedCount () << " evicted, " << pool->size () << " held." << std::endl;
     }
-    if (!res.found) {
-      std::cout << "No witness found for " << name << "." << std::endl;
-      return false;
+    printWitnesses (o, wnet, targets, res);
+    if (focus != petri::walk::NO_FOCUS && !res.found) {
+      std::cout << "No witness found for " << targets.name (focus) << "." << std::endl;
     }
-    std::cout << "FORMULA " << name << " " << verdict << " TECHNIQUES EXPLICIT "
-        << (res.winnerStrategy == "random" ? "RANDOM_WALK" : "HEURISTIC_WALK")
-        << (o.threads > 1 ? " PARALLEL_PROCESSING" : "") << std::endl;
-    if (res.result.hasTrace) {
-      const auto &tnames = wnet.getNet ().getTnames ();
-      std::cout << "WITNESS " << name << " " << res.result.trace.size ();
-      for (uint32_t t : res.result.trace) std::cout << " " << tnames[t];
-      std::cout << std::endl;
-    } else if (!o.quiet) {
-      std::cout << "Witness marking ";
-      printMarking (std::cout, res.witness, wnet.getNet ().getPnames ());
-      std::cout << std::endl;
-    }
-    return true;
+    return res.found;
   }
 
 /** Load the property file, keep --query if given. Throws std::string on error. */
@@ -131,71 +163,95 @@ template<typename T>
   }
 
 /**
- * Walk every property of the file: trivial ones are answered at once, the
- * others are scheduled in rounds of growing per-property budget when
- * --totalTime is set, or each get the -t timeout otherwise.
+ * The target set of the supported, non-trivial properties. Unsupported ones
+ * are reported, trivially false goals are answered here.
+ */
+template<typename T>
+  petri::walk::TargetSet<T> makeTargets (const std::vector<petri::expr::Property> &props, const SparsePetriNet<T> &pn)
+  {
+    using petri::expr::PropertyKind;
+    std::vector<petri::walk::Target<T>> targets;
+    std::vector<std::string> names, verdicts;
+    for (const auto &prop : props) {
+      if (prop.kind == PropertyKind::Unsupported) {
+        std::cout << "Skipping " << prop.name << " : " << prop.comment << std::endl;
+        continue;
+      }
+      if (prop.kind == PropertyKind::Deadlock) {
+        targets.push_back (petri::walk::Target<T>::deadlockTarget ());
+      } else {
+        petri::expr::Expression goal = prop.goal ();
+        if (goal.kind == petri::expr::Expression::Kind::False) {
+          std::cout << "FORMULA " << prop.name << " " << (prop.kind == PropertyKind::Invariant ? "TRUE" : "FALSE")
+              << " TECHNIQUES TOPOLOGICAL TRIVIAL" << std::endl;
+          continue;
+        }
+        targets.push_back (petri::walk::Target<T> (std::move (goal)));
+      }
+      names.push_back (prop.name);
+      verdicts.push_back (prop.verdictIfReached ());
+    }
+    return petri::walk::TargetSet<T> (pn.getPlaceCount (), std::move (targets), std::move (names),
+                                      std::move (verdicts));
+  }
+
+/**
+ * Walk every property of the file: a sweep round (random walks, all targets
+ * checked at once) when at least two are open, then focused rounds with a
+ * per-property budget growing tenfold per round under --totalTime, or the -t
+ * timeout for each otherwise.
  */
 template<typename T>
   void runProperties (const Options &o, const SparsePetriNet<T> &pn)
   {
-    using petri::expr::PropertyKind;
+    using petri::walk::NO_FOCUS;
     std::vector<petri::expr::Property> props = loadProperties (o, pn);
     if (o.printProps) {
       printProperties (props, pn, o.printPropsFormat);
       return;
     }
+    petri::walk::TargetSet<T> targets = makeTargets (props, pn);
+    if (targets.size () == 0) return;
     petri::walk::WalkBudget budget = o.budget;
     budget.recordTrace = o.trace;
     petri::walk::WalkNet<T> wnet (pn);
     std::vector<petri::walk::StrategySpec> specs = strategyPool (o);
-    std::vector<size_t> open;
-    for (size_t k = 0; k < props.size (); ++k) {
-      const auto &prop = props[k];
-      if (prop.kind == PropertyKind::Unsupported) {
-        std::cout << "Skipping " << prop.name << " : " << prop.comment << std::endl;
-        continue;
-      }
-      if (prop.kind != PropertyKind::Deadlock && prop.goal ().kind == petri::expr::Expression::Kind::False) {
-        std::cout << "FORMULA " << prop.name << " " << (prop.kind == PropertyKind::Invariant ? "TRUE" : "FALSE")
-            << " TECHNIQUES TOPOLOGICAL TRIVIAL" << std::endl;
-        continue;
-      }
-      open.push_back (k);
-    }
+    std::vector<petri::walk::StrategySpec> randomSpecs = petri::walk::parseStrategySpecs ("random", 0, 0, 0);
+
     auto walkStart = std::chrono::steady_clock::now ();
-    auto elapsedSeconds = [&] () {
-      return std::chrono::duration_cast<std::chrono::seconds> (std::chrono::steady_clock::now () - walkStart).count ();
-    };
-    long perProperty = o.totalTime > 0 ? o.roundTime : o.timeout;
-    for (int round = 1; !open.empty (); ++round) {
-      if (o.totalTime > 0) {
-        long left = o.totalTime - elapsedSeconds ();
-        if (left < static_cast<long> (open.size ())) break; // not even a second each
+    auto elapsedMs = [&] () { return millisSince (walkStart); };
+    const long totalMs = o.totalTime * 1000;
+
+    if (o.sweepTime > 0 && targets.openCount () >= 2) {
+      long ms = o.sweepTime * 1000;
+      if (totalMs > 0) ms = std::min (ms, totalMs);
+      std::cout << "Sweep: " << targets.openCount () << " open properties, " << ms << " ms of random walks." << std::endl;
+      budget.timeoutMillis = static_cast<uint64_t> (ms);
+      runWalk (o, wnet, targets, NO_FOCUS, budget, randomSpecs);
+    }
+
+    long perProperty = (totalMs > 0 ? o.roundTime : o.timeout) * 1000; // milliseconds
+    for (int round = 1; targets.openCount () > 0; ++round) {
+      std::vector<uint32_t> open = targets.openTargets ();
+      if (totalMs > 0) {
+        long left = totalMs - elapsedMs ();
         // last round when the geometric budget would exceed what is left
-        if (perProperty * static_cast<long> (open.size ()) >= left)
-          perProperty = std::max (1L, left / static_cast<long> (open.size ()));
+        if (perProperty * static_cast<long> (open.size ()) >= left) perProperty = left / static_cast<long> (open.size ());
+        if (perProperty < 20) break; // not worth a walk
         std::cout << "Round " << round << ": " << open.size () << " open properties, " << perProperty
-            << " s each, " << left << " s left." << std::endl;
+            << " ms each, " << left << " ms left." << std::endl;
       }
-      budget.timeoutMillis = static_cast<uint64_t> (perProperty) * 1000;
-      std::vector<size_t> still;
-      for (size_t i = 0; i < open.size (); ++i) {
-        const auto &prop = props[open[i]];
-        petri::walk::Target<T> target = prop.kind == PropertyKind::Deadlock
-            ? petri::walk::Target<T>::deadlockTarget () : petri::walk::Target<T> (prop.goal ());
-        bool solved = runWalk (o, wnet, target, prop.name, prop.verdictIfReached (), budget, specs);
-        if (!solved) still.push_back (open[i]);
-        if (o.totalTime > 0 && elapsedSeconds () >= o.totalTime) {
-          still.insert (still.end (), open.begin () + static_cast<long> (i) + 1, open.end ());
-          break;
-        }
+      budget.timeoutMillis = static_cast<uint64_t> (perProperty);
+      for (uint32_t k : open) {
+        if (targets.isSolved (k)) continue; // claimed on the way to another focus
+        runWalk (o, wnet, targets, k, budget, specs);
+        if (totalMs > 0 && elapsedMs () >= totalMs) break;
       }
-      open = still;
-      if (o.totalTime <= 0) break;
+      if (totalMs <= 0) break;
       perProperty *= 10;
     }
     if (o.printUnknown) {
-      for (size_t k : open) std::cout << "UNKNOWN " << props[k].name << std::endl;
+      for (uint32_t k : targets.openTargets ()) std::cout << "UNKNOWN " << targets.name (k) << std::endl;
     }
   }
 
@@ -208,8 +264,9 @@ template<typename T>
     budget.recordTrace = o.trace;
     petri::walk::WalkNet<T> wnet (pn);
     std::vector<petri::walk::StrategySpec> specs = petri::walk::parseStrategySpecs ("random", o.epsilon, o.stall, o.sample);
-    petri::walk::Target<T> target = petri::walk::Target<T>::deadlockTarget ();
-    runWalk (o, wnet, target, "ReachabilityDeadlock", "TRUE", budget, specs);
+    std::vector<petri::walk::Target<T>> tg { petri::walk::Target<T>::deadlockTarget () };
+    petri::walk::TargetSet<T> targets (pn.getPlaceCount (), std::move (tg), { "ReachabilityDeadlock" }, { "TRUE" });
+    runWalk (o, wnet, targets, 0, budget, specs);
   }
 
 } // namespace petri::cli

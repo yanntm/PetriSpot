@@ -618,6 +618,12 @@ are rough effort calibration.
 
 ## 8. State after iteration 1 (2026-09-03)
 
+Iteration 2 (2026-09-04) is the tool-to-tool interface of `INTEROP.md`: CLI
+on CLI11 (`cli/`), s-expression properties (`parse/sexpr/`), the PNET binary
+net (`io/PNETIO.h`), the result protocol, and multi-target walking
+(`walk/TargetSet.h`: one walk checks every open property, a sweep round
+precedes the focused rounds). The notes below describe iteration 1.
+
 * `petri64 -i model.pnml --props=ReachabilityFireability.xml --query=3
   --strategy=relaxed --stall=300` answers the challenge query in about 100
   steps. On the whole challenge file, 9 of the 11 queries that have a witness

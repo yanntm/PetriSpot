@@ -177,6 +177,11 @@ section 5).
   `--strategies=name[:epsilon[:stall]],...` (round-robin); the first verified
   witness wins. `--share=N` adds a bounded pool of promising markings that
   restarts may draw from.
+* All open properties form one target set: a walk checks, after each step,
+  the properties whose atoms mention a place the step changed, and claims
+  any it satisfies, whatever its focus. The driver starts with a sweep of
+  random walks over all properties (`--sweepTime`), then runs focused rounds
+  with the heuristic strategies.
 * `--totalTime=<s>` schedules the open properties in rounds of growing
   per-property budget, which is what the MCC driver uses.
 
@@ -195,6 +200,7 @@ section 5).
 | `--epsilon=<p>`, `--stall=<n>`, `--sample=<n>` | defaults for heuristic strategies |
 | `--share=<n>`, `--shareProb=<p>` | shared restart pool |
 | `--totalTime=<s>`, `--roundTime=<s>` | round scheduling over all properties |
+| `--sweepTime=<s>` | random multi-target round before the focused rounds (default 1, 0 disables) |
 | `--walkSteps=<n>`, `--runLength=<n>`, `--seed=<n>` | budgets and reproducibility |
 | `--trace` | record, verify by replay and print the witness trace as `WITNESS <id> <k> t...` |
 | `--printUnknown` | at exit, one `UNKNOWN <id>` line per property left without verdict |

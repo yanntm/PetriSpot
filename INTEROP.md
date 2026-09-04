@@ -1,9 +1,10 @@
 # ITS-Tools and PetriSpot: tool-to-tool reachability
 
 Status: design document, revision 2 (2026-09-04). Revision 1 was discussed
-with the user; section 10 records the decisions. Implementation of phases 0
-to 4 (section 9) is in progress; the PetriSpot side of the exchange is what
-this repository realises, the Java side (section 7) comes after.
+with the user; section 10 records the decisions. Phases 0 to 4 (section 9)
+are implemented on the PetriSpot side; the Java side (section 7) comes next.
+Sections 3 to 5 are the reference for the formats until they move next to
+`KERS.md`.
 
 Goal: let ITS-Tools (Java) delegate its explicit walks to PetriSpot with the
 same ease it already delegates invariant computation, so that
@@ -270,9 +271,9 @@ syntax switch for `--props`, move to CLI11:
   s-expressions); `--propsSyntax=mcc|sexpr` overrides.
 * `expr/SexprPrinter.h`: s-expression printer over indices or names.
 
-### 6.2 Multi-target walking
+### 6.2 Multi-target walking (implemented)
 
-Today a `Target` is one goal and the portfolio races threads on it. The
+Before this work a `Target` was one goal and the portfolio raced threads on it. The
 ITS-Tools use is dozens to hundreds of predicates on one net (one-safeness,
 quasi-liveness and the like produce one query per net object), so the
 engine must be able to check many targets in one walk. On the other hand
@@ -289,11 +290,14 @@ when is a matter of profiling; the architecture stays flexible:
 * A walker aims its heuristic at one target (its focus) but every open
   target reached on the way is claimed; the focus rotates at restarts over
   the still-open targets.
-* The driver schedule is a policy on top: a first round of random
-  multi-target walks on all threads (what ITS-Tools does by hand today), then
-  heuristic rounds per open target with the growing per-property budget of
-  `--totalTime`. `FORMULA` lines stream as targets fall. Options select the
-  policy; profiling on the MCC harness decides the defaults.
+* The driver schedule is a policy on top: a sweep round of random
+  multi-target walks on all threads (`--sweepTime`, what ITS-Tools does by
+  hand today), then heuristic rounds per open target with the growing
+  per-property budget of `--totalTime`, in milliseconds so that many
+  properties under a short budget still each get a walk. `FORMULA` lines
+  stream as targets fall. Focus rotation inside a run is not done: a walker
+  keeps its focus, the driver picks the next one. Options select the policy;
+  profiling on the MCC harness decides the defaults.
 
 ### 6.3 Later: Parikh strategy
 
@@ -366,40 +370,40 @@ validated on the MCC harness; it is listed here so the plan is whole.
 ## 9. Plan of attack
 
 Each phase ends with something that runs and is checked; line counts are
-rough. Phases 0 to 4 are the current work; 5 and 6 follow in this order.
+rough. Phases 0 to 4 are done (2026-09-04); 5 and 6 follow in this order.
 
-### Phase 0: CLI11 and `cli/` (about 400 lines moved, 150 new)
+### Phase 0 (done): CLI11 and `cli/`
 
 Vendor CLI11, `cli/Options.h`, split the drivers out of `Petri.cpp`, same
 flags. Check: the invariant and walk outputs on `Petri/examples/` are
 identical before and after (fixed seed); the MCC driver and `PetriSpotRunner`
 run unchanged.
 
-### Phase 1: s-expression properties (about 350 lines)
+### Phase 1 (done): s-expression properties
 
 Reader, property reader, printer, `--props` by extension, `--printProps=`
 syntax. Check: MCC XML to sexpr to AST equals MCC XML to AST on the property
 files of the development models; hand-written `.sexpr` files for
 `Petri/examples/` nets.
 
-### Phase 2: PNET (about 250 lines)
+### Phase 2 (done): PNET
 
 `io/PNETIO.h`, `--net`, `--exportNet`, `kersconv --decode-net`; `KERS.md`
 section. Check: PNML to PNET to walk reproduces the PNML walk verdicts and
 step counts with a fixed seed on the development models.
 
-### Phase 3: result protocol (about 100 lines)
+### Phase 3 (done): result protocol
 
 `WITNESS` line, `--printUnknown`, flush discipline, exit codes. Check: the
 MCC driver still passes the harness.
 
-### Phase 4: multi-target walking (about 500 lines)
+### Phase 4 (done): multi-target walking
 
-`TargetSet`, the place-to-targets index, focus rotation, the two-stage
-schedule as options. Check: on the development models the union of verdicts
-equals today's per-property runs at equal budget, and a request with the
-200-odd fireability atoms of the challenge model as separate `reach` forms
-answers in one walk what today takes 200 walks. ThreadSanitizer clean.
+`TargetSet`, the place-to-targets index, the sweep round, millisecond
+budgets. Check: on Angiogenesis the set of verdicts of a fixed-seed random run
+equals the per-property baseline; a one-second sweep answers 12 of the 16
+fireability properties at 8700 steps/ms with 3 goal evaluations per step.
+ThreadSanitizer clean with 4 threads.
 
 ### Phase 5: Java runner and call sites (ITS-Tools repository)
 
