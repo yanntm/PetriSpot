@@ -214,7 +214,8 @@ the current phases.
 
 Every record is one line, starts with a keyword, and is flushed when written.
 Anything else on stdout is a log and may be ignored. Nothing is written twice
-for the same property.
+for the same property. Property names are printed verbatim and must not
+contain whitespace (MCC ids and ITS-Tools names never do).
 
 ```
 FORMULA <name> TRUE|FALSE TECHNIQUES <words>     verdict (unchanged MCC line)

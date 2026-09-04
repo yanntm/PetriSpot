@@ -62,6 +62,7 @@ struct Options
   petri::walk::WalkBudget budget;
   uint64_t seed = static_cast<uint64_t> (std::chrono::steady_clock::now ().time_since_epoch ().count ());
   bool trace = false;
+  bool printUnknown = false;
   std::string strategy = "random";
   std::string strategies;
   unsigned threads = 1;
@@ -157,7 +158,8 @@ inline void addOptions (CLI::App &app, Options &o)
   wk->add_option ("--walkSteps", o.budget.maxSteps, "Step budget of a walk (default: until timeout).");
   wk->add_option ("--runLength", o.budget.runLength, "Steps between restarts from the initial marking (default 1000000).");
   wk->add_option ("--seed", o.seed, "Random seed (default: clock).");
-  wk->add_flag ("--trace", o.trace, "Record the witness trace, verify it by replay and print it.");
+  wk->add_flag ("--trace", o.trace, "Record the witness trace, verify it by replay and print it as a WITNESS line.");
+  wk->add_flag ("--printUnknown", o.printUnknown, "At exit, print an UNKNOWN line for every property left without verdict.");
   wk->add_option ("--strategy", o.strategy, "random (default) | bestfirst | structural | relaxed.")
       ->check (CLI::IsMember ({ "random", "bestfirst", "structural", "relaxed" }));
   wk->add_option ("--threads", o.threads, "Parallel walkers (default 1); first witness wins.");

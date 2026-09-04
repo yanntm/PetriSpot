@@ -12,4 +12,5 @@ MCC-format property files for models that live outside the repository
 
 * `Airplane.sexpr` — s-expression syntax sample for `Petri/examples/Airplane.pnml`:
   names, quoted names, indices, `fireable`, arithmetic, all three property
-  kinds. Every property but the invariant on speeds has a witness.
+  kinds (the invariant is named "p2", which must be quoted). Every property but
+  that invariant has a witness.

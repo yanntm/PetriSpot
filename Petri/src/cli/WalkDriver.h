@@ -84,7 +84,7 @@ template<typename T>
         << (o.threads > 1 ? " PARALLEL_PROCESSING" : "") << std::endl;
     if (res.result.hasTrace) {
       const auto &tnames = wnet.getNet ().getTnames ();
-      std::cout << "Witness (" << res.result.trace.size () << " transitions):";
+      std::cout << "WITNESS " << name << " " << res.result.trace.size ();
       for (uint32_t t : res.result.trace) std::cout << " " << tnames[t];
       std::cout << std::endl;
     } else if (!o.quiet) {
@@ -193,6 +193,9 @@ template<typename T>
       open = still;
       if (o.totalTime <= 0) break;
       perProperty *= 10;
+    }
+    if (o.printUnknown) {
+      for (size_t k : open) std::cout << "UNKNOWN " << props[k].name << std::endl;
     }
   }
 

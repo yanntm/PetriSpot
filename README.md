@@ -149,8 +149,12 @@ petri64 -i model.pnml --props=ReachabilityCardinality.xml --query=3 --strategy=r
 petri64 -i model.pnml --findDeadlock -t 30
 ```
 
-Output follows the MCC convention, one line per solved property:
+Output follows the MCC convention, one line per solved property, flushed as
+soon as it is known:
 `FORMULA <id> TRUE|FALSE TECHNIQUES EXPLICIT HEURISTIC_WALK PARALLEL_PROCESSING`.
+The other machine-readable lines are `WITNESS` (with `--trace`) and `UNKNOWN`
+(with `--printUnknown`); everything else on stdout is a log (`INTEROP.md`
+section 5).
 
 ### How it works
 
@@ -192,7 +196,8 @@ Output follows the MCC convention, one line per solved property:
 | `--share=<n>`, `--shareProb=<p>` | shared restart pool |
 | `--totalTime=<s>`, `--roundTime=<s>` | round scheduling over all properties |
 | `--walkSteps=<n>`, `--runLength=<n>`, `--seed=<n>` | budgets and reproducibility |
-| `--trace` | record, verify by replay and print the witness trace |
+| `--trace` | record, verify by replay and print the witness trace as `WITNESS <id> <k> t...` |
+| `--printUnknown` | at exit, one `UNKNOWN <id>` line per property left without verdict |
 | `--netStats` | structural histograms of the net |
 
 The design, the measurements and the plan of attack are in `WALK_PLAN.md`;
