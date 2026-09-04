@@ -3,9 +3,8 @@
  *
  * expat SAX handler for the MCC property XML (property-set / property /
  * formula). Builds expr::Property values over a SparsePetriNet: places and
- * transitions are resolved by id, tokens-count becomes a sum of places,
- * is-fireable(t) is desugared into the conjunction of "m[p] >= w" over the
- * pre-arcs of t. Only the reachability fragment (EF phi, AG phi, EF deadlock)
+ * transitions are resolved by id through NetResolver, tokens-count becomes a
+ * sum of places, is-fireable is desugared into marking conditions. Only the reachability fragment (EF phi, AG phi, EF deadlock)
  * yields a supported property; anything else is kept as Unsupported with a
  * comment.
  */
@@ -14,11 +13,11 @@
 
 #include <expat.h>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "core/SparsePetriNet.h"
 #include "expr/Property.h"
+#include "parse/NetResolver.h"
 
 namespace petri::mcc
 {
@@ -51,9 +50,7 @@ template<typename T>
       bool deadlock = false;
     };
 
-    const SparsePetriNet<T> &net;
-    std::unordered_map<std::string, size_t> placeIndex;
-    std::unordered_map<std::string, size_t> transitionIndex;
+    NetResolver<T> net;
     std::vector<Frame> stack;
     std::vector<Property> properties;
     Property current;
@@ -63,10 +60,6 @@ template<typename T>
     explicit PropertyHandler (const SparsePetriNet<T> &n)
         : net (n)
     {
-      const auto &pn = net.getPnames ();
-      for (size_t i = 0; i < pn.size (); ++i) placeIndex[pn[i]] = i;
-      const auto &tn = net.getTnames ();
-      for (size_t i = 0; i < tn.size (); ++i) transitionIndex[tn[i]] = i;
     }
 
     std::vector<Property>& getParseResult ()
@@ -136,25 +129,8 @@ template<typename T>
       for (size_t p : rhs.places) a.addTerm (p, -1);
       a.constant = rhs.constant - lhs.constant;
       a.op = op;
+      a.normalize ();
       return Expression::makeAtom (std::move (a));
-    }
-
-    /** is-fireable(t): every pre-place holds at least the arc weight. */
-    Expression fireable (size_t t) const
-    {
-      const auto &pre = net.getFlowPT ().getColumn (t);
-      std::vector<Expression> kids;
-      kids.reserve (pre.size ());
-      for (size_t i = 0; i < pre.size (); ++i) {
-        LinearAtom a;
-        a.addTerm (pre.keyAt (i), 1);
-        a.constant = static_cast<long long> (pre.valueAt (i));
-        a.op = petri::expr::Cmp::GE;
-        kids.push_back (Expression::makeAtom (std::move (a)));
-      }
-      if (kids.empty ()) return Expression::constant (true);
-      if (kids.size () == 1) return std::move (kids[0]);
-      return Expression::makeAnd (std::move (kids));
     }
 
     void pushBool (Frame *parent, Expression e)
@@ -242,23 +218,15 @@ template<typename T>
         op.constant = std::stoll (trim (f.text));
         if (parent) parent->ints.push_back (std::move (op));
       } else if (tag == "place") {
-        auto it = placeIndex.find (trim (f.text));
-        if (it == placeIndex.end ()) {
-          throw "Unknown place in property: " + trim (f.text);
-        }
-        if (parent) parent->places.push_back (it->second);
+        auto p = net.place (trim (f.text));
+        if (!p) throw "Unknown place in property: " + trim (f.text);
+        if (parent) parent->places.push_back (*p);
       } else if (tag == "transition") {
-        auto it = transitionIndex.find (trim (f.text));
-        if (it == transitionIndex.end ()) {
-          throw "Unknown transition in property: " + trim (f.text);
-        }
-        if (parent) parent->transitions.push_back (it->second);
+        auto t = net.transition (trim (f.text));
+        if (!t) throw "Unknown transition in property: " + trim (f.text);
+        if (parent) parent->transitions.push_back (*t);
       } else if (tag == "is-fireable") {
-        std::vector<Expression> kids;
-        for (size_t t : f.transitions) kids.push_back (fireable (t));
-        if (kids.empty ()) pushBool (parent, Expression::constant (false));
-        else if (kids.size () == 1) pushBool (parent, std::move (kids[0]));
-        else pushBool (parent, Expression::makeOr (std::move (kids)));
+        pushBool (parent, net.anyFireable (f.transitions));
       } else if (tag == "place-bound") {
         unsupported ("place-bound (UpperBounds)");
         if (parent) parent->ints.push_back (IntOperand ());
