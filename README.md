@@ -190,6 +190,8 @@ Output follows the MCC convention, one line per solved property:
 | `--netStats` | structural histograms of the net |
 
 The design, the measurements and the plan of attack are in `WALK_PLAN.md`;
+the tool-to-tool interface with ITS-Tools (binary net, s-expression
+properties, result protocol) is designed in `INTEROP.md`;
 each source folder documents itself (`Petri/src/*/README.md`, and
 `algorithm.md` where there is an algorithm to explain).
 

@@ -581,8 +581,9 @@ are rough effort calibration.
 ### Phase 6: syntax completion and integration (about 500 lines)
 
 - PetriVizu infix parser.
-- Output protocol frozen and documented in a `WALK.md` next to `KERS.md`.
-- Java side hook in ITS-Tools (other repo).
+- Output protocol frozen and documented; Java side hook in ITS-Tools (other
+  repo). Superseded by `INTEROP.md`, which designs the exchange formats and
+  plans the replacement of `RandomExplorer` by PetriSpot.
 
 ### Later, explicitly out of scope now
 
