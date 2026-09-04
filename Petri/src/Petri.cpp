@@ -106,7 +106,8 @@ void usage ()
       << "  --walkSteps=<n>      Total step budget for the walk (default: until timeout).\n"
       << "  --runLength=<n>      Steps between restarts from the initial marking (default 1000000).\n"
       << "  --seed=<n>           Random seed (default: clock).\n"
-      << "  --trace              Print the witness trace as a transition sequence.\n"
+      << "  --trace              Record the witness trace, verify it by replay and print it\n"
+      << "                       as a transition sequence (off by default: no trace is kept).\n"
       << "  --strategy=<s>       random (default) | bestfirst (greedy on goal distance) |\n"
       << "                       structural (greedy on hop-based goal distance) |\n"
       << "                       relaxed (planning-style relaxed plan, helpful transitions).\n"
@@ -141,7 +142,7 @@ template<typename T>
 template<typename T>
   bool runWalk (const petri::walk::WalkNet<T> &wnet, const petri::walk::Target<T> &target,
                 const std::string &name, const std::string &verdict,
-                const petri::walk::WalkBudget &budget, uint64_t seed, bool printTrace, bool quiet,
+                const petri::walk::WalkBudget &budget, uint64_t seed, bool quiet,
                 const std::string &strategyName, unsigned epsilon, size_t sample, uint64_t stall, uint64_t debugSteps)
   {
     petri::walk::RandomStrategy<T> randomStrategy;
@@ -191,18 +192,18 @@ template<typename T>
       }
     }
     if (!res.found) return false;
-    if (!walker.verify (res.trace)) {
+    if (res.hasTrace && !walker.verify (res.trace)) {
       std::cerr << "Internal error: witness trace does not replay to the goal." << std::endl;
       return false;
     }
     std::cout << "FORMULA " << name << " " << verdict << " TECHNIQUES EXPLICIT " << (strategyName == "random" ? "RANDOM_WALK" : "HEURISTIC_WALK") << std::endl;
-    if (printTrace) {
+    if (res.hasTrace) {
       const auto &tnames = wnet.getNet ().getTnames ();
       std::cout << "Witness (" << res.trace.size () << " transitions):";
       for (uint32_t t : res.trace) std::cout << " " << tnames[t];
       std::cout << std::endl;
     } else if (!quiet) {
-      std::cout << "Witness length " << res.trace.size () << " ; final marking ";
+      std::cout << "Witness marking ";
       walker.currentMarking ().sparse ().print (std::cout);
       std::cout << std::endl;
     }
@@ -498,6 +499,7 @@ int main_noex (int argc, char *argv[])
         return 0;
       }
       budget.timeoutMillis = static_cast<uint64_t> (timeout) * 1000;
+      budget.recordTrace = printTrace;
       petri::walk::WalkNet<VAL> wnet (*pn);
       for (const auto &prop : props) {
         if (prop.kind == petri::expr::PropertyKind::Unsupported) {
@@ -512,15 +514,16 @@ int main_noex (int argc, char *argv[])
               << " TECHNIQUES TOPOLOGICAL TRIVIAL" << std::endl;
           continue;
         }
-        runWalk<VAL> (wnet, target, prop.name, prop.verdictIfReached (), budget, seed, printTrace, quiet, strategyName, epsilon, sample, stall, debugSteps);
+        runWalk<VAL> (wnet, target, prop.name, prop.verdictIfReached (), budget, seed, quiet, strategyName, epsilon, sample, stall, debugSteps);
       }
     }
 
     if (findDeadlock) {
       budget.timeoutMillis = static_cast<uint64_t> (timeout) * 1000;
+      budget.recordTrace = printTrace;
       petri::walk::WalkNet<VAL> wnet (*pn);
       petri::walk::Target<VAL> target = petri::walk::Target<VAL>::deadlockTarget ();
-      runWalk<VAL> (wnet, target, "ReachabilityDeadlock", "TRUE", budget, seed, printTrace, quiet, strategyName, epsilon, sample, stall, debugSteps);
+      runWalk<VAL> (wnet, target, "ReachabilityDeadlock", "TRUE", budget, seed, quiet, strategyName, epsilon, sample, stall, debugSteps);
     }
 
     if (invariants) {

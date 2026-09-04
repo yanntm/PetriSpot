@@ -35,6 +35,7 @@ struct WalkStats
 struct WalkResult
 {
   bool found = false;
+  bool hasTrace = false;       // trace was recorded (WalkBudget::recordTrace)
   std::vector<uint32_t> trace; // transitions fired from the initial marking
   WalkStats stats;
 };
@@ -44,6 +45,7 @@ struct WalkBudget
   uint64_t maxSteps = 0;       // 0: unlimited
   uint64_t runLength = 1000000; // steps between resets
   uint64_t timeoutMillis = 0;  // 0: unlimited
+  bool recordTrace = false;    // keep the fired transitions of the current run
 };
 
 template<typename T>
@@ -59,6 +61,7 @@ template<typename T>
     Marking<T> marking;
     EnabledSet<T> enabled;
     std::vector<uint32_t> trace;
+    bool recordTrace = false;
 
     void reset ()
     {
@@ -73,7 +76,7 @@ template<typename T>
       marking.apply (net.effect (t), [this] (size_t p, T oldv, T newv) {
         enabled.onPlaceChanged (p, oldv, newv);
       });
-      trace.push_back (t);
+      if (recordTrace) trace.push_back (t);
     }
 
   public:
@@ -92,6 +95,8 @@ template<typename T>
       using clock = std::chrono::steady_clock;
       auto start = clock::now ();
       WalkResult result;
+      recordTrace = budget.recordTrace;
+      result.hasTrace = recordTrace;
       WalkStats &st = result.stats;
       WalkContext<T> ctx { net, marking, enabled, rng };
       uint64_t runSteps = 0;
@@ -99,7 +104,7 @@ template<typename T>
       for (;;) {
         if (target.reached (marking, enabled)) {
           result.found = true;
-          result.trace = trace;
+          if (recordTrace) result.trace = trace;
           break;
         }
         if (enabled.empty () || runSteps >= budget.runLength) {
@@ -138,6 +143,7 @@ template<typename T>
     /** Replay a trace from the initial marking; true iff the target holds at its end. */
     bool verify (const std::vector<uint32_t> &witness)
     {
+      recordTrace = false;
       reset ();
       for (uint32_t t : witness) {
         if (!enabled.isEnabled (t)) return false;

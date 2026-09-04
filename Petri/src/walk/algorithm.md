@@ -114,6 +114,9 @@ loop:
   every 1024 steps: check the wall clock and the step budget
 ```
 
-The trace holds the transitions fired since the last reset, so a witness is
-the sequence from the initial marking. Before it is reported the walker
-replays it on a fresh marking and checks the goal again.
+Trace recording is optional (`WalkBudget::recordTrace`, CLI `--trace`). When
+off, the walker never touches the trace vector and a witness is reported as
+the marking reached. When on, the trace holds the transitions fired since the
+last reset, so a witness is the sequence from the initial marking; before it
+is reported the walker replays it on a fresh marking and checks the goal
+again.
