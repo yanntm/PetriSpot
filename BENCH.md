@@ -82,10 +82,13 @@ result directories `L/`, `RD/`, `UB/` and their `OAR.*.stdout` exist only on
 the cluster. Rsync a subtree (`.../itstools/`, `.../INPUTS/`) rather than the
 root when results are in place.
 
-The ITS-Tools product zip stores every plugin binary as mode `644` --
-`petri64`, `its-reach-linux64`, `louvain-linux64` alike -- so after an install
-only the Java runtime ever makes them executable, and a hundred concurrent jobs
-sharing one tree race on that. Do it once, before the rsync:
+Until ITS-Tools `202609052009` the product zip stored every plugin binary as
+mode `644` -- `petri64`, `its-reach-linux64`, `louvain-linux64` alike -- so
+after an install only the Java runtime ever made them executable, and a hundred
+concurrent jobs sharing one tree raced on that. A `p2.inf` chmod touchpoint in
+each binaries plugin now sets 755 when p2 materializes the product, and a fresh
+install comes out executable. On an older product, do it by hand before the
+rsync:
 
 ```
 chmod +x MCC-drivers/itstools/itstools/plugins/*/bin/*
