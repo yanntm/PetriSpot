@@ -1,10 +1,18 @@
 # Campaign of 2026-09-05 — global properties and UpperBounds
 
 ITS-Tools (`BK_TOOL=itstools`, no reducer prefix) on the whole MCC 2026 set,
-1953 instances, six examinations, one `oarsub` per pair, 1800 s per test, 4
-cores, all on the `tall` nodes of `cluster.lip6.fr`. Builds `202609051237`
-(the first jobs) and `202609051349` (the rest). Logs live in
-`/data/ythierry/MCC26run/`, rsynced from `~/MCC26/MCC-drivers/{L,OS,QL,RD,SM,UB}`.
+six examinations, one `oarsub` per pair, 1800 s per test, 4 cores, all on the
+`tall` nodes of `cluster.lip6.fr`. Builds `202609051237` (the first jobs) and
+`202609051349` (the rest). Logs live in `/data/ythierry/MCC26run/`, rsynced
+from `~/MCC26/MCC-drivers/{L,OS,QL,RD,SM,UB}`.
+
+1951 instances, not 1953: `StigmergyCommit-PT-11b` and `TokenRing-PT-050` were
+absent from `INPUTS/` and every one of their runs died on
+`Cannot open file .../model.pnml`. Their twelve logs are dropped from these
+tables; the two archives have since been fetched from
+`https://mcc.lip6.fr/2026/archives/INPUTS-2026.tar.gz`, which carries them at
+full size, installed into `pnmcc-models-2026/website/INPUTS/` and deployed to
+the cluster, and the twelve tests resubmitted against build `202609051741`.
 
 `ReachabilityCardinality`, `ReachabilityFireability`, the CTL and LTL
 examinations and `StateSpace` were not run.
@@ -13,26 +21,25 @@ examinations and `StateSpace` were not run.
 
 | examination | oracle | known | answered | ok | wrong | missed | bonus | wall (h) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Liveness | 1953 | 1837 | 1813 | 1807 | 0 | 30 | 6 | 84.0 |
-| OneSafe | 1953 | 1943 | 1940 | 1940 | 0 | 3 | 0 | 6.4 |
-| QuasiLiveness | 1953 | 1783 | 1786 | 1763 | 0 | 20 | 23 | 127.9 |
-| ReachabilityDeadlock | 1953 | 1893 | 1871 | 1868 | 0 | 25 | 3 | 43.6 |
-| StableMarking | 1953 | 1886 | 1837 | 1836 | 0 | 50 | 1 | 65.4 |
-| UpperBounds | 31248 | 30345 | 29958 | 29902 | 0 | 443 | 56 | 122.3 |
+| Liveness | 1951 | 1837 | 1813 | 1807 | 0 | 30 | 6 | 84.0 |
+| OneSafe | 1951 | 1941 | 1940 | 1940 | 0 | 1 | 0 | 6.4 |
+| QuasiLiveness | 1951 | 1782 | 1786 | 1763 | 0 | 19 | 23 | 127.9 |
+| ReachabilityDeadlock | 1951 | 1892 | 1871 | 1868 | 0 | 24 | 3 | 43.6 |
+| StableMarking | 1951 | 1884 | 1837 | 1836 | 0 | 48 | 1 | 65.4 |
+| UpperBounds | 31216 | 30313 | 29958 | 29902 | 0 | 411 | 56 | 122.3 |
 
-**No wrong verdict anywhere**: 39116 values compared, 0 disagreements with a
+**No wrong verdict anywhere**: 39649 values compared, 0 disagreements with a
 known oracle value. 89 answers are `bonus`, that is verdicts on formulas the
 2026 consensus oracle leaves at `?` — candidate contributions to the oracle,
 and the only answers no other tool checks, so the only place an error could
 hide. They are the `status == bonus` rows of `verdicts.csv`.
 
-## Why 571 values were not produced
+## Why 533 values were not produced
 
 | cause | L | OS | QL | RD | SM | UB | total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | timeout (1800 s) | 28 | 0 | 16 | 16 | 15 | 330 | 405 |
 | `petri64` not runnable | 0 | 0 | 0 | 0 | 20 | 20 | 40 |
-| model absent from `INPUTS/` | 0 | 2 | 1 | 1 | 2 | 32 | 38 |
 | `OverlargeMarkingException` | 1 | 0 | 1 | 1 | 1 | 25 | 29 |
 | eclipse fatal error | 0 | 0 | 0 | 7 | 5 | 3 | 15 |
 | gave up before the timeout | 0 | 1 | 2 | 0 | 7 | 32 | 42 |
@@ -40,20 +47,21 @@ hide. They are the `status == bonus` rows of `verdicts.csv`.
 | Java `OutOfMemoryError` | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
 
 Only the first and the last lines are about the tools being too slow or too
-hungry; 123 of the 571 are harness or front-end accidents.
+hungry; 85 of the 533 are harness or front-end accidents.
 
 * **`petri64` not runnable.** Two windows, 15:32–15:56 and 19:09–19:24, where
   the Java side reports `Cannot run program .../bin/petri64: Exec failed`,
   first `No such file or directory` (1483 calls) and later `Permission denied`
   (146 calls). The binary in
   `itstools/itstools/plugins/fr.lip6.petrispot.binaries_*/bin/` was replaced
-  while the campaign was running and came back mode `644`. It is still `644`
-  on the cluster, so **every future run there loses PetriSpot silently** — the
-  Java side catches the exception and carries on. `chmod +x` before the next
-  campaign, and check what `install.sh` does with the mode.
-* **Model absent from `INPUTS/`.** `StigmergyCommit-PT-11b` and
-  `TokenRing-PT-050`, the two archives missing from `pnmcc-models-2026`
-  (BENCH.md). Known, unfixable from the models repository.
+  while the campaign was running and came back mode `644`, and a run that
+  cannot spawn `petri64` **loses PetriSpot silently** — the Java side catches
+  the exception and carries on. A fresh install of the
+  ITS-Tools product unzips **every** plugin binary as mode `644` — `petri64`,
+  `its-reach-linux64`, `louvain-linux64` alike — so the runtime is the only
+  thing that ever makes them executable, and under a hundred concurrent jobs
+  sharing one tree that is a race. The redeploy of build `202609051741`
+  `chmod +x`es the plugin `bin/` directories before the rsync.
 * **`OverlargeMarkingException`, libDDD overflow.** `GPPP-PT-C0010N1000000000`,
   `SharedMemory-COL-050000`, `SatelliteMemory-PT-X65535Y2048`: markings that do
   not fit the front-end's or libDDD's value type. An ITS-Tools limit.

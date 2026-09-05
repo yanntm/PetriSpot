@@ -30,7 +30,6 @@ RUN_COLUMNS = [
 
 VERDICT_COLUMNS = [
     "log", "Model", "Examination", "formula", "oracle", "answer", "status",
-    "techniques",
 ]
 
 RE_HOST = re.compile(r"^Linux (\S+) ")
@@ -38,7 +37,7 @@ RE_TITLE = re.compile(r"^Running test : (\S+)")
 RE_TIMEOUT = re.compile(r"^Timeout set at :(\d+) seconds")
 RE_SYSCALL = re.compile(r"^syscalling : (.*)$")
 RE_VERSION = re.compile(r"^Running Version (\S+)")
-RE_VERDICT = re.compile(r"^(?:FORMULA|STATE_SPACE)\s+(\S+)\s+(\S+)(?:\s+TECHNIQUES\s+(.*?))?\s*$")
+RE_VERDICT = re.compile(r"^(?:FORMULA|STATE_SPACE)\s+(\S+)\s+(\S+)")
 RE_TC = re.compile(r"##teamcity\[(\w+) name='([^']*)'(?:.*?duration='(\d+)')?")
 RE_STAMP = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\]")
 RE_WALK = re.compile(r"^PetriSpot walker: (\d+)/(\d+) properties solved"
@@ -71,7 +70,6 @@ def parse(path):
     started = failed = finished = 0
     oracle = {}
     answer = {}
-    techniques = {}
     in_control = False
     seen_syscall = False
     petrispot = petrispot_fail = petrispot_timeout = 0
@@ -104,7 +102,6 @@ def parse(path):
                 m = RE_VERDICT.match(line)
                 if m:
                     answer[m.group(1)] = m.group(2)
-                    techniques[m.group(1)] = (m.group(3) or "").strip()
                     continue
             if line.startswith("Running PetriSpot"):
                 petrispot += 1
@@ -190,7 +187,6 @@ def parse(path):
             "oracle": "" if exp is None else exp,
             "answer": "" if got is None else got,
             "status": status,
-            "techniques": techniques.get(name, ""),
         })
 
     run.update({

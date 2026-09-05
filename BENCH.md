@@ -52,15 +52,48 @@ mkdir -p INPUTS && cp ~/git/pnmcc-models-2026/website/INPUTS/*.tgz INPUTS/
 The oracles are committed in `MCC-drivers/oracle/` (24827 files, `ORACLE2026`
 and `TEDD2026` verdicts), so `install_oracle.sh` is not needed.
 
-`INPUTS/` holds 1951 archives, the whole 2026 set minus `StigmergyCommit-PT-11b`
-and `TokenRing-PT-050`, which exceed the GitHub pages file size limit and are
-therefore absent from `pnmcc-models-2026` itself.
+`INPUTS/` holds the whole 2026 set. Two archives, `StigmergyCommit-PT-11b`
+(140 MB) and `TokenRing-PT-050` (99 MB), exceed the GitHub pages file size
+limit, so `install_inputs.sh` deletes them and `pnmcc-models-2026` does not
+publish them: a tool that is handed the model folder finds no `model.pnml` and
+the whole test reports nothing. They come from the contest archive instead,
+which carries every model at full size:
+
+```
+cd ~/git/pnmcc-models-2026/website
+wget https://mcc.lip6.fr/2026/archives/INPUTS-2026.tar.gz          # 1.1 GB
+tar xzf INPUTS-2026.tar.gz INPUTS-2026/StigmergyCommit-PT-11b.tgz \
+                           INPUTS-2026/TokenRing-PT-050.tgz
+```
+
+Unpack, run `patch_models.pl` on the folder and repack, as `install_inputs.sh`
+does for every other model, then copy the two `.tgz` into `INPUTS/`. The models
+themselves are byte identical from one edition to the next; the property files
+are not, so the archive must be the 2026 one.
 
 ## Rsync to the cluster
 
 ```
 rsync -rlptD --no-g --chmod=Dg+s --delete /data/ythierry/MCC26deploy/ cluster.lip6.fr:MCC26/
 ```
+
+`--delete` over the whole tree is destructive once a campaign has run: the
+result directories `L/`, `RD/`, `UB/` and their `OAR.*.stdout` exist only on
+the cluster. Rsync a subtree (`.../itstools/`, `.../INPUTS/`) rather than the
+root when results are in place.
+
+The ITS-Tools product zip stores every plugin binary as mode `644` --
+`petri64`, `its-reach-linux64`, `louvain-linux64` alike -- so after an install
+only the Java runtime ever makes them executable, and a hundred concurrent jobs
+sharing one tree race on that. Do it once, before the rsync:
+
+```
+chmod +x MCC-drivers/itstools/itstools/plugins/*/bin/*
+```
+
+A job that cannot spawn `petri64` says so once
+(`PetriSpot I/O error (PFLOWS): ... Exec failed`) and then carries on without
+PetriSpot, so the loss is silent in the verdicts.
 
 `--chmod=Dg+s` is load bearing, and `-a` is wrong here. The home directory on
 the cluster is setgid to the group `ythierry`, which is the group that carries

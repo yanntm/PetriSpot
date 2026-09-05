@@ -27,14 +27,14 @@ first verdict; then what PetriSpot did — `petrispot` invocations, of which
 their `PFLOWS`/`PSEMIFLOWS` budget, and the walker census `walk calls`,
 `walk asked`, `walk solved`, `walk ms`, `walk killed`; then `failure`, the
 first fatal signature the log carries (`no_input`, `overlarge_marking`,
-`eclipse_fatal`, `out_of_memory`, `its_abort`); then the verdict census: `oracle` values expected, of which `known` are not
-`?`, `answered` by the tool, and among those `ok`, `wrong`, `missed` (the
+`eclipse_fatal`, `out_of_memory`, `its_abort`); then the verdict census:
+`oracle` values expected, of which `known` are not `?`, `answered` by the tool,
+and among those `ok`, `wrong`, `missed` (the
 oracle knows, we do not), `bonus` (the oracle does not know, we do) and `extra`
 (a verdict for a formula the oracle never mentions).
 
-`verdicts.csv` has one row per formula with the same `status` vocabulary, plus
-the `TECHNIQUES` the tool claimed for that answer — the column that says
-whether a random walk, an SMT solver or the decision diagrams did the work.
+`verdicts.csv` has one row per formula, with the oracle value, the answer and
+the same `status` vocabulary.
 
 ## Use
 
