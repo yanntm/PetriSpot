@@ -67,10 +67,11 @@ the last line of each object. Nothing is printed post hoc, so an external
 kill loses at most the current phase. An atom with no line is unanswered:
 the header gives the count the completion fraction is taken against.
 
-For the cluster, `MCC-drivers/gen_total_oracles.sh` writes one oracle per
-examination and instance with a `?` per object (`<instance>-QLA.out`,
-`-SMA.out`, `-UBA.out`), so `run_test.pl` runs them like any examination and
-reports the unanswered atoms as missing results. A `?` is to be replaced by
+For the cluster, `pnmcc-models-2026/make_total_oracles.sh` writes one oracle
+per examination and P/T instance with a `?` per object (`<instance>-QLA.out`,
+`-SMA.out`, `-UBA.out`), published as `oracle-total.tar.gz` and fetched by
+`MCC-drivers/install_total_oracles.sh`, so `run_test.pl` runs them like any
+examination and reports the unanswered atoms as missing results. A `?` is to be replaced by
 a verdict once one is trusted. Note that an open bound's `? lo hi` line is a
 reported result to `run_test.pl`, matching the `?` of the oracle; completion
 is the count of verdict lines, those without a `?`, over the header count.

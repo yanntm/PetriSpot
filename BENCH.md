@@ -50,7 +50,9 @@ mkdir -p INPUTS && cp ~/git/pnmcc-models-2026/website/INPUTS/*.tgz INPUTS/
 ```
 
 The oracles are committed in `MCC-drivers/oracle/` (24827 files, `ORACLE2026`
-and `TEDD2026` verdicts), so `install_oracle.sh` is not needed.
+and `TEDD2026` verdicts), so `install_oracle.sh` is not needed. The oracles of
+the total examinations (`TOTAL_QUERIES.md`) are not committed, they are 400 MB
+of `?`: `./install_total_oracles.sh` fetches them into the same folder.
 
 `INPUTS/` holds the whole 2026 set. Two archives, `StigmergyCommit-PT-11b`
 (140 MB) and `TokenRing-PT-050` (99 MB), exceed the GitHub pages file size
