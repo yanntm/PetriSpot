@@ -20,6 +20,11 @@ PNML, answers OneSafe in 112 s and 8 of 16 bounds, and times out on the rest.
 `ReachabilityCardinality`, `ReachabilityFireability`, the CTL and LTL
 examinations and `StateSpace` were not run.
 
+The `ReachabilityDeadlock` numbers below are those of this campaign. The whole
+examination was rerun afterwards on a newer build; its logs live in
+`/data/ythierry/MCC26archive/RD-2026-09-05/` and the rerun has a campaign
+folder of its own.
+
 ## Verdicts against the 2026 oracle
 
 | examination | oracle | known | answered | ok | wrong | missed | bonus | wall (h) |
