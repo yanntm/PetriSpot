@@ -13,8 +13,9 @@ the data structures and the step.
 * `Strategy.h` — transition choice interface (`RESTART` sentinel), `RandomStrategy`.
 * `GoalDistance.h` — distance interface, `MarkingDistance` (expression distance).
 * `StructuralDistance.h` — hop-based refinement for `place >= k` atoms.
-* `DeadlockDistance.h` — enabled-transition count, the distance of a deadlock
-  target (planned, see `algorithm.md`).
+* `DeadlockStrategy.h` — greedy descent of the enabled-transition count, the
+  distance of a deadlock target; successor counts from the unsatisfied-arc
+  counters, without building the successor marking.
 * `BestFirstStrategy.h` — greedy on a `GoalDistance`, epsilon, stall restart.
 * `RelaxedPlan.h`, `RelaxedPlanStrategy.h` — delete-relaxation cost (h_add),
   relaxed plan extraction, helpful-transition choice.

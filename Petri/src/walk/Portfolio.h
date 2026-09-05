@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "walk/BestFirstStrategy.h"
+#include "walk/DeadlockStrategy.h"
 #include "walk/GoalDistance.h"
 #include "walk/ParikhStrategy.h"
 #include "walk/RelaxedPlanStrategy.h"
@@ -102,20 +103,23 @@ template<typename T>
     std::unique_ptr<Strategy<T>> strategy;
     BestFirstStrategy<T> *bestFirst = nullptr;
     RelaxedPlanStrategy<T> *relaxed = nullptr;
+    DeadlockStrategy<T> *deadlock = nullptr;
 
     /** Best heuristic value seen (instrumentation), or 0 for random. */
     uint64_t minHeuristic () const
     {
       if (bestFirst) return bestFirst->minDistance;
       if (relaxed) return relaxed->minHeuristic;
+      if (deadlock) return deadlock->minEnabled;
       return 0;
     }
   };
 
 /**
- * The strategy of spec aimed at focus; random when there is no focus or it is
- * a deadlock. A bound without a known limit has no goal atom: every heuristic
- * strategy becomes best-first on the value of the form (BoundDistance).
+ * The strategy of spec aimed at focus; random when there is no focus. A
+ * deadlock target has no goal atom either: every heuristic strategy becomes
+ * the greedy descent of the enabled count (DeadlockStrategy). A bound without
+ * a known limit becomes best-first on the value of the form (BoundDistance).
  */
 template<typename T>
   StrategyBundle<T> makeStrategy (const StrategySpec &spec, const WalkNet<T> &net, const Target<T> *focus)
@@ -130,7 +134,18 @@ template<typename T>
         b.strategy = std::make_unique<RandomStrategy<T>> ();
         b.spec.name = "random";
       }
-    } else if (!focus || focus->isDeadlock () || n == "random") {
+    } else if (focus && focus->isDeadlock ()) {
+      // A deadlock target carries no expression, so the distance strategies
+      // have nothing to descend; the enabled count is its distance.
+      if (n == "random") {
+        b.strategy = std::make_unique<RandomStrategy<T>> ();
+      } else {
+        auto s = std::make_unique<DeadlockStrategy<T>> (net, spec.epsilon, spec.sample, spec.stall);
+        b.deadlock = s.get ();
+        b.strategy = std::move (s);
+        b.spec.name = "deadlock";
+      }
+    } else if (!focus || n == "random") {
       b.strategy = std::make_unique<RandomStrategy<T>> ();
       b.spec.name = "random";
     } else if (focus->isBound () && !focus->hasLimit ()) {

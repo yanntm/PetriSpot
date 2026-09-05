@@ -117,6 +117,12 @@ template<typename T>
       }
     }
 
+    /** Unsatisfied pre-arcs of t; t is enabled exactly when this is zero. */
+    uint32_t unsatOf (size_t t) const
+    {
+      return unsat[t];
+    }
+
     size_t size () const
     {
       return list.size ();

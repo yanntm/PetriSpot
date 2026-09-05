@@ -215,9 +215,26 @@ the restart carry the weight here, because the rule is greedy and a net can
 hold a region that is cheap in enabled transitions and has no dead marking in
 it at all; `random` stays in the pool for the same reason.
 
-`--findDeadlock` builds its strategies through the same `strategyPool` as the
-property path, so a request for several threads spreads them over the pool
-instead of running one strategy several times.
+Saturation belongs in any pool, not only this one, and it is free where it
+cannot help: `Walker::maxFirings` returns 1 for a transition that depletes
+nothing, and on a one-safe net the tokens beyond the first firing are zero, so
+a saturated strategy degenerates to its plain form. The default property pool
+saturates its three heuristics for that reason and keeps one plain random walk.
+
+Saturation is the other axis of the deadlock pool, and on the evidence the
+more decisive one. A net
+whose dead markings sit behind a long repetition of one transition is drained
+by firing that transition while it stays enabled, not by choosing it again and
+again: on `Angiogenesis-PT-20` no unsaturated walk finds the deadlock in ten
+seconds, and every saturated one finds it in milliseconds. The two axes are
+independent, so the default pool of `--findDeadlock` spans both:
+`random`, `random+sat`, `deadlock+sat:10:2000`, `deadlock:30:500`. On the three
+models measured so far each of the first three wins one: `random+sat` takes
+Angiogenesis in 5 ms, plain `random` takes Philosophers-PT-000100 and -001000.
+
+`--findDeadlock` builds its strategies through `--strategies`, else
+`--strategy`, else that pool, so a request for several threads spreads them
+over it instead of running one strategy several times.
 
 ## Portfolio (threads)
 

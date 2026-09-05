@@ -47,7 +47,13 @@ inline std::vector<petri::walk::StrategySpec> strategyPool (const Options &o)
 {
   std::string list = o.strategies;
   if (list.empty ()) {
-    list = (o.strategy != "random" || o.threads == 1) ? o.strategy : "random,bestfirst,structural,relaxed";
+    // The heuristics saturate: firing the chosen transition while it stays
+    // enabled is what crosses a net whose goal sits behind a long repetition
+    // of one transition, and it costs nothing where it cannot apply, since
+    // maxFirings returns 1 both for a transition that depletes nothing and on
+    // a one-safe net. One plain random walk keeps the unsaturated corner.
+    list = (o.strategy != "random" || o.threads == 1)
+        ? o.strategy : "random,bestfirst+sat,structural+sat,relaxed+sat";
   }
   return petri::walk::parseStrategySpecs (list, o.epsilon, o.stall, o.sample);
 }
@@ -311,7 +317,20 @@ template<typename T>
     budget.timeoutMillis = static_cast<uint64_t> (o.timeout) * 1000;
     budget.recordTrace = o.trace;
     petri::walk::WalkNet<T> wnet (pn);
-    std::vector<petri::walk::StrategySpec> specs = petri::walk::parseStrategySpecs ("random", o.epsilon, o.stall, o.sample);
+    // --strategies, else --strategy, else a pool over the two axes that
+    // matter here. Saturation, firing the chosen transition while it stays
+    // enabled, is what drains the marking of a net whose dead markings sit
+    // behind long repetitions of one transition; the greedy descent of the
+    // enabled count is what steers a net where dead markings are rare. Either
+    // can be the one that works: on Angiogenesis-PT-20 no unsaturated walk
+    // finds the deadlock in ten seconds and every saturated one finds it in
+    // milliseconds, while on Philosophers plain random wins the race.
+    std::string list = o.strategies;
+    if (list.empty ()) {
+      list = (o.strategy != "random" || o.threads == 1)
+          ? o.strategy : "random,random+sat,deadlock+sat:10:2000,deadlock:30:500";
+    }
+    std::vector<petri::walk::StrategySpec> specs = petri::walk::parseStrategySpecs (list, o.epsilon, o.stall, o.sample);
     std::vector<petri::walk::Target<T>> tg { petri::walk::Target<T>::deadlockTarget () };
     petri::walk::TargetSet<T> targets (pn.getPlaceCount (), std::move (tg), { "ReachabilityDeadlock" }, { "TRUE" });
     runWalk (o, wnet, targets, 0, budget, specs);
