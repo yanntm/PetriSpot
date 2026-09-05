@@ -212,6 +212,9 @@ else on stdout is a log (`INTEROP.md` section 5).
 The design, the measurements and the plan of attack are in `WALK_PLAN.md`;
 the tool-to-tool interface with ITS-Tools (binary net, s-expression
 properties, result protocol) is designed in `INTEROP.md`;
+`PORTFOLIO.md` argues what that interface should become once the caller is a
+scheduler handing out goals and budgets rather than a pipeline;
+`BENCH.md` and `Petri/test/mcc/` are the MCC campaigns and their reading;
 each source folder documents itself (`Petri/src/*/README.md`, and
 `algorithm.md` where there is an algorithm to explain).
 
