@@ -12,7 +12,7 @@ The `petri*` binaries are one `main` (`src/Petri.cpp`) over these headers.
   (`--loadKERS`, program-to-program mode) or from a loaded net (P/T flows and
   semi-flows, printing, `--basisKERS` export).
 * `WalkDriver.h` — the reachability side: property loading and printing,
-  the round scheduler over open properties (`--totalTime`), the portfolio run
+  the round scheduler over open properties (`--totalTime`, `--escalate`), the portfolio run
   for one target and the `FORMULA` output, `--findDeadlock`.
 
 CLI11 (v2.7.2) is the documented all-in-one header, copied as is into

@@ -205,6 +205,7 @@ else on stdout is a log (`INTEROP.md` section 5).
 | `--totalTime=<s>`, `--roundTime=<s>` | round scheduling over all properties |
 | `--sweepTime=<s>` | random multi-target round before the focused rounds (default 1, 0 disables) |
 | `--walkSteps=<n>`, `--runLength=<n>`, `--seed=<n>` | budgets and reproducibility; with `--walkSteps` the rounds stop as soon as one solves nothing and every walk hit the step budget |
+| `--escalate` | on such a round, multiply the step budget and walk on while `--totalTime` lasts, rather than concluding that more time cannot help |
 | `--trace` | record, verify by replay and print the witness trace as `WITNESS <id> <k> t...` |
 | `--printUnknown` | at exit, one `UNKNOWN <id>` line per property left without verdict |
 | `--netStats` | structural histograms of the net |

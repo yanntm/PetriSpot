@@ -75,6 +75,7 @@ struct Options
   size_t share = 0;
   unsigned shareProb = 50;
   long totalTime = 0;
+  bool escalate = false;   // raise the step budget rather than concede a round
   long roundTime = 1;
   long sweepTime = 1; // random multi-target round before the focused rounds (0: none)
 
@@ -186,6 +187,9 @@ inline void addOptions (CLI::App &app, Options &o)
   wk->add_option ("--totalTime", o.totalTime,
                   "Global budget in seconds for all properties, walked in rounds of growing per-property budget.");
   wk->add_option ("--roundTime", o.roundTime, "Per-property budget of the first round, seconds (default 1).");
+  wk->add_flag ("--escalate", o.escalate,
+                "When a round solves nothing and every walk ended on its step budget, multiply the step budget "
+                "and walk on, instead of concluding that more time cannot help.");
   wk->add_option ("--sweepTime", o.sweepTime,
                   "With at least two open properties, a first round of random walks checking all of them at once, "
                   "seconds (default 1, 0 disables).");

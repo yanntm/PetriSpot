@@ -235,7 +235,9 @@ template<typename T>
  * per-property budget growing tenfold per round under --totalTime, or the -t
  * timeout for each otherwise. The rounds stop early when one of them solved
  * nothing, improved no bound, and every walk in it ended on the step budget:
- * more time would change nothing. Every bound target ends with a BOUND line.
+ * more time would change nothing -- unless --escalate, which raises the step
+ * budget tenfold instead and keeps walking while the total budget lasts.
+ * Every bound target ends with a BOUND line.
  */
 template<typename T>
   void runProperties (const Options &o, const SparsePetriNet<T> &pn)
@@ -292,9 +294,17 @@ template<typename T>
       }
       if (totalMs <= 0) break;
       if (allStepBound && targets.openCount () == openBefore && boundValues (targets) == boundsBefore) {
-        std::cout << "Round " << round << " solved nothing and every walk ended on the step budget: stopping."
-            << std::endl;
-        break;
+        // Every walk stopped counting steps, not time, and none of them found
+        // anything: more time alone would indeed change nothing. More steps
+        // might, and under --escalate that is what the remaining budget buys.
+        if (!o.escalate || budget.maxSteps == 0) {
+          std::cout << "Round " << round << " solved nothing and every walk ended on the step budget: stopping."
+              << std::endl;
+          break;
+        }
+        budget.maxSteps *= 10;
+        std::cout << "Round " << round << " solved nothing and every walk ended on the step budget: raising it to "
+            << budget.maxSteps << " steps." << std::endl;
       }
       perProperty *= 10;
     }
