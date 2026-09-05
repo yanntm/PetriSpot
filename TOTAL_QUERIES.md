@@ -78,6 +78,10 @@ is the count of verdict lines, those without a `?`, over the header count.
 
 ## What to measure
 
+`Petri/test/mcc/totallogs2csv.py` reads the campaign logs into one row per
+run: completion, witnessed against proved, the engine per verdict, the time
+at which a quarter, half, three quarters and all of the atoms were closed.
+
 * Completion fraction per model, and the curve of atoms closed against time —
   a knee says a few pathological atoms, a slope says a wall.
 * Witnessed against proved, per model.

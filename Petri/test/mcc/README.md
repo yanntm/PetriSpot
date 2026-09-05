@@ -8,6 +8,11 @@ those logs into tables we can analyse.
 
 * `mcclogs2csv.py` — the collector. Takes examination directories, writes
   `runs.csv` (one row per log) and `verdicts.csv` (one row per formula).
+* `totallogs2csv.py` — the collector of the total examinations
+  (`TOTAL_QUERIES.md`): one row per log with the atoms answered, the
+  witnessed/proved split, the engine that closed them and the time at which a
+  quarter, half, three quarters and all were closed; `--oracles DIR` also
+  writes the answers as vector oracles in the `pnmcc-models-2026` format.
 * `toolsupport.py` — joins a `verdicts.csv` with the contest's
   `raw-result-analysis.csv` (in `pnmcc-models-20xx/website/`) and writes
   `support.csv`: for every value, which tools produced the oracle verdict
@@ -50,6 +55,7 @@ the same `status` vocabulary.
 
 ```
 python3 mcclogs2csv.py L OS QL RD SM UB -o csv/<campaign>/
+python3 totallogs2csv.py QLA SMA UBA -o csv/<campaign>/ --oracles csv/<campaign>/oracles/
 python3 toolsupport.py ~/git/pnmcc-models-2026/website/raw-result-analysis.csv \
         csv/<campaign>/verdicts.csv -o csv/<campaign>/support.csv
 ```
