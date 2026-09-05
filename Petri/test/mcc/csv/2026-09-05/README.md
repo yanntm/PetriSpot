@@ -34,6 +34,31 @@ known oracle value. 89 answers are `bonus`, that is verdicts on formulas the
 and the only answers no other tool checks, so the only place an error could
 hide. They are the `status == bonus` rows of `verdicts.csv`.
 
+Two different things are called a miss. 1766 values went unanswered — an ideal
+tool would have produced every one of them. Of those, 1233 are `none`: nobody
+answered, the oracle has `?` there too, and they are open problems rather than
+a gap of ours. The other 533 are `missed`: the consensus knows the value and we
+did not produce it. Only that second number measures us against the field.
+
+| examination | oracle | answered | ok | missed | none | unanswered |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Liveness | 1951 | 1813 | 1807 | 30 | 108 | 138 |
+| OneSafe | 1951 | 1940 | 1940 | 1 | 10 | 11 |
+| QuasiLiveness | 1951 | 1786 | 1763 | 19 | 146 | 165 |
+| ReachabilityDeadlock | 1951 | 1871 | 1868 | 24 | 56 | 80 |
+| StableMarking | 1951 | 1837 | 1836 | 48 | 66 | 114 |
+| UpperBounds | 31216 | 29958 | 29902 | 411 | 847 | 1258 |
+
+`toolsupport.py` joins `verdicts.csv` with the contest's
+`raw-result-analysis.csv` and says who did answer each of the 533. Every one is
+backed by at least one tool and every `bonus` by none, so the oracle is fully
+explained by the evidence. **298 of the 533 were answered by ITS-Tools itself
+in the contest** — our run is weaker than the submission there, most plausibly
+because the contest budget is larger than the 1800 s used here. The remaining
+235 are values another tool has and ITS-Tools did not: Tapaal alone carries
+most of them, and 43 come from `2025-gold`, the previous edition's medallist,
+the only tool to answer them.
+
 ## Why 533 values were not produced
 
 | cause | L | OS | QL | RD | SM | UB | total |
@@ -117,3 +142,38 @@ raises `Max Seen` from `[4,1,2,...]` to `[4,2,2,...]` and never touches
 `Max Struct`, stuck at 7 for every expression, so no bound closes and 11 of 16
 values go unreported after 92 s of walking. On `BlocksWorld-PT-10` the walker
 spends 280 s for 0 of 53 properties.
+
+
+## Log volume
+
+419 MB of logs for 11706 runs, and 60 % of it is one printing habit. Counting
+bytes by line shape:
+
+| MB | lines | shape |
+| ---: | ---: | --- |
+| 110.8 | 915 029 | `Model ,\|S\| ,Time ,Mem(kb) ,fin. SDD ,...` |
+| 69.6 | 1 468 890 | `Reachability property qltransition_N is true.` |
+| ~71 | ~800 000 | the statistics rows themselves |
+| 5.3 | 121 409 | `Invariant property smplace_N does not hold.` |
+| 4.8 | 73 626 | `SDD proceeding with computation, N properties remain` |
+| 3.7 | 14 331 | `Running PetriSpot : '<absolute path>' '--loadKERS=...'` |
+| 3.5 | 135 589 | `Problem TDEADN is UNSAT` |
+
+The first line is the CSV **header** of the statistics table, reprinted before
+every single row: `Statistic::print_table` (libDDD `ddd/statistic.cpp`) is
+header + line + trailer, and libITS calls it once per property
+(`bin/main.cpp:642`, and again at `:588`). On `ErlangenMainframeV1-PT-bP11C06`
+QuasiLiveness that is 69 273 headers in one 17.8 MB log. Printing the header
+once per run and `print_line` per property would drop 110 MB of the 419 with no
+loss of information — though `analysis/logs2csv.pl` matches the header to find
+the line after it, so it would have to be adjusted.
+
+The `is true.` line comes from `EarlyBreakObserver::update`
+(libITS `bin/EarlyBreakObserver.hh:100`), one per property discharged, which is
+legitimate but pays 48 bytes for a name we already have in the `FORMULA` line.
+
+PetriSpot's own output is 11 MB of the 419, 2.6 %, about five lines per
+invocation, and nothing in it repeats. The one avoidable line on our side is
+the Java runner's `Running PetriSpot : <full command line>` (3.7 MB), which is
+immediately followed by `[INFO] Running PetriSpot with arguments : [...]`
+saying the same thing.

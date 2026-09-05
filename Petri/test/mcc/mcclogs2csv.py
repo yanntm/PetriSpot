@@ -25,7 +25,8 @@ RUN_COLUMNS = [
     "first(ms)", "petrispot", "petrispot fail", "petrispot timeout",
     "walk calls", "walk asked", "walk solved", "walk ms", "walk killed",
     "failure",
-    "oracle", "known", "answered", "ok", "wrong", "missed", "bonus", "extra",
+    "oracle", "known", "answered", "ok", "wrong", "missed", "none", "bonus",
+    "extra",
 ]
 
 VERDICT_COLUMNS = [
@@ -160,7 +161,7 @@ def parse(path):
                 run["Examination"] = m.group(1).rsplit("-", 1)[-1]
 
     verdicts = []
-    ok = wrong = missed = bonus = extra = known = 0
+    ok = wrong = missed = none = bonus = extra = known = 0
     for name in sorted(set(oracle) | set(answer)):
         exp = oracle.get(name)
         got = answer.get(name)
@@ -170,7 +171,7 @@ def parse(path):
             status, extra = "extra", extra + 1
         elif got is None:
             if exp == "?":
-                status = "none"
+                status, none = "none", none + 1
             else:
                 status, missed = "missed", missed + 1
         elif exp == "?":
@@ -195,8 +196,8 @@ def parse(path):
         "walk calls": walk[0], "walk asked": walk[1], "walk solved": walk[2],
         "walk ms": walk[3], "walk killed": walk[4], "failure": failure, "Test started": started, "Test fail": failed, "Test fin": finished,
         "oracle": len(oracle), "known": known, "answered": len(answer),
-        "ok": ok, "wrong": wrong, "missed": missed, "bonus": bonus,
-        "extra": extra,
+        "ok": ok, "wrong": wrong, "missed": missed, "none": none,
+        "bonus": bonus, "extra": extra,
     })
     return run, verdicts
 
