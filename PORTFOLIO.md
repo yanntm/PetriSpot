@@ -29,6 +29,11 @@ Three measurements frame the answer.
 * The per property reduction phase of UpperBounds spent **47 319 s to produce
   4 502 s worth of verdicts**: 250 attempts, 68 of which closed something
   (`probes/perprop_payoff.py`).
+* Rerunning ReachabilityDeadlock across the arrival of `walk/DeadlockStrategy.h`
+  gained 19 instances and 8 values the consensus lacks, and lost 8 — and the
+  eight are not lost to a hard model but to a give-up: the walker returns in
+  about a second against a 35 s budget, and the run then spends 1796 s in
+  `its-ctl` (`csv/2026-09-06-RD/`).
 
 None of those is a bug. They are the shape of a portfolio that cannot measure
 itself and therefore cannot choose.
@@ -108,11 +113,12 @@ supports keep each other's places alive.
 
 **Exploration state cannot survive an iteration.** Each pass builds a fresh
 `RandomExplorer` over a freshly reduced net and spawns a fresh `petri64`;
-UpperBounds alone made 10 087 such invocations, each re-serializing the net
-through KERS and restarting from m₀, 301 of them killed by their timer with no
-partial result. The loop is *right* to discard a frontier when the net changed
-underneath it — but only because nothing maps the old markings onto the new
-net.
+UpperBounds alone made 10 087 such invocations, each re-serializing the net and
+restarting from m₀. The verdicts survive — `PetriSpotWalker` parses stdout as
+it arrives, so the 301 calls killed on their timer kept what they had already
+printed — but the exploration state has no output line and dies every time. The
+loop is *right* to discard a frontier when the net changed underneath it; the
+waste is that it is discarded even when the net did not.
 
 **`DoneProperties` is a verdict map, not a knowledge base.** It records the
 technique that closed a property. A bound that moved but did not close, a best
@@ -154,20 +160,35 @@ anyone who might have changed strategy.
 A goal also carries its **observation set**, its **provenance** (the goal it
 was spawned from, and by which rule), and what has been spent against it.
 
-### Model version
+### Model, and what a fact is about
 
-A net plus a **morphism back to its parent**. Versions form a DAG rooted at the
-parsed net; an edge is a reduction, an unfolding, a skeleton abstraction or a
-projection onto a smaller observation set. Each edge carries two maps or the
-version is useless:
+A full DAG of model versions with maps both ways is a large piece of machinery
+and it is **not** on the critical path; it is parked here so the rest can be
+written without it.
 
-* **forward, on observations** — a parent place is a linear expression over the
-  child's places, or a constant. This restates a bound or a formula on the
-  child.
-* **backward, on witnesses** — a child transition lifts to a sequence of parent
-  transitions. This is how a trace found on a reduced net becomes a trace of
-  the model the user asked about. The agglomeration rules already know that
-  sequence and currently discard it.
+What is needed instead is the little that already works, made explicit. Place
+names survive the transformations — that is how the code reindexes after a
+structural reduction — so a fact stated over places transfers by name.
+Transition names do not: on large nets they are mangled rather than composed,
+because composing them blows up in size, which is precisely why a *witness*
+cannot be lifted today and why lifting is parked with the DAG.
+
+So a fact is only useful if it names what it is about, and the two things worth
+naming now are:
+
+* **the base model**, for anything proven of the net itself — a bound, an
+  invariant, a verdict on a property of the original question;
+* **the generation**, a counter bumped every time the reduction loop produces a
+  new net, for anything that is only meaningful on the net that produced it —
+  a best marking, a firing profile, an exploration statistic. A fact from an
+  older generation is not wrong, it is stale, and the cheap policy is to drop
+  it rather than to translate it.
+
+One tag more is worth carrying, because the loop already builds such models and
+nothing records which kind they are: a derived net is an **over-approximation**
+(the read-arc abstraction, the skeleton), an **under-approximation**, or
+**exact**. A verdict is conclusive in one direction only for the first two, and
+today that direction is re-derived at each use site.
 
 ### Profile
 
@@ -223,40 +244,47 @@ for the others, come back to it with a smaller model".
 
 ## What survives a reduction
 
-The place a framework earns its keep. Each rule owes an answer to: which facts
-about the parent are still facts about the child, and which facts about the
-child lift to the parent?
+Parked with the model DAG, and recorded here because it is the obligation any
+later attempt inherits: each rule owes an answer to which facts about the
+parent are still facts about the child, and which facts about the child lift to
+the parent. Verdicts on preserved formulas lift child to parent — that is the
+rule's soundness argument. Invariants and bounds project the other way when the
+rule is a place substitution. A structural fact about a deleted object is not
+lost but promoted: "t is dead" is *why* the rule could delete it.
 
-* **verdicts on preserved formulas** lift child → parent; that is the rule's
-  soundness argument, to be stated per rule rather than assumed;
-* **witnesses** lift child → parent through the backward map;
-* **invariants** project parent → child through the forward map when the rule
-  is a place substitution, and are lost when it is not;
-* **bounds** project when the observed expression survives the forward map;
-* **structural facts** transfer for surviving objects, and a fact about a
-  deleted object is not lost but promoted: "t is dead" is *why* the rule could
-  delete t;
-* **exploration facts do not survive** — a visited set, a frontier, a
-  probability table: the state space changed underneath them.
+The one line that matters before any of that is built: **exploration facts do
+not survive** — a visited set, a frontier, a firing profile. The state space
+changed underneath them. Today that costs nothing extra, because exploration
+state does not survive the *call* either; that is what makes a generation
+counter enough for now, and what makes G4 worth doing before G6.
 
-That last line is what costs us. It argues for walking on the base model from
-t = 0 rather than waiting, and for **projecting best markings** through the
-forward map to reseed rather than restarting at m₀. Whether the projection of a
-reachable marking is reachable in the child is a proof obligation per rule;
-where it fails, the projected marking is still a useful heuristic target.
+## A pool, not a market
 
-## The scheduler
+"Work stealing" was too strong. What is wanted is smaller and buildable: **a
+pool of work for a walker, a budget attached to each item, and control over
+what we handed out.** The portfolio decides; the walker executes what it is
+given and reports what it spent.
 
-A pool of (goal, model version) pairs. Workers own cores and **steal**: a free
-worker takes the best item it can apply to, leases it, reports facts. Value is
-a policy; a first version can be static, and the accounting will say what to
-change. What must hold whatever the policy:
+That means, concretely:
 
-* **Leases are core-seconds**, not wall seconds. The only reason the 5 % figure
-  was visible at all is that the walker prints its own duration.
-* **A lease is interruptible**, and yields partial facts. Killing the walker's
-  process is an interruption with no partial result: everything it learned dies
-  with it, 301 times in this campaign.
+* **an item is (goals, model, budget)** — the goals a walker should try, the
+  net they are stated on, and what it may spend. Today the budget is
+  `30 + 5·min(|tocheck|, 50)` seconds and nothing else is passed;
+* **the caller can revise an item** — drop goals that closed elsewhere, raise
+  the budget of one that looks promising, cancel one whose model went stale;
+* **effort is reported back** per item, which is what makes the profile
+  possible at all.
+
+Triggers already exist in the loop and are the model for the rest: if a pass
+found dead transitions, try again; strange arc values trigger the SMT dead
+transition test. They are hand-written conditions on facts, which is the right
+shape — the missing part is a place to keep the facts they read, and a record
+of what each trigger cost when it fired.
+
+Two rules to hold whatever the policy:
+
+* **Effort is core-seconds**, reported per item, not wall time. The only reason
+  the 5 % figure was visible at all is that the walker prints its own duration.
 * **A worker never blocks the pool.** The loop already overlaps one diagram
   thread with everything else; the stages *inside* an iteration serialize. Z3
   is barely multithreaded and PetriSpot's semiflow computation hit its 60 s
@@ -269,6 +297,11 @@ change. What must hold whatever the policy:
 
 Both are small, both are testable against this campaign, and both can be built
 before any of the above.
+
+Both are instances of one rule: **a strategy that finds nothing quickly should
+reinvest, not conclude.** The deadlock rerun shows the same failure inside
+PetriSpot, where `WalkDriver.h` ends its rounds after about a second of a
+thirty-five second budget, so the rule applies at both levels.
 
 **The loop goes dormant instead of exiting.** When an iteration closes nothing,
 leave a PetriSpot walking on the current model with the still-open goals and
@@ -329,97 +362,139 @@ contributed.
 
 ## What PetriSpot has to become
 
-Today the interface is one shot: spawn `petri64`, hand it a KERS file and a
-goal list, read stdout, kill it when its computed budget expires. That makes
-four things impossible — retargeting mid-flight, reporting a partial bound,
-keeping walk state across calls, being told the model just got smaller — and it
-pays a full net serialization per call, 10 087 times in one examination.
+Two claims I made for a long-lived interactive `petri64` do not survive
+reading the code, and the case has to be made without them.
 
-The two shapes discussed are not alternatives:
+`PetriSpotWalker.run` starts a thread that parses stdout *as it arrives*, so a
+walker killed on its timer keeps every verdict and every bound it had already
+printed — the counts are taken after the kill. **Partial results already
+survive.** And the spawn is not the expense either: the walker's own reports
+are hundreds of milliseconds, of which the net serialization is a small part.
+The 10 087 invocations are ugly, not costly.
 
-* **A command language is the mechanism.** A long-lived `petri64` reading
-  commands and streaming events: `load` a model, `derive` a version with its
-  forward map, `goal add` / `goal drop` with priorities and budgets, `seed` a
-  walk from a marking, `interrupt`; events `found <goal> <verdict> <witness>`,
-  `bound <goal> <lo>`, `progress <goal> <stats>`. The libHSC surface syntax is
-  the natural carrier — s-expressions, a vocabulary the two projects already
-  share and what `Petri/test/logs/*.sexpr` already speaks.
-* **A Java driver is the policy.** It holds the cohort, the model DAG, the
-  profile and the budget, and decides when to interrupt. It must not hold the
-  walk state.
+What actually dies with the process is the thing that has no output line: the
+**exploration state**. Firing counts accumulated over every walk, which regions
+of the net turned out hard to enter, which restart states were promising, which
+heuristic was fast here and which was slow. That is exactly the content that
+would make a walker good at models with a very large state space, and it is
+recomputed from nothing on every call.
 
-Inside `petri64`, the same discipline as the outer scheduler: hot state thread
-local, shared knowledge through one explicit documented structure. Two cores of
-diverse walks means a small work-stealing pool over the goal set, with the
-knowledge base — closed goals, best markings, the visited digest when memory is
-granted — as the only shared object.
+So the right shape is not an interactive protocol — which is race-prone,
+error-prone and buys retargeting we have no policy to use yet — but **fewer,
+bigger calls**:
+
+* one call per (net, goal set, budget), given the *whole* budget the portfolio
+  is willing to spend now, not a sliver of it;
+* all the diversity and all the memory **inside** the process: restarts drawing
+  from a shared pool, firing profiles kept across restarts, rare-event
+  targeting, self-evaluation of which strategy is paying, focus on the parts of
+  the system that are hard to enter;
+* results streamed as they are found, as now, so a kill costs only the memory
+  and not the verdicts.
+
+The evidence that this is where the money is sits in the deadlock rerun. On
+`ShieldPPPt-PT-040B` the walker is called six times and returns in 1045, 643,
+337, 1146, 409 and 371 ms against a 35 s budget, each time having solved
+nothing, because `WalkDriver.h` stops the rounds when one "solved nothing,
+improved no bound, and every walk in it ended on the step budget" — about a
+second, on a single property. The run then spends 1796 s in `its-ctl`. Thirty
+four of thirty five seconds unspent, then half an hour spent elsewhere.
+
+A command language remains the right *mechanism* the day a policy needs it, and
+the libHSC s-expression surface is its natural carrier. It is not the next
+step.
 
 ## Goals, in order
 
-Each step names what it changes and the number it is meant to move. The order
-is chosen so that every step is measurable on a rerun of this campaign before
-the next one starts.
+**G1 — A record of effort, in `DoneProperties`.** Not more tracing: the same
+structure, extended. It already is the portfolio's synchronisation point, so it
+grows the *open* side of the ledger — the properties still to prove and the net
+generation they are being worked on — plus, per task, the time it took and a
+measure of what it returned for that time. Default cost is a few counters; a
+verbose mode may justify every rule applied, and is off by default because at
+scale that is thousands of models and traces.
+*Moves*: nothing by itself. It is what makes G2 and G5 arguable instead of
+guessed, and it retires `Petri/test/mcc/`'s reconstruction of the same numbers
+from 419 MB of logs.
 
-**G1 — Account for effort.** Every strategy reports core-seconds against a goal
-and a model version, into a structured record the harness can read. No
-behaviour changes.
-*Moves*: makes every later step measurable; retires `Petri/test/mcc/`'s
-log-scraping reconstruction of the same thing.
+**G2 — Budgets from the clock, not from constants.** `steps`, `smttime` and the
+walker budget become functions of the time left and of what the last pass
+returned. Same rule one level down, inside PetriSpot: the round scheduler
+should not concede after a second of a thirty-five second budget.
+*Moves*: the eight deadlock instances lost to the round rule; the 415 timeouts;
+the 48 % / 41 % / 31 % single-threaded tails.
+*Risk*: spending more on a strategy that will not find anything. G1 first, so
+the escalation can be read afterwards.
 
-**G2 — Do not exit the loop with time on the clock.** Replace the no-progress
-exit with a dormant walker that can retrigger a pass. Then co-schedule a
-PetriSpot with every diagram attempt, with a memory budget.
-*Moves*: the 415 timeouts and the 544 missed values; the 48 % / 41 % / 31 %
-single-threaded tails.
-*Risk*: retriggering can thrash; the dormant walker must hold a lease like
-anyone else.
+**G3 — Listeners on that record.** Strategies subscribe to it: a closed goal
+interrupts the walker still working on it, a new dead transition retriggers the
+reduction pass, a bound that moved reopens a comparison. The triggers already
+in the loop — try again if a pass found dead transitions, run the SMT dead
+transition test on strange arc values — become subscriptions rather than
+open-coded conditions.
+*Bounded on purpose*: facts, counters and a generation number. No model DAG, no
+witness lifting, no per-rule justification unless asked for.
 
-**G3 — A knowledge base instead of a verdict map.** `DoneProperties` grows into
-facts: bounds with both ends, best markings, witnesses, and the model version
-each fact is about. Strategies publish rather than return.
-*Moves*: nothing on its own — it is the prerequisite for G4 and G5, and it is
-what lets a bound survive an iteration.
+**G4 — Fewer, bigger PetriSpot calls, with memory inside.** One call per (net,
+goals, budget) carrying the whole budget; firing profiles, restart pools,
+rare-event targeting and strategy self-evaluation kept across restarts within
+the call; results streamed as now.
+*Moves*: the models that need a large-state-space search rather than a sweep —
+where "really good at finding traces" is actually won.
 
-**G4 — A long-lived PetriSpot.** The command language and interruption, driven
-by the current loop, no scheduler yet. Kills the per-call serialization and the
-per-call amnesia; lets a killed walk report what it had.
-*Moves*: the 10 087 invocations and the 301 killed calls; first place where
-"good at finding traces" can be worked on directly.
-
-**G5 — A model profile, and per goal models on evidence.** Record the profile
-signals; gate the per property phase on them instead of running it always.
+**G5 — Per goal models on evidence.** Gate the per property phase on the
+profile accumulated in G1 and G3 instead of running it unconditionally.
 *Moves*: the 43 000 wasted seconds of the UpperBounds per property phase,
 without giving up the 68 verdicts it does find.
 
-**G6 — Versioned models with their maps.** The forward map on observations and
-the backward map on witnesses, per reduction rule, with the survival table.
-*Moves*: lets walk state be projected instead of discarded, and lets a witness
-found on a reduced net be reported on the original.
+**G6 — Versioned models with maps both ways.** Deprioritised. Needed the day a
+witness must be reported on the original net, or walk state must cross a
+reduction. Until then the generation counter and the place-name identity carry
+what we use.
 
-**G7 — The scheduler.** Work stealing over (goal, model version), leases,
-priorities. Last, because only G1 gives the evidence to argue about its policy.
+**G7 — Scheduling policy.** Start small: a pool, budgets, and the ability to
+revise an item. Revisit once G1 says where the time goes.
 
-## Open questions
+## Decided
 
-1. Which facts survive which reduction rule, in which direction? A table, rule
-   by rule. Prerequisite for G6, not a refinement of it.
-2. Is the projection of a reachable marking reachable in the reduced net? Per
-   rule. Where not, is it still a good target?
-3. What does lifting a witness through a long chain of versions cost, and do we
-   keep the chain or compose eagerly?
-4. How many model versions can live at once before memory decides for us?
-5. What is the value function for stealing, and can it be learned from the
-   campaign record rather than guessed?
-6. When the cohort is 33 676 goals, every per-goal object must be an index into
-   a flat array. What is the smallest goal representation that still carries
-   provenance?
-7. What does a walker do with a memory budget that it cannot do without one,
-   and how much does a visited digest actually buy on the models that reach the
-   diagram phase?
-8. Where does the roll-up rule live — the one turning child verdicts into the
-   parent's — and how much is shared between QuasiLiveness, StableMarking and
-   OneSafe?
+* **A fact must be usable, not merely true.** Anything proven of the net is
+  stated over the base model; place names carry across transformations, which
+  is how reindexing already works. Transition names are mangled on large nets,
+  so a firing sequence is not liftable today — the reason witness lifting waits
+  for G6.
+* **A derived net carries its direction**: over-approximation, under-approximation
+  or exact. The loop builds all three and re-derives the direction at each use.
+* **Not many versions at once**, so the memory question does not arise; a
+  generation counter is enough to tell stale exploration state from fresh.
+* **A pool, not a market.** Items are (goals, net, budget), the caller keeps
+  the right to revise them, and the walker reports what it spent.
+* **Below a threshold of open goals the regime changes.** With thousands of
+  goals, per-goal bookkeeping and per-goal models are both out; the framework
+  has to work in bulk first and switch to individual attention when the residue
+  is small. Where that threshold sits is a measurement, not a constant to pick
+  now.
+* **The three global examinations share one essence**: a large set of queries
+  to eat through, with an early break — one FALSE settles QuasiLiveness, one
+  unstable place settles StableMarking, one unsafe place settles OneSafe. The
+  roll-up rule is the same object three times.
+* **A walker with memory** is one that keeps firing counts over all its walks,
+  aims at rare events, studies the shape of the state space it is in, reuses
+  restart states, remembers which heuristics ran fast or slow here, and focuses
+  on the parts of the system that are hard to get into.
 
-The numbers to beat are in `Petri/test/mcc/csv/2026-09-05/`: 544 values the
-consensus has and we do not, 1237 nobody has, 415 runs that spent 1800 s to say
-nothing, and a walker holding 5 % of the cores.
+## Still open
+
+1. Where the "few enough goals" threshold sits, per examination.
+2. What the efficiency measure of a task should be, given that most tasks
+   legitimately return nothing. Verdicts per core-second is too coarse; bound
+   movement and support shrinkage are candidates.
+3. Whether the round rule in `WalkDriver.h` should be relaxed, replaced by an
+   escalation, or made conditional on the budget left — and whether that alone
+   recovers the eight deadlock instances.
+4. How much a visited digest actually buys on the models that reach the diagram
+   phase, and at what memory.
+
+The numbers to beat are in `Petri/test/mcc/csv/2026-09-05/` and
+`csv/2026-09-06-RD/`: 544 values the consensus has and we do not, 1237 nobody
+has, 415 runs that spent 1800 s to say nothing, a walker holding 5 % of the
+cores, and eight deadlock instances lost to a one second give-up.
