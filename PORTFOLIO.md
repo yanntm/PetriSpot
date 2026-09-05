@@ -18,23 +18,71 @@ hurts.
 The walker received **90 h of a 1812 core-hour budget: 5 %**. In the 601 runs
 that burned the whole 1800 s and reported nothing, the mean time handed to the
 walker was 13.7 s for ReachabilityDeadlock, 116 s for Liveness, 282 s for
-UpperBounds. The rest went to a mostly single threaded pipeline on a four core
-machine. We are not choosing to spend little on walking; the pipeline shape
-decides it for us, one blocking stage at a time.
+UpperBounds. Nobody decided that. The next section says what the loop actually
+does, because the shape of the answer depends on it.
 
-Three symptoms of the same missing abstraction:
+## What the loop already does
 
-* **Nobody owns the cores.** Reductions run, then SMT runs, then the diagrams
-  run. Each stage is one thread deep and the other three cores idle. There is
-  no object that could have said "while the reducer thinks, walk".
-* **State is thrown away at every call.** UpperBounds made 10 087 PetriSpot
-  invocations across 1919 logs, each one a process start, a full KERS
-  serialization of the net, a walk from the initial marking, and a kill at 50 s
-  that discards everything the walk learned. 301 of those calls died on that
-  50 s wall.
-* **We cannot say why.** A verdict carries a TECHNIQUES string, but nothing
-  records that goal *g* was attacked on model version *M2* by strategy *S* for
-  *t* seconds and failed. Without that, tuning is guesswork.
+`ReachabilitySolver.applyReductions` is the loop, and it is a fixpoint over a
+shrinking support, not a pipeline. Per iteration:
+
+1. build a `StructuralReduction` from the current net and a `RandomExplorer`
+   over it, collect the still unsolved properties into `tocheck`;
+2. walk — one `PetriSpotWalker.runReachability` request for the whole
+   `tocheck` set, budget `30 + 5·min(|tocheck|, 50)` seconds, or the Java
+   explorer's random / best-first / probabilistic cascade when PetriSpot is
+   off;
+3. SMT over the state equation, with `smttime` escalating 5, 45,
+   `45 + 15·iterations`, then replay each Parikh solution as a guided walk;
+4. `spn.computeSupport()`, `sr.setProtected(support)`, reduce again — with
+   SMT-based rules if the plain ones found nothing — and read the smaller net
+   back;
+5. `checkInInitial`, constant places, logic simplification, and on a barren
+   iteration the atomic reducers.
+
+A `verifyWithSDD` thread is started before the loop and runs beside all of it
+with half the budget. So the two things a first reading of the logs suggests
+are missing are in fact there: **the observation set is already first class**,
+under the name *support*, recomputed every iteration so that each closed
+property gives the reducer more freedom; and **the diagrams already run
+concurrently** with the whole loop rather than after it.
+
+The examinations reach that loop by decomposition. `buildQuasiLivenessProperty`
+emits one `EF ENABLED(t)` per non-dominated transition — `computeDominatedTransitions`
+prunes first — after a `ReductionType.LIVENESS` pass, and `applyExhaustiveMethods`
+hands the cohort to the loop with `timeout = -1`. StableMarking and OneSafe
+decompose the same way.
+
+## What it does not do
+
+* **The loop ends on no progress, not on budget.** Its condition is
+  `(iterations <= 1 || iter > 0) && properties remain`: an iteration that
+  closes nothing ends the loop, which then falls through to the read-arc
+  over-approximation and the diagrams. Whether 100 s or 1500 s of the budget
+  are left changes nothing. That, not an absent walker, is why the walk got
+  13.7 s of 1800 in the deadlock runs: it was called, it found nothing twice,
+  and the loop concluded rather than reinvested.
+* **Effort is a constant, not a resource.** `steps` is 10 000 then 1 000 000,
+  `smttime` is 5 then 45 then `45 + 15·iterations`, the walker budget is
+  `30 + 5·min(|tocheck|, 50)`. None of them is derived from what remains of the
+  budget, from how many cores are idle, or from which strategy has been paying
+  off on this instance.
+* **Exploration state cannot survive an iteration.** Each pass builds a fresh
+  `RandomExplorer` over a freshly reduced net and spawns a fresh `petri64`;
+  UpperBounds alone made 10 087 such invocations, each re-serializing the net
+  through KERS and restarting from m₀, and 301 of them died on their kill
+  timer with no partial result reported. The loop is *right* to discard a
+  frontier when the net changes underneath it — but only because nothing maps
+  the old markings onto the new net.
+* **Support is a union, never a partition.** `sr.setProtected(support)` protects
+  what *any* remaining property observes. Two hard properties with disjoint
+  supports keep each other's places alive, and no per-property model is ever
+  built.
+* **`DoneProperties` is a verdict map, not a knowledge base.** It records a
+  verdict and a technique string per property. A bound that moved but did not
+  close, a best marking, a witness, a lease that was spent and failed: none of
+  it is shared between strategies or between iterations, and none of it is
+  recorded for us to tune against.
 
 ## The objects
 
@@ -111,27 +159,29 @@ The set of open goals for one examination on one instance, with the model DAG
 they live on and the budget they share. The cohort is the unit the user sets
 policy on: *this instance has 1800 s and 4 cores, spend them*.
 
-## Observation sets drive everything
+## Observation sets, past the union
 
-A reduction is legal exactly when it does not disturb what is observed. So the
-observation set of the *open* goals, not of the original examination, is what
-bounds the reducer. That has a consequence worth stating plainly:
+A reduction is legal exactly when it does not disturb what is observed, so the
+observation set of the *open* goals bounds the reducer, and every goal that
+closes makes the model smaller. The loop already exploits this: the walk feeds
+the reducer through `computeSupport`, and the reducer feeds the walk back a
+smaller net. That is the good part of what exists and the framework must keep
+it, not reinvent it.
 
-> Every goal that closes makes the model smaller.
+Two things the union of supports cannot express.
 
-QuasiLiveness on `ARMCacheCoherence-PT-none` starts with 87 places and 33 676
-transitions, every transition observed. The first random walk fires a few
-hundred of them; each firing closes a goal; each closed goal leaves the
-observation set; the reducer, run again, has more freedom than it had a second
-ago. The walk feeds the reducer and the reducer feeds the walk. Today the
-reducer runs once, up front, on the largest observation set the run will ever
-have — the worst possible moment.
+**Per-goal models.** `setProtected` takes the union, so two hard goals with
+disjoint supports protect each other's places forever. Taken to its limit the
+same argument gives one model per goal: a single goal observes almost nothing
+and its private reduction can be drastic. That is where the expensive
+strategies belong. The cost is that the model DAG fans out, so it is worth
+doing only when the residual cohort is small — a policy question with a number
+in it, to be measured, not assumed.
 
-The same argument taken to its limit gives **per-goal models**: when few goals
-remain, each one alone observes almost nothing, and its private reduction can
-be drastic. That is where the expensive strategies belong. The cost is that the
-model DAG fans out, so this is worth doing only when the residual cohort is
-small — a policy question with a number in it, to be measured, not assumed.
+**Priority inside the cohort.** The union treats every open goal as equally
+worth protecting. A goal that has resisted five iterations and a goal spawned
+one iteration ago cost the reducer the same, and the loop has no way to say
+"park this one, reduce for the others, come back with a fresh model".
 
 ## What survives a reduction
 
@@ -178,14 +228,15 @@ What the framework must enforce, whatever the policy:
   5 % figure at all is that the walker prints its own duration; nothing else
   in the pipeline does.
 * **A lease is interruptible.** A strategy holding a lease must poll a flag and
-  yield promptly with whatever partial facts it has. The current 50 s kill of
-  the walker is an interruption with no partial result: everything the walk
-  learned dies with the process.
-* **A worker never blocks the pool.** SMT and the invariant solver are the
-  cases that matter: Z3 is barely multithreaded, and PetriSpot's semiflow
-  computation hit its 60 s wall 138 times in this campaign, 101 of them on the
-  `PolyORB*` family. Those are exactly the moments when three cores should be
-  walking.
+  yield promptly with whatever partial facts it has. Killing the walker's
+  process is an interruption with no partial result: everything it learned dies
+  with it, 301 times in this campaign.
+* **A worker never blocks the pool.** The loop already overlaps one decision
+  diagram thread with everything else; the stages *inside* an iteration are
+  what serialize. SMT and the invariant solver are the cases that matter: Z3 is
+  barely multithreaded, and PetriSpot's semiflow computation hit its 60 s wall
+  138 times in this campaign, 101 of them on the `PolyORB*` family. Those are
+  exactly the moments when the idle cores should be walking.
 * **Facts are published, not returned.** A strategy that finds a witness for
   one goal often answers others by accident — a single QuasiLiveness walk
   answers every transition it fires. Publishing into the knowledge base is what
@@ -193,52 +244,60 @@ What the framework must enforce, whatever the policy:
 
 ## Traceability
 
-The protocol that updates the model must leave a record, because the record is
-the only way we will ever tune this. For each goal: the chain of model versions
-it was attacked on, the leases spent on each, the facts that closed it, and the
-spawn edges from its parent. Rolled up per instance, that is the honest version
-of the TECHNIQUES field; rolled up per campaign, it is the table that says
-where the 1800 s went. The campaign collector in `Petri/test/mcc/` reconstructs
-a shadow of this from log lines today; it should be reading it from the tool.
+`DoneProperties` records the technique that closed a property, which is what
+feeds the TECHNIQUES field, and nothing else: not what was tried and failed,
+not what it cost, not on which model version. That asymmetry is why the only
+way to learn that the walker holds 5 % of the cores was to parse 419 MB of
+logs. For each goal the record should carry the chain of model versions it was
+attacked on, the leases spent on each, the facts that closed it, and the spawn
+edges from its parent. Rolled up per instance that is an honest TECHNIQUES
+field; per campaign it is the table saying where the 1800 s went. The collector
+in `Petri/test/mcc/` reconstructs a shadow of it from log lines; it should be
+reading it from the tool.
 
 ## A walk through QuasiLiveness
 
 The examination asks whether every transition can fire in some reachable state.
-It is the best case for this framework and a good test of it.
+Today: dominated transitions are pruned, a LIVENESS reduction pass runs, one
+`EF ENABLED(t)` goal per surviving transition goes into the cohort, and the
+reachability loop iterates walk / SMT / reduce until an iteration closes
+nothing. What would change, step by step:
 
-**t = 0.** Parse. If the model is coloured, the skeleton is available
-immediately and is an abstraction: a transition dead in the skeleton is dead in
-the unfolding, so the skeleton can *close negative goals* for free while the
-unfolding is still being computed. Unfold if the model is not skeleton
-compliant.
+**t = 0.** Parse. If the model is coloured the skeleton is available before the
+unfolding is, and it is an abstraction: a transition dead in the skeleton is
+dead in the unfolding, so the skeleton closes negative goals for free while the
+unfolder is still running. That is concurrency the current sequence cannot
+express, since it needs the SPN before it builds any property.
 
-**t = 0, same instant.** The walkers start on the unreduced net. Two cores,
-several threads, different strategies and different seeds. Every transition
-fired closes a goal. This costs nothing to set up: the goal set is the
-transition set, the knowledge base is a bitmap, publishing a fact is setting a
-bit. Today this starts after the reductions, which on a large instance is
-minutes later.
+**t = 0, same instant.** Walkers start on the unreduced net rather than after
+the LIVENESS pass. Two cores, several threads, different strategies and seeds.
+Every transition fired closes a goal; the knowledge base is a bitmap and
+publishing a fact is setting a bit. The gain is not the walk itself — the loop
+walks too — it is that the walk overlaps the reduction instead of alternating
+with it, and that its 30 s budget stops being a constant.
 
-**t = ε, continuously.** The reducer runs against the *current* observation
-set, which is shrinking under the walkers' bits. Each new model version is
-published; walkers finish their current lease, project their best markings
-forward, and continue on the smaller net.
+**t = ε, continuously.** The reducer keeps running against the current support,
+as it does now, but it no longer has to wait for a walk to finish to see the
+support move, and the walkers no longer restart at m₀ on each new version:
+their best markings are projected forward through the version's map.
 
-**t = later.** The residual cohort is the transitions no walk has fired. If it
-is small, spawn per-goal models with tiny observation sets and hand them to
-SMT, k-induction and the diagrams. If it is large, the instance is hard and the
-budget is better spent on more walk diversity than on one deep exhaustive
-attempt — a policy the framework can express and the current pipeline cannot.
+**t = later.** The residual cohort is the transitions no walk has fired. The
+loop today stops here, on its no-progress condition. Instead: if the residue is
+small, spawn per-goal models — each observing one transition, so far more
+reducible than their union — and hand those to SMT, k-induction and the
+diagrams. If it is large, the instance is hard and the remaining budget buys
+more walk diversity rather than one deep exhaustive attempt.
 
-**Close.** QuasiLiveness is TRUE iff every child goal is TRUE, and FALSE as
-soon as one is FALSE, so the parent closes early on the negative side. The
-answer carries the list of strategies that contributed.
+**Close.** QuasiLiveness is TRUE iff every child is TRUE and FALSE as soon as
+one is FALSE, so the parent closes early on the negative side, as it already
+does. What is new is that the answer carries what each strategy cost, not only
+which ones contributed.
 
 ## What PetriSpot has to become
 
 Today the interface is one shot: spawn `petri64`, hand it a KERS file and a
-goal list, read stdout, kill it at 50 s. That interface makes four things
-impossible — retargeting mid-flight, reporting a partial bound, keeping walk
+goal list, read stdout, kill it when its computed budget runs out. That
+interface makes four things impossible — retargeting mid-flight, reporting a partial bound, keeping walk
 state across calls, and being told that the model just got smaller — and it
 pays a full net serialization per call, 10 087 times in one examination.
 
@@ -290,10 +349,13 @@ produces a measurement at each step:
 2. **A long-lived PetriSpot** with the command language and interruption, still
    driven by the current pipeline. Kills the per-call serialization and the
    50 s amnesia; measurable on the UpperBounds calls alone.
-3. **Walk at t = 0**, concurrently with the reducer, on QuasiLiveness only.
-   The cheapest place to see whether the feedback loop is real.
-4. **Observation sets as first class**, so the reducer can be re-run as goals
-   close. This is where the model DAG and its maps become unavoidable.
+3. **A budget instead of a no-progress exit.** The loop's termination
+   condition is one line; making a barren iteration reinvest the remaining
+   time rather than concede is the smallest change with a measurable effect,
+   and the 601 runs that ended early with time to spare are the sample.
+4. **Walk concurrently with the reducer**, on QuasiLiveness first, with best
+   markings projected across versions. This is where the model DAG and its
+   maps become unavoidable.
 5. **The scheduler**, last, once there is enough accounting to argue about its
    policy.
 
