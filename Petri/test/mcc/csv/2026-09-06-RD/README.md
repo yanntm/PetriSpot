@@ -45,25 +45,48 @@ walk calls totalling four seconds, finds nothing, and spends the remaining
 reach: it stopped being found in the first sweep, and nothing in the run
 reinvested in looking.
 
-## What the difference is not
+## What the difference is
 
-The two builds are three commits apart: a whitespace commit, the `p2.inf`
-packaging fix and the `ITSRunner` echo gate. Neither of the latter two touches
-a search: one changes file permissions, the other guards a `println`. The six
-commits that separate `202609051237` from `202609051349` are the OneSafe SMT
-budget, the OneSafe place naming, a parse error report and log line trimming.
-Nothing in that set is the deadlock search.
+Our own deadlock heuristic. `petri64` is fetched from the `Inv-Linux` branch
+when the ITS-Tools CI builds, so the plugin carries whatever PetriSpot had
+published at that moment:
 
-So the exchange is not a deliberate behavioural change, and the most economical
-reading is **run to run variance of a randomised search sitting at the edge of
-its budget** — which the concentration of the gains in one family and the
-losses in another argues against, so the reading is not settled. A repeat run
-of the eight regressed instances on this same build is in `RDvar/` on the
-cluster: if they answer this time, it is variance.
+| | plugin | petri64 published from |
+| --- | --- | --- |
+| old campaign | `202609051237` | before `e865bf5` |
+| new campaign | `202609052009` | `45612fb`, deployed 14:50 UTC |
 
-Either way there is a methodological consequence for the overhaul: **a single
-campaign cannot measure a change worth less than about 1 % of verdicts**, and
-this exchange is 35 instances out of 1953. A/B work needs repeats.
+Between the two, three commits: `058dd89` designed the deadlock distance,
+`e865bf5` added `walk/DeadlockStrategy.h` — a gradient toward a deadlock target
+and saturating pools — and `45612fb` routed hints into the deadlock search and
+made successor scoring degrade gracefully. The old binary had no
+`DeadlockStrategy` at all; RD walks used the generic random and best-first
+rounds.
+
+So this rerun is an A/B of that work, and it reads: **+19 instances, +8 values
+the consensus lacks, −8 instances**. The `RERS17pb113` family, which is hard,
+went from nothing to eight answers.
+
+## Why the eight came back empty
+
+`ShieldPPPt-PT-040B` again. The new run calls the walker six times and each
+call returns in **1045, 643, 337, 1146, 409 and 371 ms** having solved 0 of 1 —
+against a budget of 35 s. It is not running out of time; it is stopping.
+`WalkDriver.h` ends the rounds when one of them "solved nothing, improved no
+bound, and every walk in it ended on the step budget", which on a single
+property is reached in about a second. The old binary did not need the rule:
+its first round found the deadlock in 426 ms.
+
+Then ITS-Tools, having nothing from the walk, hands the model to `its-ctl`,
+which runs 1796 s and is killed. Thirty-four of the walker's thirty-five
+seconds, and all of the remaining half hour, went unspent on the search that
+used to succeed here.
+
+That is the same failure as the outer loop's no-progress exit, one level down:
+a strategy that finds nothing quickly concludes rather than reinvests. It is
+also the cheapest thing to try — the rule is one condition in `WalkDriver.h`.
+A repeat of the eight instances on this same build is running in `RDvar/` on
+the cluster to separate the heuristic from run-to-run variance.
 
 ## The verbosity change
 
