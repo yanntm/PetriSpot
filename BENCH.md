@@ -90,21 +90,31 @@ On the cluster, use `runatest_cluster.sh` in place of `runatest.sh`: it
 unpacks the model into a `$$`-suffixed folder so concurrent jobs on the same
 model do not share a working directory.
 
-One `oarsub` per oracle file, that is per model instance and examination, on
-one node and four cores, with a walltime of about twice the `-t` budget. The
-submission happens from a per-examination directory because OAR writes
-`OAR.<jobid>.stdout` into the directory the job was submitted from, which is
-how the results sort themselves:
+`run_oar.sh` submits the campaign: one `oarsub` per oracle file, that is per
+model instance and examination.
 
 ```
-for i in oracle/*-RF.out ; do
-	DIR=$(echo $i | perl -pe 's/.*\-(\w+)\.out/\1/g')
-	mkdir -p $DIR ; cd $DIR
-	oarsub -l "/nodes=1/core=4,walltime=0:32:0" \
-	  "cd ~/MCC26/MCC-drivers/ && BK_TOOL=itstools ./run_test.pl $i -t 900 ; exit"
-	cd ..
-done
+cd ~/MCC26/MCC-drivers
+./run_oar.sh 'oracle/AirplaneLD-*.out'                      # the warmup shape
+TIMEOUT=900 WALLTIME=0:32:0 ./run_oar.sh 'oracle/*-RF.out'   # a real campaign
 ```
+
+`TIMEOUT` is the per test budget handed to `run_test.pl`, `WALLTIME` the OAR
+limit and must exceed it comfortably, `CORES` the cores per job (4, the MCC
+count), `HOSTS` an OAR host pattern such as `tall%`, `BK_TOOL` the tool folder.
+
+Two details the script exists for. It submits from a directory named after the
+examination suffix, because OAR writes `OAR.<jobid>.stdout` into the directory
+the job was submitted from: the results sort themselves into `RC/`, `RF/`,
+`LTLF/` and so on. And it sets `RUNATEST=./runatest_cluster.sh`, because a
+campaign that spans several examinations has many jobs on the same model
+instance running at once, and the default `runatest.sh` would unpack all of
+them into one shared `INPUTS/<model>/` that ITS-Tools then writes its unfolded
+and reduced nets into. `runatest_cluster.sh` gives each job a `$$` suffixed
+copy and removes it at the end.
+
+Submit from the foreground and let it finish; a few hundred `oarsub` calls take
+a while, and firing them off in parallel has brought the head down before.
 
 Jobs killed by walltime leave no verdict; resubmit only those by diffing the
 oracle list against the tests that reported, as `rerun_oar.sh` does in the
@@ -115,6 +125,9 @@ ls oracle/*RF.out | cut -d '/' -f 2 | cut -d '.' -f 1 | sort > oras
 grep "Running test" *out | cut -d ':' -f 3 | cut -d '.' -f 2 | sed 's/\s//g' | sort > runs
 comm -3 oras runs
 ```
+
+Watch the queue with `oarstat -u ythierry`; `~/git/ITS-Tools-MCC/monika.sh`
+does the same by counting the user's name on the `http://cluster/monika` page.
 
 ## Reading the results
 
