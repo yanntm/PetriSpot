@@ -31,9 +31,11 @@ Three measurements frame the answer.
   (`probes/perprop_payoff.py`).
 * Rerunning ReachabilityDeadlock across the arrival of `walk/DeadlockStrategy.h`
   gained 19 instances and 8 values the consensus lacks, and lost 8 — and the
-  eight are not lost to a hard model but to a give-up: the walker returns in
-  about a second against a 35 s budget, and the run then spends 1796 s in
-  `its-ctl` (`csv/2026-09-06-RD/`).
+  eight are mostly not lost to a hard model: rerun twice, one turns out to be an
+  infrastructure flake and four are found intermittently within 65 s of an
+  1800 s budget, always on the second walker call, while the failing runs give
+  up after about a second and spend 1796 s in `its-ctl`
+  (`csv/2026-09-06-RD/`).
 
 None of those is a bug. They are the shape of a portfolio that cannot measure
 itself and therefore cannot choose.
@@ -489,8 +491,11 @@ revise an item. Revisit once G1 says where the time goes.
    legitimately return nothing. Verdicts per core-second is too coarse; bound
    movement and support shrinkage are candidates.
 3. Whether the round rule in `WalkDriver.h` should be relaxed, replaced by an
-   escalation, or made conditional on the budget left — and whether that alone
-   recovers the eight deadlock instances.
+   escalation, or made conditional on the budget left. Rerunning the eight lost
+   deadlock instances twice says four of them are found intermittently, always
+   on the second walker call and within 65 s of an 1800 s budget, so a third
+   call is the experiment. Three are lost consistently and are a heuristic
+   question, not a budget one.
 4. How much a visited digest actually buys on the models that reach the diagram
    phase, and at what memory.
 

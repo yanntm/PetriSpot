@@ -85,8 +85,45 @@ used to succeed here.
 That is the same failure as the outer loop's no-progress exit, one level down:
 a strategy that finds nothing quickly concludes rather than reinvests. It is
 also the cheapest thing to try — the rule is one condition in `WalkDriver.h`.
-A repeat of the eight instances on this same build is running in `RDvar/` on
-the cluster to separate the heuristic from run-to-run variance.
+
+## The eight, run twice more
+
+Each of the eight resubmitted twice on the same build; logs in
+`/data/ythierry/MCC26archive/RDvar/`.
+
+| instance | campaign | repeat 1 | repeat 2 |
+| --- | --- | --- | --- |
+| `ASLink-PT-07a` | eclipse fatal, 1 s | TRUE, 3 s | TRUE, 3 s |
+| `ShieldPPPt-PT-040B` | — | TRUE, 27 s | TRUE, 54 s |
+| `ShieldPPPt-PT-050B` | — | — | TRUE, 35 s |
+| `ShieldPPPt-PT-100B` | — | — | TRUE, 65 s |
+| `RERS2020-PT-pb104` | — | — | TRUE, 440 s |
+| `ShieldIIPt-PT-010B` | — | — | — |
+| `ShieldIIPt-PT-020B` | — | — | — |
+| `ShieldPPPt-PT-030B` | — | — | — |
+
+So the eight are three different things.
+
+* **`ASLink-PT-07a` is not a regression.** It answers in three seconds both
+  times; the campaign run died on the eclipse fatal error that hits this tree
+  at random, 62 times in the September 5 campaign.
+* **Four are intermittent.** The new binary does find them, just not every
+  time. Every success arrives on the *second* walker call in 27 to 65 s —
+  except `RERS2020-PT-pb104` at 440 s — while every failure makes six short
+  calls and then burns 1796 s in `its-ctl`.
+* **Three are consistently lost**: `ShieldIIPt-PT-010B`, `ShieldIIPt-PT-020B`,
+  `ShieldPPPt-PT-030B`, nought for three.
+
+The A/B therefore reads **+19 instances and +8 consensus-free values against 3
+losses**, not 8, with a band of four instances whose verdict is a coin flip.
+
+Two consequences. The give-up rule is worth more than it looked: on the
+intermittent four the walk *can* succeed inside 65 s of an 1800 s budget, and
+what separates a success from a failure is whether the second call happens to
+find it — nobody tries a third. And measurement discipline: **7 of these 16
+repeat runs disagree with the campaign**, so on the marginal band a single run
+is not reproducible and no A/B worth less than a few dozen instances can be
+read from one campaign.
 
 ## The verbosity change
 
