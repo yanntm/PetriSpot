@@ -8,7 +8,9 @@
 * `sexpr_roundtrip.sh` — MCC XML to s-expressions and back on the property
   files of the given model folders; the ASTs must agree.
 * `probes/` — one-off analysis scripts kept for reference (place projection
-  and the BridgeAndVehicles bound finding).
+  and the BridgeAndVehicles bound finding; `perprop_payoff.py`,
+  `reduction_resistance.py` and `dd_tail.py` measure the campaign claims of
+  `PORTFOLIO.md` against a directory of MCC logs).
 * `pnet_roundtrip.sh` — PNML versus PNET input on the given model folders:
   same invariant counts, same verdicts and step counts (step-bound walks).
 
