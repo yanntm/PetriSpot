@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <limits>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -237,7 +238,9 @@ template<typename T>
  * nothing, improved no bound, and every walk in it ended on the step budget:
  * more time would change nothing -- unless --escalate, which raises the step
  * budget tenfold instead and keeps walking while the total budget lasts.
- * Every bound target ends with a BOUND line.
+ * A BOUND line is printed each time a walk raised the best value of a bound
+ * target, and every bound target ends with one, so a reader that stops
+ * listening early still holds the best value known at that time.
  */
 template<typename T>
   void runProperties (const Options &o, const SparsePetriNet<T> &pn)
@@ -262,12 +265,27 @@ template<typename T>
     auto elapsedMs = [&] () { return millisSince (walkStart); };
     const long totalMs = o.totalTime * 1000;
 
+    // best value already printed per bound target; a walk that raises one
+    // gets it printed at once
+    std::vector<long long> printedBound (targets.size (), std::numeric_limits<long long>::min ());
+    auto printBounds = [&] (bool all) {
+      for (uint32_t i = 0; i < targets.size (); ++i) {
+        if (!targets.target (i).isBound ()) continue;
+        long long best = targets.bestValue (i);
+        if (all || best > printedBound[i]) {
+          std::cout << "BOUND " << targets.name (i) << " " << best << std::endl;
+          printedBound[i] = best;
+        }
+      }
+    };
+
     if (o.sweepTime > 0 && targets.openCount () >= 2) {
       long ms = o.sweepTime * 1000;
       if (totalMs > 0) ms = std::min (ms, totalMs);
       std::cout << "Sweep: " << targets.openCount () << " open properties, " << ms << " ms of random walks." << std::endl;
       budget.timeoutMillis = static_cast<uint64_t> (ms);
       runWalk (o, wnet, targets, NO_FOCUS, budget, randomSpecs);
+      printBounds (false);
     }
 
     long perProperty = (totalMs > 0 ? o.roundTime : o.timeout) * 1000; // milliseconds
@@ -289,6 +307,7 @@ template<typename T>
         if (targets.isSolved (k)) continue; // claimed on the way to another focus
         petri::walk::PortfolioResult<T> res = runWalk (o, wnet, targets, k, budget,
                                                        targets.target (k).hasHint () ? hintSpecs : specs);
+        printBounds (false);
         if (!stepBound (res, budget)) allStepBound = false;
         if (totalMs > 0 && elapsedMs () >= totalMs) break;
       }
@@ -308,11 +327,7 @@ template<typename T>
       }
       perProperty *= 10;
     }
-    for (uint32_t i = 0; i < targets.size (); ++i) {
-      if (targets.target (i).isBound ()) {
-        std::cout << "BOUND " << targets.name (i) << " " << targets.bestValue (i) << std::endl;
-      }
-    }
+    printBounds (true);
     if (o.printUnknown) {
       for (uint32_t k : targets.openTargets ())
         if (!targets.target (k).isBound ()) std::cout << "UNKNOWN " << targets.name (k) << std::endl;

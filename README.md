@@ -153,7 +153,8 @@ Output follows the MCC convention, one line per solved property, flushed as
 soon as it is known:
 `FORMULA <id> TRUE|FALSE TECHNIQUES EXPLICIT HEURISTIC_WALK PARALLEL_PROCESSING`.
 The other machine-readable lines are `BOUND <id> <max>` (bound properties: the
-largest value seen, `FORMULA <id> <k>` when a known bound `k` is reached),
+largest value seen, printed each time a walk raises it and once more at the
+end; `FORMULA <id> <k>` when a known bound `k` is reached),
 `WITNESS` (with `--trace`) and `UNKNOWN` (with `--printUnknown`); everything
 else on stdout is a log (`INTEROP.md` section 5).
 
