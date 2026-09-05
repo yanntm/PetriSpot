@@ -332,6 +332,25 @@ template<typename T>
     }
     std::vector<petri::walk::StrategySpec> specs = petri::walk::parseStrategySpecs (list, o.epsilon, o.stall, o.sample);
     std::vector<petri::walk::Target<T>> tg { petri::walk::Target<T>::deadlockTarget () };
+    // A Parikh vector from the caller's state equation describes the firing
+    // counts that reach a dead marking, which is the whole answer on a net
+    // whose deadlock is structured rather than stumbled into. There is one
+    // target here and the caller names it after its own property, so the hint
+    // is taken by count, not by name.
+    bool hinted = false;
+    if (!o.hintsFile.empty ()) {
+      auto hints = petri::sexpr::loadHints (o.hintsFile, pn);
+      auto it = hints.find ("ReachabilityDeadlock");
+      if (it == hints.end () && hints.size () == 1) it = hints.begin ();
+      if (it != hints.end ()) {
+        tg[0].setHint (it->second);
+        hinted = true;
+      }
+    }
+    if (hinted && o.strategies.empty () && o.strategy == "random" && o.threads > 1) {
+      specs = petri::walk::parseStrategySpecs ("parikh,deadlock+sat:10:2000,random+sat,random",
+                                               o.epsilon, o.stall, o.sample);
+    }
     petri::walk::TargetSet<T> targets (pn.getPlaceCount (), std::move (tg), { "ReachabilityDeadlock" }, { "TRUE" });
     runWalk (o, wnet, targets, 0, budget, specs);
   }

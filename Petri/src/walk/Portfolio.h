@@ -14,6 +14,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <limits>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -110,7 +111,7 @@ template<typename T>
     {
       if (bestFirst) return bestFirst->minDistance;
       if (relaxed) return relaxed->minHeuristic;
-      if (deadlock) return deadlock->minEnabled;
+      if (deadlock) return deadlock->minEnabled == std::numeric_limits<uint64_t>::max () ? 0 : deadlock->minEnabled;
       return 0;
     }
   };

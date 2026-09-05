@@ -124,6 +124,23 @@ template<typename T>
       return count < 0 ? 0 : static_cast<uint64_t> (count);
     }
 
+
+    /**
+     * How many enabled transitions to score this step. Scoring all of them is
+     * what makes the choice precise and stays affordable while the enabled set
+     * is of ordinary size; past that the per-step cost dominates the walk (on a
+     * net of 25k transitions it costs a factor of forty), so an unset --sample
+     * degrades to a fixed draw rather than scaling with the net. An explicit
+     * --sample is always honoured.
+     */
+    size_t candidateCount (size_t n) const
+    {
+      static constexpr size_t AUTO_FULL = 4096;  // score all up to this many
+      static constexpr size_t AUTO_SAMPLE = 64;  // beyond it, draw this many
+      if (sampleSize != 0) return sampleSize >= n ? n : sampleSize;
+      return n <= AUTO_FULL ? n : AUTO_SAMPLE;
+    }
+
     uint32_t choose (WalkContext<T> &ctx) override
     {
       const size_t n = ctx.enabled.size ();
@@ -134,7 +151,7 @@ template<typename T>
       }
       best.clear ();
       uint64_t bestCount = NO_COUNT;
-      const size_t count = sampleSize == 0 || sampleSize >= n ? n : sampleSize;
+      const size_t count = candidateCount (n);
       for (size_t i = 0; i < count; ++i) {
         const uint32_t t = count == n ? ctx.enabled.at (i) : ctx.enabled.at (ctx.rng () % n);
         const uint64_t d = successorCount (ctx, t);

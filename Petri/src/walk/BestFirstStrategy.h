@@ -55,6 +55,23 @@ template<typename T>
     {
     }
 
+
+    /**
+     * How many enabled transitions to score this step. Scoring all of them is
+     * what makes the choice precise and stays affordable while the enabled set
+     * is of ordinary size; past that the per-step cost dominates the walk (on a
+     * net of 25k transitions it costs a factor of forty), so an unset --sample
+     * degrades to a fixed draw rather than scaling with the net. An explicit
+     * --sample is always honoured.
+     */
+    size_t candidateCount (size_t n) const
+    {
+      static constexpr size_t AUTO_FULL = 4096;  // score all up to this many
+      static constexpr size_t AUTO_SAMPLE = 64;  // beyond it, draw this many
+      if (sampleSize != 0) return sampleSize >= n ? n : sampleSize;
+      return n <= AUTO_FULL ? n : AUTO_SAMPLE;
+    }
+
     uint32_t choose (WalkContext<T> &ctx) override
     {
       const size_t n = ctx.enabled.size ();
@@ -66,7 +83,7 @@ template<typename T>
       Marking<T> &m = const_cast<Marking<T>&> (ctx.marking); // restored by peek
       best.clear ();
       uint64_t bestDist = petri::expr::INFINITE_DISTANCE + 1;
-      size_t count = sampleSize == 0 || sampleSize >= n ? n : sampleSize;
+      const size_t count = candidateCount (n);
       for (size_t i = 0; i < count; ++i) {
         uint32_t t = count == n ? ctx.enabled.at (i) : ctx.enabled.at (ctx.rng () % n);
         uint64_t d = m.peek (ctx.net.effect (t), [this] (const Marking<T> &mm) {

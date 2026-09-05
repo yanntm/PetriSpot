@@ -232,6 +232,21 @@ independent, so the default pool of `--findDeadlock` spans both:
 models measured so far each of the first three wins one: `random+sat` takes
 Angiogenesis in 5 ms, plain `random` takes Philosophers-PT-000100 and -001000.
 
+A Parikh hint changes the picture entirely on a net whose deadlock is
+structured rather than stumbled into, and `--findDeadlock` reads `--hints` for
+that reason: the vector of firing counts that the caller's state equation
+produces is the answer, not a nudge towards it. On `Philosophers-PT-005000` no
+walk of any kind finds the deadlock in sixty seconds, and the hint "fire each
+philosopher's first fork once" finds it in 39 ms, in exactly 5000 steps, the
+minimal witness. There is one target in this mode and the caller names it after
+its own property, so the hint is taken by count when the name does not match.
+With a hint the pool becomes `parikh,deadlock+sat:10:2000,random+sat,random`.
+
+The scale at which this stops working is worth knowing: the same hint on
+`Philosophers-PT-010000` fires most of its counts and then restarts, 568 times
+in a minute, without closing. No tool of the 2026 contest answered that
+instance either.
+
 `--findDeadlock` builds its strategies through `--strategies`, else
 `--strategy`, else that pool, so a request for several threads spreads them
 over it instead of running one strategy several times.
