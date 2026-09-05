@@ -134,6 +134,26 @@ exposes the marking, the enabled set, the net and the RNG.
   `form >= limit` and every heuristic strategy applies unchanged; without a
   limit they all become this best-first.
 
+* `DeadlockDistance`, for a deadlock target: the number of enabled
+  transitions of the marking. Zero is exactly the target, so unlike
+  `BoundDistance` this is a real distance and every best-first mechanism
+  applies to it unchanged. It is the "fewest successors" rule of the 2020
+  prototype, restated as a distance so it lives in the portfolio rather than
+  beside it.
+
+  Scoring a candidate `t` means counting the enabled transitions of
+  `m + effect[t]` without building that marking. Only the consumers of the
+  places `t` touches can change status, so the count moves by
+  `-(disabled by t) + (enabled by t)` over that set, which is small on a
+  sparse net: the same reasoning `EnabledSet::update` already applies after a
+  real step, run here in peek mode over a sampled candidate set.
+
+  A cheaper proxy, if the exact delta proves too slow: score `t` by how many
+  transitions it disables, read off `consumers[p]` for the places it
+  decreases, ignoring what it enables. That is the structural preference of
+  `WALK_PLAN.md` 4.6 and needs no peek at all, but it is blind to a
+  transition that disables three and enables four.
+
 * `ParikhStrategy`: hint-driven. The net groups transitions by identical
   effect (`WalkNet::effectClassOf`, what the state equation sees); the hint's
   firing counts land on classes. A step chooses uniformly among the enabled
@@ -178,6 +198,26 @@ is reported as the marking reached. When on, the trace holds the transitions
 fired since the last reset, so a witness is the sequence from the initial
 marking; it is replayed on a fresh marking and checked before it is printed.
 A witness found from a pooled restart has no trace.
+
+## Deadlock
+
+The target's `reached` test is already "the enabled list is empty", so a
+deadlock target needs no new machinery in `TargetSet` or in the walker; it
+needs a gradient. Without one the search is a uniform random walk, and on a
+net whose dead markings sit off the bulk of the state space that walk does
+not merely fail to conclude, it never comes near: 489 million steps and 489
+resets on `Angiogenesis-PT-20` report zero dead ends.
+
+With `DeadlockDistance` the deadlock target is an ordinary best-first target:
+descend the enabled count, epsilon share of uniform moves, restart after
+`stall` steps without improving the best count of the run. The epsilon and
+the restart carry the weight here, because the rule is greedy and a net can
+hold a region that is cheap in enabled transitions and has no dead marking in
+it at all; `random` stays in the pool for the same reason.
+
+`--findDeadlock` builds its strategies through the same `strategyPool` as the
+property path, so a request for several threads spreads them over the pool
+instead of running one strategy several times.
 
 ## Portfolio (threads)
 
