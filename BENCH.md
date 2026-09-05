@@ -148,6 +148,11 @@ columns count the properties answered by a walk rather than by SMT or decision
 diagrams. It matches ITS-Tools log lines by regex, so the patterns must be
 checked against the current output before trusting a campaign.
 
+Our own collector is `Petri/test/mcc/mcclogs2csv.py`: it takes the
+per-examination directories and writes one row per log and one row per formula,
+carrying the oracle comparison, the failure signature and the PetriSpot walker
+census. `Petri/test/mcc/csv/<date>/README.md` reports what a campaign showed.
+
 ## Known harness artefact: StateSpace
 
 ITS-Tools reports three of the four `STATE_SPACE` values (`STATES`,
