@@ -210,6 +210,8 @@ else on stdout is a log (`INTEROP.md` section 5).
 | `--printUnknown` | at exit, one `UNKNOWN <id>` line per property left without verdict |
 | `--netStats` | structural histograms of the net |
 
+`HANDOFF.md` is where a new session starts: what is in flight, where the data
+lives, and the harness facts worth not rediscovering.
 The design, the measurements and the plan of attack are in `WALK_PLAN.md`;
 the tool-to-tool interface with ITS-Tools (binary net, s-expression
 properties, result protocol) is designed in `INTEROP.md`;
