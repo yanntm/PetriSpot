@@ -186,8 +186,9 @@ A `bound` target is pure exploration: the walk reports the largest value of
 bound (structural, from invariants or the state equation; it may
 over-approximate but is never below the truth): reaching it ends the target
 with a `FORMULA` verdict, since the value is then exact. Without it the target
-stays open for the whole budget and only a `BOUND` line is reported. Where the
-hint comes from is the caller's business; PetriSpot does not compute it.
+stays open for the whole budget and only `BOUND` lines are reported, one each
+time a walk raises the value and one at exit. Where the hint comes from is the
+caller's business; PetriSpot does not compute it.
 
 Example request written by ITS-Tools for three predicates, a deadlock and two
 bounds, one with a structural hint:
@@ -244,13 +245,14 @@ contain whitespace (MCC ids and ITS-Tools names never do).
 ```
 FORMULA <name> TRUE|FALSE TECHNIQUES <words>     verdict (unchanged MCC line)
 FORMULA <name> <k> TECHNIQUES <words>            bound target whose hint k was reached: the bound is k
-BOUND <name> <max>                               every bound target, at exit: the largest value seen
+BOUND <name> <max>                               bound target: the largest value seen, each time a walk raises it and at exit
 WITNESS <name> <k> t3 t9 t3 ...                  only with --trace: the k transitions fired from the initial marking
 UNKNOWN <name>                                   only with --printUnknown: at exit, one per property without verdict
 ```
 
 A bound target without a hint never gets a `FORMULA` line nor an `UNKNOWN`
-line; its answer is the `BOUND` line.
+line; its answer is its last `BOUND` line, and a reader cut off early holds
+the best value known at that time.
 
 Witnesses are not part of the fast path: without `--trace` the walker never
 records anything, and the MCC does not ask for traces. With `--trace` the
