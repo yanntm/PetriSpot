@@ -6,13 +6,16 @@ six examinations, one `oarsub` per pair, 1800 s per test, 4 cores, all on the
 `202609051349` (the rest). Logs live in `/data/ythierry/MCC26run/`, rsynced
 from `~/MCC26/MCC-drivers/{L,OS,QL,RD,SM,UB}`.
 
-1951 instances, not 1953: `StigmergyCommit-PT-11b` and `TokenRing-PT-050` were
-absent from `INPUTS/` and every one of their runs died on
-`Cannot open file .../model.pnml`. Their twelve logs are dropped from these
-tables; the two archives have since been fetched from
+1953 instances, but twelve of the runs are younger than the rest.
+`StigmergyCommit-PT-11b` and `TokenRing-PT-050` were absent from `INPUTS/` --
+they exceed the GitHub pages file size limit and `pnmcc-models-2026` does not
+publish them -- so every one of their runs died on
+`Cannot open file .../model.pnml`. The two archives were fetched from
 `https://mcc.lip6.fr/2026/archives/INPUTS-2026.tar.gz`, which carries them at
-full size, installed into `pnmcc-models-2026/website/INPUTS/` and deployed to
-the cluster, and the twelve tests resubmitted against build `202609051741`.
+full size, installed into the corpus and deployed, and their twelve tests rerun
+against build `202609051741`. `TokenRing-PT-050` answers OneSafe, StableMarking
+and all sixteen UpperBounds in under 15 s; `StigmergyCommit-PT-11b`, a 1.4 GB
+PNML, answers OneSafe in 112 s and 8 of 16 bounds, and times out on the rest.
 
 `ReachabilityCardinality`, `ReachabilityFireability`, the CTL and LTL
 examinations and `StateSpace` were not run.
@@ -21,58 +24,61 @@ examinations and `StateSpace` were not run.
 
 | examination | oracle | known | answered | ok | wrong | missed | bonus | wall (h) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Liveness | 1951 | 1837 | 1813 | 1807 | 0 | 30 | 6 | 84.0 |
-| OneSafe | 1951 | 1941 | 1940 | 1940 | 0 | 1 | 0 | 6.4 |
-| QuasiLiveness | 1951 | 1782 | 1786 | 1763 | 0 | 19 | 23 | 127.9 |
-| ReachabilityDeadlock | 1951 | 1892 | 1871 | 1868 | 0 | 24 | 3 | 43.6 |
-| StableMarking | 1951 | 1884 | 1837 | 1836 | 0 | 48 | 1 | 65.4 |
-| UpperBounds | 31216 | 30313 | 29958 | 29902 | 0 | 411 | 56 | 122.3 |
+| Liveness | 1953 | 1837 | 1813 | 1807 | 0 | 30 | 6 | 84.5 |
+| OneSafe | 1953 | 1943 | 1942 | 1942 | 0 | 1 | 0 | 6.4 |
+| QuasiLiveness | 1953 | 1783 | 1786 | 1763 | 0 | 20 | 23 | 128.9 |
+| ReachabilityDeadlock | 1953 | 1893 | 1871 | 1868 | 0 | 25 | 3 | 44.6 |
+| StableMarking | 1953 | 1886 | 1838 | 1837 | 0 | 49 | 1 | 65.5 |
+| UpperBounds | 31248 | 30345 | 29982 | 29926 | 0 | 419 | 56 | 123.2 |
 
-**No wrong verdict anywhere**: 39649 values compared, 0 disagreements with a
+**No wrong verdict anywhere**: 39687 values compared, 0 disagreements with a
 known oracle value. 89 answers are `bonus`, that is verdicts on formulas the
 2026 consensus oracle leaves at `?` — candidate contributions to the oracle,
 and the only answers no other tool checks, so the only place an error could
 hide. They are the `status == bonus` rows of `verdicts.csv`.
 
-Two different things are called a miss. 1766 values went unanswered — an ideal
-tool would have produced every one of them. Of those, 1233 are `none`: nobody
+Two different things are called a miss. 1781 values went unanswered — an ideal
+tool would have produced every one of them. Of those, 1237 are `none`: nobody
 answered, the oracle has `?` there too, and they are open problems rather than
-a gap of ours. The other 533 are `missed`: the consensus knows the value and we
+a gap of ours. The other 544 are `missed`: the consensus knows the value and we
 did not produce it. Only that second number measures us against the field.
 
 | examination | oracle | answered | ok | missed | none | unanswered |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Liveness | 1951 | 1813 | 1807 | 30 | 108 | 138 |
-| OneSafe | 1951 | 1940 | 1940 | 1 | 10 | 11 |
-| QuasiLiveness | 1951 | 1786 | 1763 | 19 | 146 | 165 |
-| ReachabilityDeadlock | 1951 | 1871 | 1868 | 24 | 56 | 80 |
-| StableMarking | 1951 | 1837 | 1836 | 48 | 66 | 114 |
-| UpperBounds | 31216 | 29958 | 29902 | 411 | 847 | 1258 |
+| Liveness | 1953 | 1813 | 1807 | 30 | 110 | 140 |
+| OneSafe | 1953 | 1942 | 1942 | 1 | 10 | 11 |
+| QuasiLiveness | 1953 | 1786 | 1763 | 20 | 147 | 167 |
+| ReachabilityDeadlock | 1953 | 1871 | 1868 | 25 | 57 | 82 |
+| StableMarking | 1953 | 1838 | 1837 | 49 | 66 | 115 |
+| UpperBounds | 31248 | 29982 | 29926 | 419 | 847 | 1266 |
 
 `toolsupport.py` joins `verdicts.csv` with the contest's
-`raw-result-analysis.csv` and says who did answer each of the 533. Every one is
+`raw-result-analysis.csv` and says who did answer each of the 544. Every one is
 backed by at least one tool and every `bonus` by none, so the oracle is fully
-explained by the evidence. **298 of the 533 were answered by ITS-Tools itself
+explained by the evidence. **307 of the 544 were answered by ITS-Tools itself
 in the contest** — our run is weaker than the submission there, most plausibly
 because the contest budget is larger than the 1800 s used here. The remaining
-235 are values another tool has and ITS-Tools did not: Tapaal alone carries
+237 are values another tool has and ITS-Tools did not: Tapaal alone carries
 most of them, and 43 come from `2025-gold`, the previous edition's medallist,
-the only tool to answer them.
+the only tool to answer them. Since this campaign the same information is in
+the oracle itself: `pnmcc-models-2026` now writes
+`TECHNIQUES ORACLE2026 ITSTOOLS TAPAAL 2025GOLD`, the tools whose own answer is
+the consensus value.
 
-## Why 533 values were not produced
+## Why 544 values were not produced
 
 | cause | L | OS | QL | RD | SM | UB | total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| timeout (1800 s) | 28 | 0 | 16 | 16 | 15 | 330 | 405 |
+| timeout (1800 s) | 28 | 0 | 17 | 17 | 15 | 338 | 415 |
 | `petri64` not runnable | 0 | 0 | 0 | 0 | 20 | 20 | 40 |
 | `OverlargeMarkingException` | 1 | 0 | 1 | 1 | 1 | 25 | 29 |
 | eclipse fatal error | 0 | 0 | 0 | 7 | 5 | 3 | 15 |
-| gave up before the timeout | 0 | 1 | 2 | 0 | 7 | 32 | 42 |
+| gave up before the timeout | 0 | 1 | 2 | 0 | 8 | 32 | 43 |
 | `its-*` C++ abort | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | Java `OutOfMemoryError` | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
 
 Only the first and the last lines are about the tools being too slow or too
-hungry; 85 of the 533 are harness or front-end accidents.
+hungry; 85 of the 544 are harness or front-end accidents.
 
 * **`petri64` not runnable.** Two windows, 15:32–15:56 and 19:09–19:24, where
   the Java side reports `Cannot run program .../bin/petri64: Exec failed`,
@@ -86,7 +92,9 @@ hungry; 85 of the 533 are harness or front-end accidents.
   `its-reach-linux64`, `louvain-linux64` alike — so the runtime is the only
   thing that ever makes them executable, and under a hundred concurrent jobs
   sharing one tree that is a race. The redeploy of build `202609051741`
-  `chmod +x`es the plugin `bin/` directories before the rsync.
+  `chmod +x`es the plugin `bin/` directories before the rsync, and a `p2.inf`
+  in each binaries plugin of ITS-Tools now restores mode 755 at install time,
+  which is the only point of the packaging chain that sees a real filesystem.
 * **`OverlargeMarkingException`, libDDD overflow.** `GPPP-PT-C0010N1000000000`,
   `SharedMemory-COL-050000`, `SatelliteMemory-PT-X65535Y2048`: markings that do
   not fit the front-end's or libDDD's value type. An ITS-Tools limit.
@@ -117,7 +125,7 @@ lines. A "property" is atomic — one transition for QuasiLiveness, one place
 pair for StableMarking, one place for OneSafe — so the counts are not
 comparable across examinations, only the rates are.
 
-90 h of walking out of 449 h of campaign: **one fifth of the whole compute
+90 h of walking out of 453 h of campaign: **one fifth of the whole compute
 budget goes through the walk engine.** The walker is killed by its 50 s budget
 in 301 calls, 261 of them in UpperBounds, where it is called five times per log
 on average.
@@ -130,8 +138,8 @@ own hard set on this benchmark.
 
 ## Where the walk engine could earn verdicts
 
-The 405 timeouts are the honest target list. UpperBounds carries 330 of them
-over 93 instances, and the families repeat: `MultiCrashLeafsetExtension-PT-*`,
+The 415 timeouts are the honest target list. UpperBounds carries 338 of them
+over 94 instances, and the families repeat: `MultiCrashLeafsetExtension-PT-*`,
 `FunctionPointer-PT-*`, `DoubleExponent-PT-*`, `FamilyReunion-*`,
 `DatabaseWithMutex-*`, `HouseConstruction-PT-*`, `Murphy-PT-*`,
 `RERS17pb11x-PT-*`. In StableMarking and QuasiLiveness the same
