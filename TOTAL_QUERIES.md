@@ -1,7 +1,10 @@
 # Three total examinations
 
-A note for ITS-Tools: add `UpperBoundsAll`, `StableMarkingAll` and
-`QuasiLivenessAll`. Not implemented.
+ITS-Tools examinations `QuasiLivenessAll`, `StableMarkingAll` and
+`UpperBoundsAll`, P/T nets only. Implemented in
+`fr.lip6.move.gal.application.solver.total` (`TotalExamination`,
+`TotalSolver`, `TotalPrinter`); the atoms come from
+`solver.global.GlobalAtoms`, shared with the roll-up examinations.
 
 ## Why
 
@@ -35,44 +38,40 @@ Three properties make them better instruments than the contest queries.
 
 ## How they run
 
-The same path as the global properties, in `GlobalPropertySolver`: build the
-cohort, discard what is cheap to discard, hand the rest to the solving loop.
-The builders already exist in miniature — `buildQuasiLivenessProperty` emits one
-`EF ENABLED(t)` per non-dominated transition, `buildStableMarkingProperty` one
-per place — and the difference is only that the roll-up to a single examination
-verdict is dropped: no early break, every atom is reported.
-
-Cheap discards, before the loop:
-
-* `QuasiLivenessAll` — `computeDominatedTransitions`; on a coloured model the
-  skeleton settles negatives (dead in the skeleton is dead in the unfolding);
-  structural and SMT dead-transition tests.
-* `StableMarkingAll` — constant places are TRUE by construction; any place a
-  first walk changes is FALSE by witness.
-* `UpperBoundsAll` — constant places close at once; invariants give the upper
-  side; NUPN or one-safe gives `≤ 1`.
+As an MCC examination: `-examination QuasiLivenessAll` builds one atom per
+object on the net as parsed, in place of reading a property file, and falls
+through to the `ReachabilityFireability`, `ReachabilityCardinality` or
+`UpperBounds` pipeline with all its engines. Nothing is discarded up front:
+the dominated-transition mask of the roll-up path is an implication, not an
+answer, and the pipeline settles constant places and dead transitions on its
+own. The `-timeout` flag is a per-engine budget, not a deadline; the run
+ends when the cohort is closed or when the harness kills it.
 
 ## Output
 
-One line per atom, MCC shape, named by the place or transition:
+One header, then one line per atom the moment its verdict lands. Objects
+are named by definition index in the PNML, `p<i>` and `t<i>`; names can be
+resolved from the file afterwards if ever needed.
 
 ```
-FORMULA <model>-QuasiLivenessAll-<transition> TRUE TECHNIQUES TOPOLOGICAL RANDOM_WALK
-FORMULA <model>-StableMarkingAll-<place> FALSE TECHNIQUES ...
-FORMULA <model>-UpperBoundsAll-<place> 12 TECHNIQUES ...
+TOTAL QuasiLivenessAll 1242
+QLIVE t17 TRUE TOPOLOGICAL RANDOM_WALK
+STABLE p3 FALSE DECISION_DIAGRAMS TOPOLOGICAL
+BOUND p9 12 TOPOLOGICAL SAT_SMT
+BOUND p11 ? 5 inf
 ```
 
-Verbose on a large net, and that is acceptable — the point of the exercise is
-the whole vector. Two requirements on the output, without which the completion
-fraction cannot be computed:
+The last shape is an open bound, printed at every checkpoint of the bounds
+solver where its `[max seen, structural bound]` pair moved; a reader keeps
+the last line of each object. Nothing is printed post hoc, so an external
+kill loses at most the current phase. An atom with no line is unanswered:
+the header gives the count the completion fraction is taken against.
 
-* **unanswered atoms are reported as such**, one line each, the way
-  `--printUnknown` does in PetriSpot. Silence must not be readable as FALSE.
-* **an unclosed bound reports its interval**, `lo` and `hi`, not nothing. That
-  is the measurement the examination exists for.
-
-Transition names are mangled on large nets, where composing them would blow up
-in size; fall back to the index there and say so in the header line.
+For the cluster, `MCC-drivers/gen_total_oracles.sh` writes one oracle per
+examination and instance with a `?` per object (`<instance>-QLA.out`,
+`-SMA.out`, `-UBA.out`), so `run_test.pl` runs them like any examination and
+reports the unanswered atoms as missing results. A `?` is to be replaced by
+a verdict once one is trusted.
 
 ## What to measure
 
