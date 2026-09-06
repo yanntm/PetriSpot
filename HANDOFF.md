@@ -4,6 +4,23 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-06, 23:00: time sharing, step 1 landed
+
+WALK_PLAN.md 10.11 (rewritten as agreed: a pool of exploration tasks over
+runner threads, shares that follow results, subquests as child tasks with a
+budget) and PORTFOLIO.md's new section are the design; commit 7acb697 is
+step 1: `walk/Task.h`, `WalkTask.h`, `Scheduler.h`, `Walker::begin/runSlice/
+finish`, options `--tasks --slice --sliceMs`, a report line per task and per
+strategy kind (steps, running ms, steps/ms, claims, claims/s, slices, capped
+slices). Equal shares, so with twice the tasks each kind gets half the time.
+Parity with the threads held on every control; the yardsticks and the
+calibration figures are in 10.11 step 1 and `Petri/test/logs/sched-*.log`.
+Two figures to keep in mind for step 2 (adaptive shares) and the sampling
+question: on Erlangen the rarity tasks pay 50 000 arc visits and 25 000
+target checks a step (0.4 steps/ms), on RERS the quest tasks fire a cheap
+local loop at 130 steps/ms with 1 arc visit a step and claim nothing.
+Walker.h is 521 lines; the target index is the piece to extract next.
+
 ## 2026-09-06, 21:30: the QLA rerun read, and what it taught
 
 **QLA rerun collected** into `/data/ythierry/MCC26run/2026-09-06c/QLA`
