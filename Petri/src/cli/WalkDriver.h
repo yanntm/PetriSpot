@@ -66,9 +66,14 @@ template<typename T>
     if (!wanted) return nullptr;
     auto time = std::chrono::steady_clock::now ();
     MatrixCol<T> sumMatrix = MatrixCol<T>::sumProd (-1, pn.getFlowPT (), 1, pn.getFlowTP ());
-    // semiflows: non-negative by definition, so every one is a component
-    auto [mat, perms] = InvariantMiddle<T>::computePInvariants (sumMatrix, true, std::min<long> (o.timeout, 60),
-                                                                o.heuristic (false));
+    // semiflows: non-negative by definition, so every one is a component; boxed to a quarter of the
+    // walk's budget so that a net whose flows resist leaves the time to the walk
+    long box = o.totalTime > 0 ? std::max<long> (1, o.totalTime / 4) : std::min<long> (o.timeout, 60);
+    auto [mat, perms] = InvariantMiddle<T>::computePInvariants (sumMatrix, true, box, o.heuristic (false));
+    if (mat.getColumnCount () == 0) {
+      std::cout << "Flows: none within " << box << " s, the sweep goes without components." << std::endl;
+      return nullptr;
+    }
     auto comps = std::make_unique<petri::walk::Components<T>> (wnet, mat);
     std::cout << "Flows: " << mat.getColumnCount () << " P-semiflows in " << millisSince (time) << " ms. ";
     comps->printStats (std::cout);
