@@ -1,8 +1,33 @@
-# Handoff — MCC 2026 campaign, the portfolio design, and the first two fixes
+# Handoff — MCC 2026 campaign, the portfolio design, the first fixes, the total examinations
 
-State of the work as of 2026-09-05/06. Read `PORTFOLIO.md` first if you are
-picking up the design; read this for where everything lives and what is in
-flight.
+State of the work as of 2026-09-06. Read `PORTFOLIO.md` first if you are
+picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
+this for where everything lives and what is in flight.
+
+## Session of 2026-09-06: total examinations and streaming
+
+* **ITS-Tools** gained `QuasiLivenessAll`, `StableMarkingAll`,
+  `UpperBoundsAll` (`solver/total/`, P/T only), after a refactor of the global
+  solver (`GlobalAtoms`, `ExhaustiveEngines`, `Aggregation`). Output is one
+  line per atom, `QLIVE t12 TRUE <techniques>`, `BOUND p3 ? lo hi` while open.
+* **Streaming.** PetriSpot walker verdicts are published into `DoneProperties`
+  as the binary prints them (`PetriSpotWalker.Listener`), and PetriSpot prints
+  a `BOUND` line each time a walk raises a bound. Before, everything a walk
+  found was lost when the harness killed the run: Peterson-PT-5 bounds went
+  from 17 to 396 of 834 closed in the same 120 s.
+* **Oracles** of the total examinations are vectors, `T`/`F`/`?` per object
+  wrapped at 80 columns (`pnmcc-models-2026/make_total_oracles.sh`, in
+  `oracle.tar.gz`; 5043 files committed in MCC-drivers). `run_test.pl` reads
+  them by index. `SupportedExamination.txt` in ITS-Tools-MCC admits the three.
+* **Collector** `Petri/test/mcc/totallogs2csv.py`; a rendering of the vectors
+  as images ordered by net locality was discussed, not designed.
+* **Cluster.** Old `RD/` and the first total warmup archived in
+  `/data/ythierry/MCC26archive/2026-09-06-precampaign/`, cleared on the
+  cluster. Product `202609060003` deployed. AirplaneLD warmup for RD, QLA,
+  SMA, UBA submitted at 1800 s / 4 cores / `tall`; the four full campaigns
+  follow once it checks out (RD 1953 jobs, each total examination 1681).
+* The `-timeout` flag of ITS-Tools is a per-engine budget, not a deadline: the
+  harness kill ends every run that does not close its cohort.
 
 ## What this session did
 
@@ -78,7 +103,7 @@ git fetch origin Inv-Linux && git log -1 --oneline origin/Inv-Linux
 curl -sIL https://lip6.github.io/ITSTools/fr.lip6.move.gal.itscl.product-linux.gtk.x86_64.zip | grep -i last-modified
 ```
 
-**Nothing is running on the cluster.** The queue was empty at handoff.
+**Cluster.** See the 2026-09-06 section above for what is queued.
 
 ## What to do next
 
