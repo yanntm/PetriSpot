@@ -40,6 +40,7 @@ struct WalkStats
   uint64_t deadEnds = 0;
   uint64_t stalls = 0;    // restarts requested by the strategy
   uint64_t poolRestarts = 0; // restarts drawn from the shared pool
+  uint64_t condemned = 0;    // pooled start states found hopeless on arrival and evicted
   uint64_t millis = 0;
   uint64_t arcVisits = 0; // consumer arcs visited by the enabled-set update
   uint64_t flips = 0;     // enabled-status changes
@@ -391,7 +392,8 @@ template<typename T>
           if (fromPool) checkAll (result);
           continue;
         }
-        if ((iterations++ & 1023) == 0) {
+        // the clock every 64 steps: a step costs microseconds on most nets, milliseconds on hub-dense ones
+        if ((iterations++ & 63) == 0) {
           if (budget.stop && budget.stop->load (std::memory_order_relaxed)) break;
           if (budget.maxSteps && st.steps >= budget.maxSteps) break;
           ms = static_cast<uint64_t> (std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - start).count ());
@@ -399,6 +401,15 @@ template<typename T>
           if (tracker && (iterations & 4095) == 1) tracker->merge ();
         }
         uint32_t t = strategy.choose (ctx);
+        if (ctx.badStart) {
+          // the strategy found the run's start hopeless: a pooled state leaves the pool, and the walk restarts
+          ctx.badStart = false;
+          if (fromPool && pool) {
+            pool->evict (poolEntry.id);
+            ++st.condemned;
+            t = RESTART;
+          }
+        }
         if (t == RESTART) {
           ++st.stalls;
           ++st.resets;

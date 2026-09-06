@@ -136,7 +136,7 @@ template<typename T>
       if (o.quiet && !rep.found && res.found) continue;
       std::cout << "Thread " << i << " [" << rep.strategy << "] " << (rep.found ? "found a witness" : "stopped")
           << " after " << st.steps << " steps, " << st.resets << " resets (" << st.deadEnds << " dead ends, "
-          << st.stalls << " stalls, " << st.poolRestarts << " from pool), " << st.millis << " ms ("
+          << st.stalls << " stalls, " << st.poolRestarts << " from pool, " << st.condemned << " condemned), " << st.millis << " ms ("
           << (st.steps / ms) << " steps/ms; " << (st.steps ? st.arcVisits / st.steps : 0) << " arc visits/step, "
           << (st.steps ? st.targetChecks / st.steps : 0) << " checks/step, "
           << st.distinctFired << " distinct transitions fired, " << st.rareEvents << " rare events"

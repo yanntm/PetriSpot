@@ -28,6 +28,7 @@ template<typename T>
     std::mt19937_64 &rng;
     const Knowledge *knowledge = nullptr;          // firings by every thread, when shared
     const std::vector<uint32_t> *firedLocal = nullptr; // firings by this walker, per transition
+    bool badStart = false;                         // set by the strategy: the run's start state is hopeless
   };
 
 /** Returned by Strategy::choose to ask the walker to restart the run. */

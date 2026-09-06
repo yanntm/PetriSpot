@@ -5,7 +5,8 @@
  * a portfolio. A walker publishes the best state of a run (by its heuristic)
  * when the pool has room or the state beats the worst entry; a restarting
  * walker may draw an entry instead of the initial marking. Entries that
- * repeatedly fail to lead to an improvement are evicted, so states doomed by
+ * repeatedly fail to lead to an improvement are evicted, and a walker that
+ * finds an entry hopeless on arrival evicts it at once, so states doomed by
  * an earlier wrong choice do not accumulate.
  */
 #ifndef PETRI_WALK_SHAREDPOOL_H_
@@ -96,6 +97,19 @@ template<typename T>
           entries.pop_back ();
           ++evicted;
         }
+        return;
+      }
+    }
+
+    /** Drop entry id now: a walker restarted from it found it bad on arrival. */
+    void evict (uint64_t id)
+    {
+      std::lock_guard<std::mutex> lock (mutex);
+      for (size_t i = 0; i < entries.size (); ++i) {
+        if (entries[i].id != id) continue;
+        entries[i] = entries.back ();
+        entries.pop_back ();
+        ++evicted;
         return;
       }
     }

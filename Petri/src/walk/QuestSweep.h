@@ -10,7 +10,10 @@
  * is claimed by the walker, so a quest that reaches a shared pre-set claims
  * every transition on it. A bound target on one place is a staircase: the
  * quest is `place >= best + 1`, and while the value climbs the same target is
- * quested again a step higher. See algorithm.md.
+ * quested again a step higher. A marking from which no open target can be
+ * quested (every one hopeless from where the processes stand, or given up on
+ * this run) restarts the walk once; if the restart lands no better, the run
+ * goes on rarity without ranking again. See algorithm.md.
  */
 #ifndef PETRI_WALK_QUESTSWEEP_H_
 #define PETRI_WALK_QUESTSWEEP_H_
@@ -51,6 +54,12 @@ template<typename T>
     long long step = 0;         // bound targets: the value the current quest aims at
     petri::expr::Expression stepGoal; // its goal, kept alive for the quest
     std::vector<uint32_t> unquestable; // targets whose quest could not start this run
+    size_t hopelessSeen = 0;    // last retarget: open targets ranked out as hopeless from the marking
+    bool justReset = false;     // no quest has run since the last reset
+    bool fillerRun = false;     // nothing questable this run: rarity until the next reset
+    unsigned abandonedInARow = 0; // quests given up since the last one that walked
+    /** Quests given up one after the other from about the same marking before the walk restarts. */
+    static constexpr unsigned ABANDON_RESTART = 8;
     std::vector<std::vector<uint32_t>> standing;
     std::vector<std::pair<uint64_t, uint32_t>> ranked;
 
@@ -65,6 +74,9 @@ template<typename T>
     uint64_t abandoned = 0;     // quests that could not start or gave up
     uint64_t hopelessQuests = 0;    // of which: a quest's tokens could not reach its place
     uint64_t unstageableQuests = 0; // of which: behind barriers with no barrier to stage
+    uint64_t hopelessMarkings = 0;  // restarts asked because no open target could be quested from the marking
+    uint64_t abandonRestarts = 0;   // restarts asked after ABANDON_RESTART quests given up in a row
+    uint64_t fillerRuns = 0;        // runs spent on rarity for want of a questable target
 
     QuestSweep (const WalkNet<T> &n, const Components<T> &c, const TargetSet<T> &tgs, unsigned threadRank,
                 unsigned epsilon, size_t sample, uint64_t stall)
@@ -78,6 +90,10 @@ template<typename T>
       // a restart may land near another target: choose again; what could not be quested stays so
       current = NONE;
       quest.reset ();
+      justReset = true;
+      fillerRun = false;
+      abandonedInARow = 0;
+      unquestable.clear (); // a new marking, new chances
     }
 
     bool bestOfRun (SparseArray<T> &m, uint64_t &h) const override
@@ -99,7 +115,21 @@ template<typename T>
           current = NONE;
         }
       }
-      if (current == NONE && !retarget (ctx.marking, ctx.rng)) return filler.choose (ctx);
+      if (fillerRun) return filler.choose (ctx);
+      if (current == NONE && !retarget (ctx.marking, ctx.rng)) {
+        // nothing to quest from here: the marking is what is wrong when targets were ranked out as
+        // hopeless, restart once; landing no better, or with nothing questable by form, walk on rarity
+        if (hopelessSeen > 0 && !justReset) {
+          ++hopelessMarkings;
+          return RESTART;
+        }
+        // hopeless on arrival: a pooled start state is condemned, the walker drops it and restarts
+        if (hopelessSeen > 0) ctx.badStart = true;
+        ++fillerRuns;
+        fillerRun = true;
+        return filler.choose (ctx);
+      }
+      justReset = false;
       uint32_t t = quest->choose (ctx);
       if (t == RESTART) {
         ++abandoned;
@@ -110,11 +140,17 @@ template<typename T>
           current = NONE;
           return RESTART;
         }
-        // behind barriers with none to stage from here: leave the target for this run, move on rarity
+        // behind barriers with none to stage from here: leave the target for this run, move on rarity;
+        // a run giving up quest after quest stands somewhere nothing can be staged from: restart
         unquestable.push_back (current);
         current = NONE;
+        if (++abandonedInARow >= ABANDON_RESTART) {
+          ++abandonRestarts;
+          return RESTART;
+        }
         return filler.choose (ctx);
       }
+      abandonedInARow = 0;
       return t;
     }
 
@@ -239,6 +275,7 @@ template<typename T>
       ++retargets;
       locate (m);
       ranked.clear ();
+      hopelessSeen = 0;
       size_t n = targets.size ();
       // a sample of the open targets when there are many: the nearest of a few thousand is near enough
       size_t stride = n > RANK_SAMPLE ? n / RANK_SAMPLE : 1;
@@ -249,6 +286,7 @@ template<typename T>
         uint64_t d = distance (goal, m);
         // a target no token can reach from here is not a quest from here
         if (d != UNREACHED && d < HOPELESS) ranked.emplace_back (d, id);
+        else if (d != UNREACHED) ++hopelessSeen;
       }
       if (ranked.empty () && stride > 1) {
         // the sample held no open target: look at them all
@@ -256,13 +294,11 @@ template<typename T>
           if (targets.isSolved (id) || isUnquestable (id) || !goalOf (id, goal, m)) continue;
           uint64_t d = distance (goal, m);
           if (d != UNREACHED && d < HOPELESS) ranked.emplace_back (d, id);
+          else if (d != UNREACHED) ++hopelessSeen;
         }
       }
-      if (ranked.empty () && !unquestable.empty ()) {
-        // everything left was given up on once: give it all another chance
-        unquestable.clear ();
-        return retarget (m, rng);
-      }
+      // everything left was given up on from around here: the marking is what is wrong
+      if (ranked.empty ()) hopelessSeen += unquestable.size ();
       if (ranked.empty ()) return false;
       size_t pick = std::min<size_t> (rank, ranked.size () - 1);
       std::nth_element (ranked.begin (), ranked.begin () + pick, ranked.end ());

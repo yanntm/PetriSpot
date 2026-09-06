@@ -198,7 +198,7 @@ loop:
   t = strategy.choose()  (RESTART: same as above)
   marking.apply(effect(t), enabled.onPlaceChanged, collect touched places); trace.push(t)
   check the open targets mentioning a touched place; claim those that hold
-  every 1024 steps: check the wall clock, the step budget, the stop flag
+  every 64 steps: check the wall clock, the step budget, the stop flag
 ```
 
 A claim calls back the owner (the portfolio) with the marking and, when
@@ -281,7 +281,8 @@ goal (random when there is no focus), so all hot state is thread-local. The
 `WalkNet`, the `TargetSet` and the goal expressions are shared read-only,
 except the atomic solved flags. Claims are published under a mutex, in claim
 order, through a callback; when the focus is claimed an atomic stop flag is
-raised, which every walker polls every 1024 steps. After the threads join,
+raised, which every walker polls every 64 steps (a step is milliseconds on a
+hub-dense net, and the deadline overshot by seconds at 1024). After the threads join,
 recorded traces are replayed by one verifier walker before being reported.
 Strategy specs are `name[:epsilon[:stall]]`, e.g. `relaxed:0:300`.
 
@@ -300,8 +301,10 @@ the pool keeps it if there is room or it beats the worst entry, and refuses
 duplicates. A restarting walker draws an entry with probability `shareProb`
 instead of the initial marking, recomputing its enabled set from scratch. A
 run that started from an entry reports whether it improved on the entry's
-value; an entry that fails three times is evicted, which is the defence
-against sharing states doomed by an earlier irreversible choice. A witness
+value; an entry that fails three times is evicted, and one a strategy finds
+hopeless on arrival (`WalkContext::badStart`, the quest sweep with no target
+questable from it) is evicted at once and the walk restarts again: the
+defence against sharing states doomed by an earlier irreversible choice. A witness
 found from a pooled restart has no trace (the pool does not keep traces), so
 it is reported as a marking.
 
@@ -411,7 +414,12 @@ claimed by the walker, so a quest that reaches a shared pre-set claims every
 transition on it. Above a few thousand open targets a random sample of them
 is ranked, the nearest of a few thousand being near enough; the quest sweep
 restarts ten times less often than the others, its progress (the processes
-forked and placed) living in the marking. Within a quest the random share of
+forked and placed) living in the marking. A marking from which no open target
+can be quested, every one hopeless from where the processes stand or given
+up on this run, restarts the walk (a pooled start is condemned, above); when
+the restart lands no better the run goes on rarity without ranking again,
+since a ranking at every step over a filler walk is the cost of a quest for
+nothing. Within a quest the random share of
 moves is sideways only, a move that neither undoes a process in place nor
 worsens the summed distance by more than one, and a process falling behind a
 barrier during a stage revises the stage at once. On 4 threads, 30 s, full

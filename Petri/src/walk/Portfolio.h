@@ -128,7 +128,9 @@ template<typename T>
       if (sweep)
         return "quests " + std::to_string (sweep->retargets) + ", own target claimed " + std::to_string (sweep->claimedOwn)
             + ", bound steps climbed " + std::to_string (sweep->stepsClimbed) + ", abandoned " + std::to_string (sweep->abandoned)
-            + " (hopeless " + std::to_string (sweep->hopelessQuests) + ", unstageable " + std::to_string (sweep->unstageableQuests) + ")";
+            + " (hopeless " + std::to_string (sweep->hopelessQuests) + ", unstageable " + std::to_string (sweep->unstageableQuests)
+            + "), hopeless markings " + std::to_string (sweep->hopelessMarkings) + ", abandon restarts "
+            + std::to_string (sweep->abandonRestarts) + ", filler runs " + std::to_string (sweep->fillerRuns);
       return "";
     }
 
