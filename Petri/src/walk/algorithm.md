@@ -275,7 +275,9 @@ over it instead of running one strategy several times.
 ## Portfolio (threads)
 
 `runPortfolio` starts N threads on one `TargetSet` and one focus; thread i
-runs its own `Walker` with its own `Marking`, `EnabledSet`, RNG (seed + 7919 i)
+runs its own `Walker` with its own `Marking`, `EnabledSet`, RNG (seed + 7919 i,
+the seed itself derived by the driver from `--seed`, default 1, per walk call:
+two runs repeat up to thread timing, the shared claims, pool and counters)
 and a fresh strategy instance built from `specs[i mod |specs|]` on the focus
 goal (random when there is no focus), so all hot state is thread-local. The
 `WalkNet`, the `TargetSet` and the goal expressions are shared read-only,

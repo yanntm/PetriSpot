@@ -191,11 +191,14 @@ template<typename T>
   {
     std::unique_ptr<petri::walk::SharedPool<T>> pool;
     if (o.share > 0) pool = std::make_unique<petri::walk::SharedPool<T>> (o.share, o.shareProb);
+    // one seed per walk call of the run (sweep, focused rounds), so rounds do not replay each other
+    static uint64_t calls = 0;
+    uint64_t seed = o.seed + 0x9E3779B97F4A7C15ull * calls++;
     std::function<void (const petri::walk::Claim<T>&)> onClaim = [&] (const petri::walk::Claim<T> &c) {
       printFormula (o, targets, c);
     };
     petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, targets, focus, specs, o.threads, budget,
-                                                                     o.seed, pool.get (), o.debugSteps, onClaim,
+                                                                     seed, pool.get (), o.debugSteps, onClaim,
                                                                      o.partition, knowledge, policy, components);
     printReports (o, res);
     if (pool) {
