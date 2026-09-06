@@ -760,92 +760,202 @@ Directions to weigh, none decided:
   62 s of 1800; the rest was flattening and decision diagrams. Whatever the
   walker's speed, the portfolio starves it here (`PORTFOLIO.md`).
 
-## 10. Awareness (design, 2026-09-06): firing statistics, rare events, shared restart points
+## 10. Awareness and structure (design, 2026-09-06): the plan for long runs
 
-The number behind this section: on ResIsolation-PT-N10P4 with 1 000
-`fireable` targets, 4 threads, a 20 s random sweep, each thread fires 87 to 96
-distinct transitions in about 550 000 steps, out of 147 855; the union claims
-about 125 targets whatever the size of the target set. The walk is not slow
-at exploring, it is not exploring: uniform choice among the enabled
-transitions keeps it cycling in a region of ninety transitions. The net says
-why: one token in one of its 445 places initially, one transition enabled;
-399 transitions have a single input place and 147 456 have fourteen, so the
-uniform walk lives among the cheap ones and almost never assembles the
-fourteen-place conjunction a big one needs. The runs also report 0 resets: with `runLength` at a million steps and 27 steps/ms, a thread
-never restarts inside the 30 to 60 s the cluster gives a call, so the shared
-pool never receives or serves a state there. Whatever the target cost, this
-is where the twenty minutes of a long run would go.
+Where we stand, in one measurement. ResIsolation-PT-N10P4, 1 000 `fireable`
+targets, 4 threads, a 20 s random sweep: each thread fires 87 to 96 distinct
+transitions in about 550 000 steps, out of 147 855, and the union claims about
+125 targets whatever the size of the target set. The net has one token in one
+of its 445 places initially and one enabled transition; 399 transitions have
+a single input place, 147 456 have fourteen. Uniform choice lives among the
+cheap ones and almost never assembles a fourteen-place conjunction: the event
+is a product of fourteen small probabilities. The runs also report 0 resets:
+at a million steps per run and 27 steps/ms a thread never restarts inside the
+30 to 60 s a cluster call lasts, so the shared pool is never used where it is
+needed. The walk is not slow at exploring, it is not exploring. The QLA
+campaign says this is the top decile of the benchmark by transition count,
+not one model (section 9).
 
-The direction: a little memory in the walker, bounded and mostly counters, so
-that threads know what has been done and steer toward what has not.
+The aim of this section: an engine that notices it is stuck in a part of the
+model, focuses on the blockage until it passes it, then explores what opened.
+For a twenty minute run on a model where a witness is believed to exist.
 
-### Firing statistics
+### 10.1 Principles, borrowed from SAT solving
 
-* Per thread, `fired[t]`: firings of `t` in this walk (an array of |T|
-  32-bit counters, 600 KB on the largest nets; `distinctFired` in the report
-  already comes from it). Incremented in `fire`, O(1).
-* Shared, `firedAll[t]`: the merge of every thread's counts, updated at run
-  end and at every reset (O(|T|) per merge, amortised by the restart
-  schedule; on hub nets where resets are rare, also every K steps). Plain
-  atomics, no lock; a stale read is harmless.
-* Rarity of `t` = `1 / (1 + firedAll[t])`; a never-fired enabled transition
-  is a rare event.
+1. **Restarts are not optional.** They must actually happen inside a call,
+   and restart from remembered promising states, not only from the initial
+   marking (the pool is our phase saving).
+2. **Counters drive the heuristic.** Activity on transitions, bumped by
+   conflicts and decayed (VSIDS), firing counts, age of enabling. Cheap,
+   bounded, adaptive.
+3. **One adaptive strategy, shared memory, no portfolio.** Four different
+   algorithms on four threads is the diversity the SAT competition forbids
+   for being too easy. Parallel solvers share learned facts, not algorithms:
+   every thread runs the same strategy over shared counters and a shared
+   pool, and differs by seed and restart state. The current `--strategies`
+   pool is the crutch to retire.
+4. **Every heuristic and every under-approximation is sound.** A reached
+   marking is reachable, whatever bias found it. The only unsoundness we can
+   commit is at the interface (the two bugs of 2026-09-06 were both there).
+5. **We answer SAT only.** Unreachability is the Java side's, with its SMT
+   and decision diagrams; the walker hands back early what it cannot reach,
+   and any structural impossibility it stumbles on is a hint to that side.
+6. **Learn from blockages (the CDCL analogue).** A dead end or a stall has a
+   reason; the reason becomes a bias for the next runs and a description of a
+   closed region not worth re-entering.
+7. **Bounded memory.** Counters of size |T| or |P|, a pool of a few hundred
+   markings with small per-entry tables, small structural tables. No state
+   hashing, nothing that grows with the exploration.
 
-### Rare-event choice
+### 10.2 The memory
 
-A strategy (`RandomStrategy` variant, or the epsilon share of the guided
-ones) that prefers rarely fired enabled transitions. The enabled set can hold
-tens of thousands of transitions on hub nets, so no scan: draw `k` candidates
-uniformly from the enabled list (`--sample`, k about 8) and fire the least
-fired of them; with probability epsilon fire the first. O(k) per step. This
-is the novelty pressure of 4.5 with the memory that 4.5 lacked: it pushes the
-walk out of the ninety-transition cycle toward transitions never fired, which
-on a `fireable` sweep are the open targets themselves.
+* Per thread: `fired[t]` (firings in this walk), `firedOnce` and
+  `markedOnce` bitmaps (coverage; `distinct transitions fired` is reported
+  already), `enabledSince[t]` stamped by `EnabledSet::add` (age).
+* Shared: `firedAll[t]`, the merge of the threads' counts at every reset and
+  run end (O(|T|) per merge, plus every K steps where resets are rare);
+  `activity[t]`, bumped by conflicts, decayed geometrically; plain atomics.
+* The pool (`SharedPool`, bounded): per entry the marking, its score, and
+  the accounting of what was tried from it: a small bitmap or count of the
+  first transitions (or components, 10.4) driven from it, and the novelty
+  each yielded. A sleep set on a restart state, and the statistics of a
+  bandit arm.
 
-### Which states to share
+### 10.3 Structure, from the invariant engine
 
-The `SharedPool` (3.9) exists with a bounded capacity, a score and a draw at
-restart. Publish a state when the walk has reason to believe it is a branching
-point it could not explore:
+We carry the state of the art in invariant computation; nothing else in the
+field has it next to its walker. P-flows are nearly free; P-semiflows with
+`--useCompression` are cheap on the large majority of models; both run on
+subnets as well as on the whole net. What they give the walk:
 
-* **a rare event just happened**: a transition with `firedAll[t] == 0` (or
-  below a rank) was fired; the marking after it is new ground;
-* **it enables much**: the enabled count is high relative to the walk's
-  running average, or many of the enabled transitions are rarely fired (the
-  sample of k gives an estimate for free);
-* **the heuristic tied**: a guided strategy found several candidates at the
-  best score and chose at random; the state is where guidance ran out.
+* **Components.** A unit-weight P-semiflow with a sum of one is a sequential
+  process: its places are the local states, exactly one is marked, the
+  transitions with a pre-arc in its support move the token along a small
+  graph. A covering of the places by such flows, not the full minimal basis
+  (which can be exponential), is what we need; the culling already aims at
+  small supports, and a cap on the number of flows keeps this bounded.
+* **The interaction hypergraph.** Components as nodes, transitions as
+  hyperedges over the components they synchronise. The synchronisation
+  degree of a transition (fourteen on ResIsolation), the degree of a
+  component (the hubs), the number of components: this is the difficulty of
+  a model in three numbers, computed before the first step, and the
+  yardstick to classify the benchmark.
+* **Local state graphs.** The projection of the net onto one component (the
+  abstraction that solved open bounds problems) is an over-approximation with
+  a few dozen states; shortest paths in it are exact local distances and
+  ordered guides, stronger than a Parikh vector.
+* **Structural impossibility.** A target unreachable in the projection of
+  its own component is unreachable in the net: a fact for the Java side, and
+  a target to drop from the sweep at once.
+* **Siphons and traps** (10.6), computed here on the fly from the same
+  matrices or received as hints from ITS-Tools, which has `SiphonComputer`.
 
-The score is the count of rarely fired enabled transitions at the state
-(estimated from the sample); the pool keeps the best-scored few. Memory stays
-bounded by the pool capacity; there is no state hashing and no growth.
+### 10.4 Choice
 
-### Restarts that matter
+One strategy, three ingredients mixed by weights that the counters tune:
 
-Two changes to the restart schedule, both cheap:
+* **Age fairness.** Prefer the transition enabled the longest (the ITS-Tools
+  oldest-enabled mode). It guarantees that anything continuously enabled
+  eventually fires, which uniform choice never does on a 98 000-strong
+  enabled set. Newest-first is the depth-first cousin; the mix is a knob.
+* **Rarity.** Among k enabled candidates drawn uniformly (`--sample`, k about
+  8), fire the least fired by `firedAll`. O(k) per step, no scan. On a
+  `fireable` sweep the never-fired transitions are the open targets.
+* **Activity.** Weight by `activity[t]`, the learned bias of 10.6.
+* **Freezing.** When driving a synchronisation, a component that has reached
+  its required local state gets its outgoing transitions switched off until
+  the others arrive: a sleep set on the component. This is what turns a
+  product of fourteen probabilities into a sum of fourteen quests.
 
-* **a time-based run length**: a run ends after about a second of wall clock
-  as well as after `runLength` steps, so that a 30 s call on a hub net
-  restarts a few dozen times and the pool is actually used;
-* **novelty stall**: a run that fired no new transition (per thread) in the
-  last K steps restarts, drawing from the pool; the epsilon of guided
-  strategies applies to the rare-event choice rather than to uniform random.
+### 10.5 Restarts and the pool
 
-### Threads and related goals
+* A run ends after `runLength` steps or after about a second of wall clock,
+  so a 30 s call restarts a few dozen times whatever the step rate (a
+  Luby-style schedule once the basics work).
+* **Novelty stall**: a run that fired no new transition in the last K steps
+  restarts, from the pool with the usual probability.
+* **What to publish**: the marking right after a rare event (a transition
+  with `firedAll` at zero or below a rank was fired), a marking whose enabled
+  transitions are unusually many or unusually rare (the sample of k gives the
+  estimate for free), a marking where a guided choice tied at the best score
+  and fell back to chance. Score: the estimated number of rare enabled
+  transitions.
+* **The pool as a shallow tree.** Entries are nodes, the directions tried from
+  them are arms, the reward is novelty; a UCB rule picks the arm on restart.
+  Monte Carlo tree search with a bounded number of nodes and no state
+  hashing: what was tried where, and what paid.
 
-Splitting a sweep by id modulo the thread count (section 9) loses the finds a
-thread walks past. If a split is wanted, it should follow the support: targets
-whose atoms share places (for `fireable`, transitions sharing pre-places) go
-to the same thread, so that the region a thread explores is where its targets
-live, and a guided strategy can aim at "the nearest of my open targets" (the
-minimum over the own targets of the unsatisfied-atom count, kept incrementally
-by the delta counters of section 9). Grouping by the hub places a target
-needs, or by a hash of its place set, is enough for a first version.
+### 10.6 Learning from blockages
 
-### Measure
+* **Conflict.** A dead end, or a novelty stall.
+* **Reason.** The unsatisfied atoms of the nearest open target: places that
+  lack tokens. Their producers, recursively, are the relaxed plan that
+  `RelaxedPlan.h` already computes (h_add). Bump the activity of the plan's
+  transitions, decay the rest. Learning without new structures, only counters.
+* **The learned clause.** An emptied siphon never refills, and every
+  transition consuming from it is dead forever: the walk has entered a closed
+  region. Detecting the death of a siphon (a counter per siphon of its
+  tokens, maintained like `unsat`) is the conflict analysis; the learned fact
+  is "never fire the transition that takes the last token of S when S holds
+  one": a restart at once, and a lasting penalty on those firings from those
+  states. Traps give the dual, a region the walk can never enter, so targets
+  inside it are dropped. Minimal siphons can be many; those of the hubs and
+  of the components of the current target are the ones that matter.
 
-`distinct transitions fired` in the thread report, and claims, on the
-ResIsolation 1 000-target sweep as the yardstick (today 90 and 125), then on
-ErlangenMainframe and StigmergyElection from the QLA campaign. The goal is
-thousands of distinct transitions in 20 s and a claims curve that keeps rising
-across the minutes, not the first 20 s.
+### 10.7 Self-directed quests
+
+The coverage bitmaps define a frontier: never-marked places whose producers
+have fired, never-fired transitions whose pre-places have all been marked but
+never together. The engine generates its own targets there (`p >= 1`, or the
+`fireable` of the transition), decomposes them along the components
+(10.3), runs the mini-quests with freezing from the best pool state, and when
+the synchronisation fires, novelty pressure (10.4) explores the region that
+opened, since everything there is rare by construction. Sense the blockage,
+focus, pass, explore. On the total examinations no user target is needed for
+this loop to be useful.
+
+### 10.8 Steps
+
+Yardsticks throughout: `distinct transitions fired` and claims on the
+ResIsolation-PT-N10P4 1 000-target sweep (today 90 and 125 in 20 s), then
+ErlangenMainframeV2-PT-bP10C08 and StigmergyElection-PT-10b from the QLA
+campaign, then the campaign itself through the `campaign/` pages.
+
+0. **Instrument** (small). `markedOnce`, enabled-set size statistics, and the
+   interaction hypergraph in `--netStats`: components from unit semiflows,
+   synchronisation degrees, hub degrees. Classify the 2026 P/T benchmark by
+   these three numbers and put the table in the campaign pages.
+1. **Restarts and fairness** (two afternoons). Wall-time run length, novelty
+   stall, `enabledSince` and the oldest-enabled choice as the epsilon share of
+   every strategy. Expect the ninety-transition ceiling to move first here.
+2. **Counters and rarity.** Shared `firedAll`, the sampled least-fired choice,
+   publication of rare-event states to the pool, the tried-direction
+   accounting on pool entries.
+3. **One strategy.** Activity scores, relaxed-plan bumping on stalls, the mix
+   of age, rarity and activity as the single strategy on every thread; retire
+   `--strategies` when it is beaten on the yardsticks.
+4. **Components.** Unit semiflows from the engine at walk start (time-boxed,
+   `--useCompression`), the component-local distance as a `GoalDistance`,
+   freezing. First on ResIsolation and Erlangen.
+5. **Projections.** Local state graphs, ordered guides, structural
+   impossibility as a dropped target and as a hint line to the Java side
+   (INTEROP.md gains a keyword).
+6. **Siphons.** Token counters per siphon, death detection, the learned
+   penalty; siphons computed here or received as hints.
+7. **Frontier quests.** Self-generated targets for the total examinations;
+   the sweep becomes a search that drives itself.
+8. **The Java side.** Give the walker its share of the budget on the nets
+   where it is the only engine that can move (section 9, effort share), and
+   hand it the structural hints it can use.
+
+### 10.9 Open questions
+
+* Partition of a large sweep by support similarity (transitions sharing
+  pre-places to the same thread) against no partition: measure once the
+  strategy of step 3 exists; the modulo split lost claims (section 9).
+* How much of the invariant engine to run inside a walk call: a time box, or
+  the Java side passing the flows it already computed through KERS.
+* The hint protocol with ITS-Tools for siphons, traps and components.
+* The order of steps 4 to 6: components first if the yardsticks stall after
+  step 3 on the synchronisation-bound models, siphons first if dead ends
+  dominate the stalls.
