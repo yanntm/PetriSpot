@@ -73,7 +73,9 @@ struct Options
   std::string strategy = "random";
   std::string strategies;
   unsigned threads = 1;
-  unsigned tasks = 0;               // --tasks: exploration tasks time-shared over the threads (0: two per thread)
+  unsigned tasks = 0;               // --tasks: live exploration tasks over the threads (0: three per thread)
+  unsigned grant = 8;               // --grant: slices without progress before a task is parked
+  std::string spawn = "on";         // --spawn: on (park and spawn from the pool) or off (the initial tasks run to the end)
   uint64_t slice = 4096;            // --slice: steps a task runs before the next is scheduled
   uint64_t sliceMs = 50;            // --sliceMs: wall clock cap of a slice
   std::string shares = "adaptive";  // --shares: adaptive (follow the claims per kind) or equal
@@ -199,8 +201,11 @@ inline void addOptions (CLI::App &app, Options &o)
         return "unknown strategy " + s;
       }, "STRATEGY"));
   wk->add_option ("--threads", o.threads, "Runner threads (default 1); first witness wins.");
-  wk->add_option ("--tasks", o.tasks, "Exploration tasks time-shared over the threads (default two per thread, so that "
-                  "every strategy of a pool runs on every model).");
+  wk->add_option ("--tasks", o.tasks, "Live exploration tasks time-shared over the threads (default three per thread).");
+  wk->add_option ("--grant", o.grant, "Slices a task may run without progress (a claim, a first firing, a heuristic drop) "
+                  "before it is parked (default 8).");
+  wk->add_option ("--spawn", o.spawn, "on: parked tasks free their runner for a new (state, tool) spawn chosen by yield; off: "
+                  "the initial tasks run to the end (default on).");
   wk->add_option ("--slice", o.slice, "Steps a task runs before another is scheduled (default 4096).");
   wk->add_option ("--sliceMs", o.sliceMs, "Wall clock cap of a slice in ms; a coarse step ends the slice (default 50).");
   wk->add_option ("--shares", o.shares, "Time shares of the strategy kinds: adaptive (they follow the claims per running "

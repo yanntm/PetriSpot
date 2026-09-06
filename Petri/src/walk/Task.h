@@ -29,7 +29,9 @@ struct SliceReport
 {
   uint64_t steps = 0;      // steps taken in the slice
   uint64_t claims = 0;     // targets claimed in the slice
-  uint64_t novelty = 0;    // transitions this task fired for the first time in the slice
+  uint64_t novelty = 0;    // transitions nobody had fired before this slice (rare events)
+  uint64_t stalls = 0;     // restarts the strategy asked for in the slice
+  bool heuristicDrop = false; // the best heuristic value of the run fell during the slice
   uint64_t micros = 0;     // running time of the slice
   bool capped = false;     // the deadline ended the slice before the steps did
   bool finished = false;   // the task has nothing left to do
@@ -40,6 +42,9 @@ class Task
 public:
   std::string label;       // for the report, e.g. "sync:0:0" or "rare"
   std::string kind;        // the strategy name, what shares and summaries are grouped by
+  size_t tool = 0;         // index in the coordinator's catalogue
+  uint64_t stateId = 0;    // the pooled state it started from, 0 for the initial marking
+  bool finished = false;   // finish() was called: the report is final, the working state freed
   double share = 1.0;      // weight in the scheduler: a task with twice the share gets twice the slices
   double vruntime = 0.0;   // virtual clock: advances by the slice's running time divided by the share
   // totals over the slices

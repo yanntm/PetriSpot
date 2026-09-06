@@ -119,6 +119,13 @@ template<typename T>
       std::lock_guard<std::mutex> lock (mutex);
       return entries.size ();
     }
+
+    /** A copy of the entries, for a coordinator choosing where to spawn from. */
+    std::vector<Entry> snapshot ()
+    {
+      std::lock_guard<std::mutex> lock (mutex);
+      return entries;
+    }
     uint64_t publishedCount () const { return published; }
     uint64_t drawnCount () const { return drawn; }
     uint64_t evictedCount () const { return evicted; }

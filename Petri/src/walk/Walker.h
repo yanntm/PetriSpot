@@ -362,7 +362,7 @@ template<typename T>
      * slice deadline and says whether the walk is over, finish() closes the
      * statistics. run() is the three in a row.
      */
-    void begin (const WalkBudget &b)
+    void begin (const WalkBudget &b, const SparseArray<T> *start = nullptr)
     {
       budget = b;
       result = WalkResult ();
@@ -376,11 +376,23 @@ template<typename T>
       runStartMs = 0;
       over = false;
       fromPool = false;
-      marking.assign (initialMarking);
-      enabled.assign (initialEnabled);
+      if (start) {
+        // a spawned task: from a pooled state, the enabled set computed afresh
+        marking = Marking<T> (*start);
+        enabled.initialize (marking);
+      } else {
+        marking.assign (initialMarking);
+        enabled.assign (initialEnabled);
+      }
       trace.clear ();
       strategy.onReset ();
       checkAll (result);
+    }
+
+    /** The best state of the current run by the strategy's heuristic, when it keeps one. */
+    bool bestState (SparseArray<T> &m, uint64_t &h) const
+    {
+      return strategy.bestOfRun (m, h);
     }
 
     /** Advance the walk; true when it is over (targets done, budget spent, stop flag). */
@@ -390,7 +402,10 @@ template<typename T>
       auto sliceStart = clock::now ();
       WalkStats &st = result.stats;
       uint64_t stepsAtStart = st.steps, claimsAtStart = result.claims;
-      uint64_t noveltyAtStart = tracker ? tracker->distinctFired () : 0;
+      // novelty for the coordinator: transitions nobody had fired before (a fresh task's own firsts would all count)
+      uint64_t noveltyAtStart = tracker ? tracker->rareEventCount () : 0;
+      uint64_t stallsAtStart = st.stalls, hBefore = 0;
+      bool hadBest = strategy.bestOfRun (scratchMarking, hBefore);
       uint64_t ms = activeMs; // running time, refreshed every 64 iterations
       WalkContext<T> ctx { net, marking, enabled, rng, knowledge, tracker ? &tracker->localCounts () : nullptr };
       bool capped = false;
@@ -467,7 +482,10 @@ template<typename T>
       if (report) {
         report->steps = st.steps - stepsAtStart;
         report->claims = result.claims - claimsAtStart;
-        report->novelty = tracker ? tracker->distinctFired () - noveltyAtStart : 0;
+        report->novelty = tracker ? tracker->rareEventCount () - noveltyAtStart : 0;
+        report->stalls = st.stalls - stallsAtStart;
+        uint64_t hAfter = 0;
+        report->heuristicDrop = strategy.bestOfRun (scratchMarking, hAfter) && (!hadBest || hAfter < hBefore);
         report->micros = micros;
         report->capped = capped && !over;
         report->finished = over;

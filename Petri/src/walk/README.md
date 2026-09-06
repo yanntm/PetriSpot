@@ -47,7 +47,12 @@ the data structures and the step.
 * `WalkTask.h` — a task over one `Walker` and its strategy, resumable; the
   `ThreadReport` it closes into.
 * `Scheduler.h` — time sharing: a heap of runnable tasks on their virtual
-  clock, runner threads taking one slice each (steps, capped by the clock).
+  clock, runner threads taking one slice each (steps, capped by the clock),
+  tasks admitted while it runs, a decision hook and a spawn hook.
+* `Coordinator.h` — the policy: shares of the strategy kinds from their reward
+  per running second, parking of tasks without progress (their best state to
+  the pool), spawning of new tasks from (pooled state, tool) pairs chosen by
+  yield, the catalogue of tools.
 * `Portfolio.h` — strategy specs and factory, the tasks built from them and
   run by the scheduler on one target set, claims published as they happen,
   the per-kind summary, trace verification.

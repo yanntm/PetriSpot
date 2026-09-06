@@ -1273,12 +1273,17 @@ architecture leaves open, with the usual caution about the corpus it would
 be trained on. Any policy beats none; several policies are the only way with
 these problems.
 
-**Code, step 3a.** `SliceReport` gains the progress signals; `WalkTask` hands
-back its best state (`Strategy::bestOfRun`). `Walker::begin` takes a start
-marking. `Coordinator.h`: the pool, the arm table, the catalogue, the spawn
-factory (a callback the portfolio provides), the window, the cap, the grant;
-it replaces `Scheduler::reward`. `Scheduler` accepts tasks added and removed
-while it runs. **Step 3b.** `QuestSweep`'s retarget becomes a spawn decision;
+**Code, step 3a** (done 2026-09-07 night, `Coordinator.h`): `SliceReport`
+carries claims, novelty (first firings by anyone), stalls and the heuristic
+drop; `WalkTask` hands back its best state and frees its walker when it ends;
+`Walker::begin` takes a start marking; the coordinator holds the shares, the
+grant and the parking rule (a quarter of a second at least), the arm table
+with decayed yields, the catalogue and the portfolio's factory, and stops
+spawning when nothing is left to do; the scheduler admits tasks while it runs
+and asks the spawn hook when a runner would idle. Yardsticks in
+`walk/algorithm.md`: Erlangen full QLA 2 417, Stigmergy 1 609, DLCflexbar
+76 160, RERS 30 186, ResIsolation 1 000 in 9.6 s, CAN gathering still open
+after 263 tasks over 139 pairs. **Step 3b.** `QuestSweep`'s retarget becomes a spawn decision;
 `ComponentStrategy`'s stage stack becomes spawn-and-wait of a child task.
 Yardsticks: the four sweeps, plus the CAN gathering target and the Stigmergy
 single target, where reinjection of a progressing quest and eviction of dead

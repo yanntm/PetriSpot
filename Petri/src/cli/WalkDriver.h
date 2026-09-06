@@ -161,8 +161,13 @@ template<typename T>
       if (!rep.notes.empty ()) std::cout << ", " << rep.notes;
       if (rep.claims > 1 || (rep.claims == 1 && !rep.found)) std::cout << ", " << rep.claims << " targets claimed";
       if (rep.slices > 1) std::cout << ", " << rep.slices << " slices (" << rep.cappedSlices << " capped, longest " << rep.maxSliceMicros / 1000 << " ms)";
+      if (rep.stateId) std::cout << ", from pooled state " << rep.stateId;
+      if (rep.parked) std::cout << ", parked";
       std::cout << "." << std::endl;
     }
+    if (res.spawned > res.reports.size () || res.parked > 0)
+      std::cout << "Coordinator: " << res.spawned << " tasks spawned, " << res.parked << " parked, " << res.arms
+          << " (state, tool) pairs tried." << std::endl;
     // one line per strategy kind: the calibration of the model
     if (res.kinds.size () > 1 || res.reports.size () > 1) {
       for (const petri::walk::KindReport &k : res.kinds) {
@@ -225,15 +230,18 @@ template<typename T>
       printFormula (o, targets, c);
     };
     petri::walk::SchedulerSpec sched;
-    sched.tasks = o.tasks ? o.tasks : 2 * o.threads; // two tasks per runner: every strategy of a pool runs on every model
     sched.sliceSteps = o.slice;
     sched.sliceMillis = o.sliceMs;
-    sched.adaptive = o.shares != "equal";
-    sched.shareFloor = o.shareFloor;
+    petri::walk::CoordinatorSpec coord;
+    coord.adaptive = o.shares != "equal";
+    coord.shareFloor = o.shareFloor;
+    coord.liveCap = o.tasks ? std::max<unsigned> (1, o.tasks / std::max<unsigned> (1, o.threads)) : 3;
+    coord.grant = o.grant;
+    coord.spawning = o.spawn != "off";
     petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, targets, focus, specs, o.threads, budget,
                                                                      seed, pool.get (), o.debugSteps, onClaim,
                                                                      o.partition, knowledge, policy, components, policies,
-                                                                     sched);
+                                                                     sched, coord);
     printReports (o, res);
     if (pool) {
       std::cout << "Shared pool: " << pool->publishedCount () << " published, " << pool->drawnCount ()

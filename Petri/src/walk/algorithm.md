@@ -318,8 +318,30 @@ ResIsolation 1 000 targets in 10.6 s with the quests at 86 % (all-quest 6 to
 the quests at 94 % (all-quest 2 792, equal shares 1 444). The report has one
 line per task and one per kind: steps, running milliseconds, steps per
 millisecond, claims and claims per second, slices and capped slices, first
-firings, the final share. WALK_PLAN.md section 10.11 has the design and the
-steps that follow: subquests as child tasks with a budget, LP tasks.
+firings, the final share.
+
+The `Coordinator` decides after each slice (`--spawn=on`, the default). A task
+that progressed in the slice (a claim, a transition nobody had fired before,
+a drop of its strategy's best heuristic) keeps its grant of `--grant` slices;
+one that did not spends it and, once it has run at least a quarter of a
+second, is *parked*: its best state by its heuristic goes to the shared pool,
+its yield to the arm table, its walker is freed and its report kept. A
+runner that would idle asks for a spawn while the live tasks are under the
+cap (`--tasks`, three per runner) and something is left to do: the
+coordinator picks a (state, tool) pair, untried pairs first (every tool from
+the initial marking, then from the pooled states, best heuristic first), then
+the best yield per running second with a small exploration bonus; yields and
+times of an arm decay over two running seconds, so a state exhausted by a tool
+stops being chosen. A first version gave a fresh task's own first firings as
+novelty and rewarded every spawn for a while: novelty is what nobody fired
+before. On the yardsticks (4 runners, 30 s): Erlangen full QLA 2 417 (8 tasks
+spawned, the quests kept), Stigmergy 1 609, DLCflexbar 76 160, RERS 30 186 in
+10 s, ResIsolation 1 000 targets in 9.6 s; on the CAN gathering target 263
+tasks over 139 (state, tool) pairs in 30 s, none reaching it: the broad
+experiment the design asks for, and the case for the refinements of the LP
+hints. WALK_PLAN.md sections 10.11 and 10.12 have the design and the steps
+that follow: quests as spawn decisions and child tasks with a budget, LP
+tasks.
 
 The driver (`cli/WalkDriver.h`) applies a policy on top: an optional sweep
 round (all threads random, no focus, all targets open) followed by rounds with
