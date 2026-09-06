@@ -42,8 +42,8 @@ template<typename T>
     {
       size_t place;
       long long need;                     // tokens required on place
-      uint32_t comp;                      // the most specific component holding place
-      std::shared_ptr<const std::vector<uint32_t>> dist; // local distances to place
+      uint32_t comp;                      // the most specific component holding place, NONE when no component does
+      const std::vector<uint32_t> *dist;  // quest distances to place by local index, null without a component
     };
 
     static constexpr uint32_t NONE = std::numeric_limits<uint32_t>::max ();
@@ -72,6 +72,10 @@ template<typename T>
     {
       os << "sync: " << goalQuests.size () << " quests" << std::endl;
       for (const Quest &q : goalQuests) {
+        if (q.comp == NONE) {
+          os << "  place " << q.place << " >= " << q.need << " in no component" << std::endl;
+          continue;
+        }
         const auto &k = comps.component (q.comp);
         uint64_t d = UNREACHED;
         for (size_t j = 0; j < k.size (); ++j)
@@ -92,6 +96,10 @@ template<typename T>
           << ", " << enabled.size () << " enabled, refusals " << refusals << std::endl;
       for (size_t i = 0; i < quests.size (); ++i) {
         const Quest &q = quests[i];
+        if (q.comp == NONE) {
+          os << "  place " << q.place << " >= " << q.need << " in no component, cur " << cur[i] << std::endl;
+          continue;
+        }
         const auto &k = comps.component (q.comp);
         os << "  place " << q.place << " >= " << q.need << " component " << q.comp << " cur " << cur[i] << " marked:";
         for (size_t j = 0; j < k.size (); ++j)
@@ -261,13 +269,15 @@ template<typename T>
     {
       needReplan = false;
       ++replans;
+      locate (m);
       // where the goal stands from here, per quest
       uint64_t goalNow = 0;
       bool goalLocal = true;
-      for (Quest &q : goalQuests) {
-        uint64_t d = distanceOf (m, q);
-        if (d >= Components<T>::BARRIER_OFFSET) goalLocal = false;
-        goalNow += d;
+      goalCur.resize (goalQuests.size ());
+      for (size_t i = 0; i < goalQuests.size (); ++i) {
+        goalCur[i] = distanceOf (m, goalQuests[i]);
+        if (goalCur[i] >= Components<T>::BARRIER_OFFSET) goalLocal = false;
+        goalNow += goalCur[i];
       }
       if (stageBarrier != NONE && goalNow >= hBefore) tabu.push_back (stageBarrier);
       hBefore = goalNow;
@@ -278,16 +288,9 @@ template<typename T>
         for (uint32_t t = 0; t < net.transitionCount (); ++t) {
           if (comps.syncDegreeOf (t) <= 1) continue;
           if (std::find (tabu.begin (), tabu.end (), t) != tabu.end ()) continue;
-          const SparseArray<T> &pre = net.pre (t);
-          uint64_t align = 0;
-          bool reachable = true;
-          for (size_t i = 0; i < pre.size () && reachable; ++i) {
-            uint64_t d = localDistance (m, pre.keyAt (i));
-            if (d >= Components<T>::BARRIER_OFFSET) reachable = false;
-            else align += d;
-          }
-          if (!reachable) continue;
-          uint64_t after = goalAfter (m, t);
+          uint64_t align = alignCost (t);
+          if (align == UNREACHED) continue;
+          uint64_t after = goalAfter (t);
           if (std::tie (after, align) < std::tie (bestAfter, bestAlign)) {
             bestAfter = after;
             bestAlign = align;
@@ -316,6 +319,7 @@ template<typename T>
     uint64_t distanceOf (const Marking<T> &m, const Quest &q) const
     {
       if (m.get (q.place) >= q.need) return 0;
+      if (q.comp == NONE) return 1; // unguided: a move away, as far as we know
       const auto &k = comps.component (q.comp);
       uint64_t d = UNREACHED;
       for (size_t j = 0; j < k.size (); ++j)
@@ -323,47 +327,77 @@ template<typename T>
       return d == UNREACHED ? HOPELESS : d + 1;
     }
 
-    /** Summed goal distance of the marking t produces from m: processes t moves stand at t's post places. */
-    uint64_t goalAfter (const Marking<T> &m, uint32_t t) const
+    /**
+     * Summed goal distance of the marking t produces from the located marking:
+     * a process t moves stands at t's post place in its component, the others
+     * where they are (goalNow holds their distances, computed by replan).
+     */
+    uint64_t goalAfter (uint32_t t) const
     {
-      const SparseArray<T> &eff = net.effect (t);
       uint64_t s = 0;
-      for (const Quest &q : goalQuests) {
-        const auto &k = comps.component (q.comp);
+      for (size_t i = 0; i < goalQuests.size (); ++i) {
+        const Quest &q = goalQuests[i];
         uint64_t after = UNREACHED;
         bool moved = false;
-        for (size_t j = 0; j < eff.size (); ++j) {
-          if (eff.valueAt (j) <= 0) continue;
-          int32_t li = k.indexOf (eff.keyAt (j));
-          if (li < 0) continue;
-          moved = true;
-          if ((*q.dist)[li] < after) after = (*q.dist)[li];
+        if (q.comp != NONE) {
+          for (const auto &cl : comps.producedBy (t)) {
+            if (cl.first != q.comp) continue;
+            moved = true;
+            if ((*q.dist)[cl.second] < after) after = (*q.dist)[cl.second];
+          }
         }
-        if (!moved) s += distanceOf (m, q);
-        else s += after == UNREACHED ? HOPELESS : (eff.keyAt (0), after == 0 ? 0 : after + 1);
+        if (!moved) s += goalCur[i];
+        else s += after == UNREACHED ? HOPELESS : (after == 0 ? 0 : after + 1);
       }
       return s;
     }
 
-    /** Distance of the process holding p to p, from its marked places; UNREACHED when no component holds p. */
-    uint64_t localDistance (const Marking<T> &m, size_t p) const
+    // Where each process stands, refreshed once per stage choice: the marked
+    // local places of every component, so that a distance is one table lookup.
+    std::vector<std::vector<uint32_t>> standing;
+    std::vector<uint64_t> goalCur;         // the goal quests' distances at the stage choice
+
+    void locate (const Marking<T> &m)
+    {
+      standing.assign (comps.size (), {});
+      for (uint32_t c = 0; c < comps.size (); ++c) {
+        const auto &k = comps.component (c);
+        for (uint32_t j = 0; j < k.size (); ++j)
+          if (m.get (k.places[j]) > 0) standing[c].push_back (j);
+      }
+    }
+
+    /** Distance of the process holding p to p from where it stands (after locate); UNREACHED when no component holds p. */
+    uint64_t localDistance (size_t p) const
     {
       const auto &cs = comps.componentsOf (p);
       if (cs.empty ()) return UNREACHED;
-      const auto &k = comps.component (cs[0]);
-      auto dist = comps.questDistances (cs[0], p);
+      const std::vector<uint32_t> &dist = comps.questDistances (cs[0], p);
       uint64_t d = UNREACHED;
-      for (size_t j = 0; j < k.size (); ++j)
-        if (m.get (k.places[j]) > 0 && (*dist)[j] < d) d = (*dist)[j];
+      for (uint32_t j : standing[cs[0]])
+        if (dist[j] < d) d = dist[j];
       return d;
     }
 
-    /** A quest on place >= need, when some component holds the place. */
+    /** The cost of aligning every process on the pre-places of t, UNREACHED when one cannot get there alone. */
+    uint64_t alignCost (uint32_t t) const
+    {
+      const SparseArray<T> &pre = net.pre (t);
+      uint64_t align = 0;
+      for (size_t i = 0; i < pre.size (); ++i) {
+        uint64_t d = localDistance (pre.keyAt (i));
+        if (d >= Components<T>::BARRIER_OFFSET) return UNREACHED;
+        align += d;
+      }
+      return align;
+    }
+
+    /** A quest on place >= need; without a component to guide it the quest only says satisfied or not. */
     void addQuest (size_t p, long long need)
     {
       const auto &cs = comps.componentsOf (p);
-      if (cs.empty ()) return;
-      quests.push_back ({ p, need, cs[0], comps.questDistances (cs[0], p) });
+      if (cs.empty ()) quests.push_back ({ p, need, NONE, nullptr });
+      else quests.push_back ({ p, need, cs[0], &comps.questDistances (cs[0], p) });
     }
 
     /** Every atom of a conjunction as a quest; anything else is unsupported. */
@@ -384,9 +418,7 @@ template<typename T>
         else if (a.op == Cmp::GT) need = a.constant / a.terms[0].second + 1;
         else if (a.op == Cmp::EQ) need = a.constant / a.terms[0].second;
         else return false;
-        size_t p = a.terms[0].first;
-        if (comps.componentsOf (p).empty ()) return false;
-        addQuest (p, need);
+        addQuest (a.terms[0].first, need);
         return true;
       }
       default:
@@ -430,6 +462,11 @@ template<typename T>
       for (size_t i = 0; i < quests.size (); ++i) {
         if (cur[i] == 0) continue;
         const Quest &q = quests[i];
+        if (q.comp == NONE) {
+          // unguided: a transition feeding the place is the only clue
+          if (net.effect (t).get (q.place) > 0) s -= 1;
+          continue;
+        }
         const auto &k = comps.component (q.comp);
         uint64_t after = UNREACHED;
         bool feeds = false;

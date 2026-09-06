@@ -62,10 +62,11 @@ template<typename T>
     if (!wanted) return nullptr;
     auto time = std::chrono::steady_clock::now ();
     MatrixCol<T> sumMatrix = MatrixCol<T>::sumProd (-1, pn.getFlowPT (), 1, pn.getFlowTP ());
-    auto [mat, perms] = InvariantMiddle<T>::computePInvariants (sumMatrix, false, std::min<long> (o.timeout, 60),
+    // semiflows: non-negative by definition, so every one is a component
+    auto [mat, perms] = InvariantMiddle<T>::computePInvariants (sumMatrix, true, std::min<long> (o.timeout, 60),
                                                                 o.heuristic (false));
     auto comps = std::make_unique<petri::walk::Components<T>> (wnet, mat);
-    std::cout << "Flows: " << mat.getColumnCount () << " P-flows in " << millisSince (time) << " ms. ";
+    std::cout << "Flows: " << mat.getColumnCount () << " P-semiflows in " << millisSince (time) << " ms. ";
     comps->printStats (std::cout);
     return comps;
   }

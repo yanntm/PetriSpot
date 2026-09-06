@@ -44,6 +44,7 @@ template<typename T>
       std::vector<T> weights;           // the flow's coefficient per place
       T value = 0;                      // weighted token count, invariant along every run
       std::vector<std::vector<std::pair<uint32_t, uint32_t>>> preds; // local q -> (local p, transition): p moves to q by t
+      std::vector<std::vector<uint32_t>> quest; // [local target][local from]: the quest distance (see questDistances)
       uint64_t signature = 0;           // equal for components whose local graphs look alike (degree profile)
       uint32_t isoClass = 0;
 
@@ -63,8 +64,9 @@ template<typename T>
     std::vector<Component> comps;
     std::vector<std::vector<uint32_t>> ofPlace;   // place -> components containing it, smallest first
     std::vector<uint32_t> syncDegree;             // per transition: components it touches
-    mutable std::map<std::tuple<uint32_t, size_t, uint32_t>, std::shared_ptr<const std::vector<uint32_t>>> distCache;
-    mutable std::mutex cacheMutex;   // strategies of several threads ask at once
+    // per transition: the places it consumes from and produces into, as (component, local index),
+    // one entry per component the place belongs to; the tables a stage choice scans
+    std::vector<std::vector<std::pair<uint32_t, uint32_t>>> consumed, produced;
 
   public:
     /** From the columns of a flow basis: one component per non-negative column. */
@@ -93,6 +95,11 @@ template<typename T>
         std::sort (l.begin (), l.end (), [this] (uint32_t a, uint32_t b) { return comps[a].size () < comps[b].size (); });
       buildEdges (net);
       sign ();
+      for (uint32_t c = 0; c < comps.size (); ++c) {
+        Component &k = comps[c];
+        k.quest.resize (k.size ());
+        for (uint32_t target = 0; target < k.size (); ++target) k.quest[target] = questDistancesOf (k, target);
+      }
     }
 
     size_t size () const
@@ -112,60 +119,66 @@ template<typename T>
     {
       return syncDegree[t];
     }
-
-    /**
-     * Shortest path, in moves, from every place of component c to target,
-     * using only the transitions that synchronise at most maxSync components
-     * (1: the moves the process makes alone); UNREACHED where none. Cached: a
-     * quest asks for one table per atom.
-     */
-    std::shared_ptr<const std::vector<uint32_t>> distancesTo (uint32_t c, size_t target, uint32_t maxSync) const
+    /** The (component, local place) pairs t takes tokens from. */
+    const std::vector<std::pair<uint32_t, uint32_t>>& consumedBy (uint32_t t) const
     {
-      std::lock_guard<std::mutex> lock (cacheMutex);
-      auto key = std::make_tuple (c, target, maxSync);
-      auto it = distCache.find (key);
-      if (it != distCache.end ()) return it->second;
-      const Component &k = comps[c];
-      auto dist = std::make_shared<std::vector<uint32_t>> (k.size (), UNREACHED);
-      int32_t ti = k.indexOf (target);
-      if (ti >= 0) {
-        std::deque<uint32_t> queue;
-        (*dist)[ti] = 0;
-        queue.push_back (static_cast<uint32_t> (ti));
-        while (!queue.empty ()) {
-          uint32_t q = queue.front ();
-          queue.pop_front ();
-          for (const auto &e : k.preds[q]) {
-            if (syncDegree[e.second] > maxSync) continue;
-            if ((*dist)[e.first] == UNREACHED) {
-              (*dist)[e.first] = (*dist)[q] + 1;
-              queue.push_back (e.first);
-            }
-          }
-        }
-      }
-      distCache[key] = dist;
-      return dist;
+      return consumed[t];
+    }
+    /** The (component, local place) pairs t puts tokens into. */
+    const std::vector<std::pair<uint32_t, uint32_t>>& producedBy (uint32_t t) const
+    {
+      return produced[t];
     }
 
     /**
-     * The guide of a quest: distances by the process's own moves where they
-     * exist, and where a place only reaches the target through
-     * synchronisations, the distance over every move plus an offset, so that
-     * a process that can walk alone is driven first and one behind a barrier
-     * still knows which way to lean.
+     * The quest distances of component c to its local place target, indexed by
+     * the local place a process stands on: its shortest path by its own moves
+     * (transitions synchronising no other component) where one exists, and
+     * where only synchronisations lead there, the distance over every move
+     * plus BARRIER_OFFSET, so that a process that can walk alone is driven
+     * first and one behind a barrier still knows which way to lean. UNREACHED
+     * where no path at all exists. Computed once for every (component, place).
      */
-    std::shared_ptr<const std::vector<uint32_t>> questDistances (uint32_t c, size_t target) const
+    const std::vector<uint32_t>& questDistances (uint32_t c, size_t target) const
     {
-      auto local = distancesTo (c, target, 1);
-      auto full = distancesTo (c, target, std::numeric_limits<uint32_t>::max ());
-      auto out = std::make_shared<std::vector<uint32_t>> (*local);
-      for (size_t i = 0; i < out->size (); ++i)
-        if ((*out)[i] == UNREACHED && (*full)[i] != UNREACHED) (*out)[i] = (*full)[i] + BARRIER_OFFSET;
-      return out;
+      return comps[c].quest[static_cast<size_t> (comps[c].indexOf (target))];
     }
 
     static constexpr uint32_t BARRIER_OFFSET = 1000;
+
+  private:
+    /** Breadth first over the reversed local edges, keeping the transitions of sync degree at most maxSync. */
+    static std::vector<uint32_t> distancesTo (const Component &k, uint32_t target, uint32_t maxSync,
+                                              const std::vector<uint32_t> &syncDegree)
+    {
+      std::vector<uint32_t> dist (k.size (), UNREACHED);
+      std::deque<uint32_t> queue;
+      dist[target] = 0;
+      queue.push_back (target);
+      while (!queue.empty ()) {
+        uint32_t q = queue.front ();
+        queue.pop_front ();
+        for (const auto &e : k.preds[q]) {
+          if (syncDegree[e.second] > maxSync) continue;
+          if (dist[e.first] == UNREACHED) {
+            dist[e.first] = dist[q] + 1;
+            queue.push_back (e.first);
+          }
+        }
+      }
+      return dist;
+    }
+
+    std::vector<uint32_t> questDistancesOf (const Component &k, uint32_t target) const
+    {
+      std::vector<uint32_t> local = distancesTo (k, target, 1, syncDegree);
+      std::vector<uint32_t> full = distancesTo (k, target, std::numeric_limits<uint32_t>::max (), syncDegree);
+      for (size_t i = 0; i < local.size (); ++i)
+        if (local[i] == UNREACHED && full[i] != UNREACHED) local[i] = full[i] + BARRIER_OFFSET;
+      return local;
+    }
+
+  public:
 
     /** A few numbers on the decomposition: components, sizes, isomorphism classes, synchronisation degrees. */
     void printStats (std::ostream &os) const
@@ -178,9 +191,12 @@ template<typename T>
       }
       std::map<uint32_t, size_t> degrees;
       for (uint32_t d : syncDegree) ++degrees[d];
+      size_t uncovered = 0;
+      for (const auto &l : ofPlace) uncovered += l.empty ();
       os << "Components: " << comps.size () << " (sizes";
       for (const auto &s : sizes) os << " " << s.first << "x" << s.second;
-      os << "), " << classes.size () << " isomorphism classes by degree profile; transitions by components synchronised:";
+      os << "), " << classes.size () << " isomorphism classes by degree profile, " << uncovered
+          << " places in no component; transitions by components synchronised:";
       for (const auto &d : degrees) os << " " << d.first << ":" << d.second;
       os << std::endl;
     }
@@ -189,6 +205,8 @@ template<typename T>
     /** A transition taking from a component and giving back to it moves the process: one edge per (from, to) pair. */
     void buildEdges (const WalkNet<T> &net)
     {
+      consumed.resize (net.transitionCount ());
+      produced.resize (net.transitionCount ());
       std::unordered_map<uint32_t, std::pair<std::vector<uint32_t>, std::vector<uint32_t>>> touched; // comp -> (from local, to local)
       for (uint32_t t = 0; t < net.transitionCount (); ++t) {
         touched.clear ();
@@ -196,9 +214,14 @@ template<typename T>
         for (size_t i = 0; i < eff.size (); ++i) {
           size_t p = eff.keyAt (i);
           for (uint32_t c : ofPlace[p]) {
-            int32_t li = comps[c].indexOf (p);
-            if (eff.valueAt (i) < 0) touched[c].first.push_back (static_cast<uint32_t> (li));
-            else touched[c].second.push_back (static_cast<uint32_t> (li));
+            uint32_t li = static_cast<uint32_t> (comps[c].indexOf (p));
+            if (eff.valueAt (i) < 0) {
+              touched[c].first.push_back (li);
+              consumed[t].emplace_back (c, li);
+            } else {
+              touched[c].second.push_back (li);
+              produced[t].emplace_back (c, li);
+            }
           }
         }
         syncDegree[t] = static_cast<uint32_t> (touched.size ());

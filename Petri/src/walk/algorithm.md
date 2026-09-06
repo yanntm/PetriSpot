@@ -339,10 +339,12 @@ here: a gate of the model (WALK_PLAN.md section 10), not of the choice.
 
 ## Components and quests
 
-`Components` reads the net as sequential processes from its P-flows (computed
-in-process by the invariant engine when a strategy asks, `--strategy=sync`):
-a flow with non-negative coefficients is a component, its places the local
-states, its value at the initial marking the tokens it carries. A transition
+`Components` reads the net as sequential processes from its P-semiflows
+(computed in-process by the invariant engine when a strategy asks,
+`--strategy=sync`; flows with negative coefficients left places uncovered on
+ErlangenMainframe, semiflows cover every place): a semiflow is a component,
+its places the local states, its value at the initial marking the tokens it
+carries. A transition
 that takes from a component and gives back to it is a local move of that
 process; one touching several components synchronises them (its *sync
 degree*). Each component has a local graph, and `questDistances(c, p)` gives
@@ -374,8 +376,13 @@ The relaxed plan was tried for the stage choice and rejected: the delete
 relaxation lets a process be in two places at once, so it never sees that a
 barrier moves processes away and it cycles between two barriers.
 
-Measured on ResIsolation-PT-N10P4 (147 855 transitions, 14 processes behind
-a chain of 13 forks, 147 456 fourteen-way barriers): three barriers that
-random, best-first and relaxed-plan walks never fired, nor 1800 s of every
-engine on the cluster, fire in 93 to 108 steps, 8 to 14 s on 4 threads. A
-step costs about 50 ms there: the stage choice scans every barrier.
+The stage choice scans every barrier with per transition tables of the
+(component, local place) pairs it consumes and produces and per component
+distance matrices computed once, so a stage costs milliseconds on 147 000
+barriers. Measured on 4 threads: ResIsolation-PT-N10P4 (147 855 transitions,
+14 processes behind a chain of 13 forks, 147 456 fourteen-way barriers),
+three barriers that random, best-first and relaxed-plan walks never fired,
+nor 1800 s of every engine on the cluster, fire in about 95 steps, 2.7 to
+7.5 s including the parse; ErlangenMainframeV2-PT-bP10C08 (79 094
+transitions, 28 processes, 78 737 barriers of degree 12 or 13), three
+transitions the campaign left open fire in 4.7 to 11.3 s.
