@@ -58,15 +58,27 @@ this for where everything lives and what is in flight.
   `/data/ythierry/MCC26run/oracle-2026/oracle`); the set `ITS-Tools latest`
   is a glob on `/data/ythierry/MCC26run/2026-09-06/*`, so an rsync plus
   `build.py example.json` shows the newest data. RF (1953) is in; LTLC was
-  at 804 and LTLF, CTLC, CTLF not started at 12:20. Next: the total
-  examinations in the pages, flag variants as sets.
+  at 804 and LTLF, CTLC, CTLF not started at 12:20. The total examinations
+  have their pages (`totals.py`: family progression, completion against
+  time, atom by atom agreement between sets, implied global verdict against
+  the consensus); every 2026 tool is a set, and a set that answered nothing
+  on an examination is left off that page. Next: flag variants as sets,
+  whatever the user asks after browsing.
 * **RF: one wrong value shared with the contest.** `LastZero-COL-N20`
   ReachabilityFireability formula 13: ITS-Tools says FALSE in the contest and
   in our run, smpt, Tapaal and 2025-gold say TRUE. Deterministic on the
   ITS-Tools side, not the walker: the verdict is tagged `CPN_APPROX`, the
   skeleton over-approximation of the coloured net (4 places, 3 transitions)
   ruling the fireability unreachable before the unfolding (log
-  `2026-09-06/RF/OAR.1336369`, line 106). A skeleton soundness bug to chase.
+  `2026-09-06/RF/OAR.1336369`, line 106). **Fixed in ITS-Tools `d26cddfa`**
+  (pushed): `Simplifier.allEnablingsAreNegated` asked for negated enablings
+  whatever the root operator; the skeleton preserves enablings upward only,
+  so an EF refuted there needs positive enablings and an AG proved there
+  negated ones. Verified on a local product: LastZero-COL-N20, Philosophers-
+  COL-000010, SharedMemory-COL-000005 RF all 16/16 against the oracle
+  (`Petri/test/logs/*-RF-fixed.log`). In the RF campaign the bug bit once
+  (18 skeleton verdicts, 17 sound AG TRUE, 1 EF FALSE wrong); RC's 2315
+  skeleton verdicts are cardinality atoms, exact on the skeleton.
 * **Findings to act on** (details in the two READMEs): UBA has 313 wall runs
   that never reach a walk, stalled after the invariants; QLA's residue is
   seven families where one SMT call on 79 k atoms eats 687 s for nothing;
