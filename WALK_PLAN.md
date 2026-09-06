@@ -779,6 +779,19 @@ Directions to weigh, none decided:
   moves to avoid; the walker claims when the enabled set empties. Philosophers
   holding their left fork is that sink. One more `ComponentStrategy` variant
   on the same tables.
+* **Bounds as a staircase (2026-09-06).** A bound target is a sequence of
+  reachability quests `expr >= lo + 1`, each success a `BOUND` line the Java
+  streams, until the structural bound `hi` of the invariants or an
+  unreachable step, which is where the SMT proof belongs. Three additions to
+  the quest machinery: multi-token quests (the sum of the k nearest tokens'
+  local paths, tokens with multiplicity, a gathering being a component's
+  synchronisation with itself), sums over places (the k cheapest token to
+  place paths over the places of the sum), and re-questing a bound target in
+  `QuestSweep` after each success. CANInsertWithFailure is the yardstick: in
+  UpperBoundsAll nothing was walked from PT-020 up (the Java bounds solver
+  stalls after the invariants, the 313 runs of section 9) and PT-010 got one
+  random bounds walk of 1600 s that raised nothing; the contest has nothing
+  on PT-030 and above.
 * **Effort share.** On the cluster this run got two walker calls totalling
   62 s of 1800; the rest was flattening and decision diagrams. Whatever the
   walker's speed, the portfolio starves it here (`PORTFOLIO.md`).
