@@ -78,6 +78,12 @@ template<typename T>
     std::vector<size_t> frozenList;
     std::vector<std::vector<uint32_t>> standing; // per component: the marked local places, at a stage choice
     mutable std::vector<uint64_t> scratch;
+    mutable std::vector<size_t> touchedQuests; // stageAfter: indices of the quests the candidate barrier touches
+    // per stage choice (push): tables over the located marking and the stage's quests
+    std::vector<uint64_t> alignOf;             // per place: the cheapest a process can bring a token to it alone, UNREACHED when none can
+    std::vector<std::vector<size_t>> questsByComp; // per component: the stage's quests on a place it holds
+    mutable std::vector<uint32_t> questStamp;  // per quest: the candidate that last listed it
+    mutable uint32_t questEpoch = 0;
     const Marking<T> *current = nullptr;
     bool ok = true;
 
@@ -471,27 +477,63 @@ template<typename T>
       for (size_t i = 0; i < pre.size (); ++i) {
         size_t p = pre.keyAt (i);
         if (current->get (p) >= pre.valueAt (i)) continue;
-        const auto &cs = comps.componentsOf (p);
-        if (cs.empty ()) return UNREACHED;
-        const std::vector<uint32_t> &dist = comps.questDistances (cs[0], p);
-        uint64_t d = UNREACHED;
-        for (uint32_t j : standing[cs[0]])
-          if (dist[j] < d) d = dist[j];
+        uint64_t d = alignOf[p];
         if (d >= Components<T>::BARRIER_OFFSET) return UNREACHED;
         align += d;
       }
       return align;
     }
 
-    /** The stage's distance after t, from the located marking. */
-    uint64_t stageAfter (const Stage &stage, uint32_t t) const
+    /** The tables of a stage choice: alignOf over the located marking, questsByComp over the stage's quests. */
+    void tabulate (const Stage &stage)
     {
-      const SparseArray<T> &eff = net.effect (t);
-      uint64_t s = 0;
+      alignOf.assign (frozenNeed.size (), UNREACHED);
+      for (size_t p = 0; p < alignOf.size (); ++p) {
+        const auto &cs = comps.componentsOf (p);
+        if (cs.empty ()) continue;
+        const std::vector<uint32_t> &dist = comps.questDistances (cs[0], p);
+        uint64_t d = UNREACHED;
+        for (uint32_t j : standing[cs[0]])
+          if (dist[j] < d) d = dist[j];
+        alignOf[p] = d;
+      }
+      questsByComp.assign (comps.size (), {});
       for (size_t i = 0; i < stage.quests.size (); ++i) {
         const Quest &q = stage.quests[i];
-        if (q.comp == NONE || !touches (t, q)) s += stage.cur[i];
-        else s += distanceOf (*current, q, &eff);
+        if (q.comp == NONE) continue;
+        for (uint32_t c : comps.componentsOf (q.place)) questsByComp[c].push_back (i);
+      }
+      questStamp.assign (stage.quests.size (), 0);
+      questEpoch = 0;
+    }
+
+    /**
+     * The stage's distance after t, from the located marking; the quests t
+     * does not touch keep their distance and are summed first, the others are
+     * recomputed one by one, and the sum is abandoned (as cutoff + 1) as soon
+     * as it exceeds cutoff, so a barrier worse than the best seen costs little.
+     */
+    uint64_t stageAfter (const Stage &stage, uint32_t t, uint64_t total, uint64_t cutoff) const
+    {
+      const SparseArray<T> &eff = net.effect (t);
+      // the quests on a place of a component t moves a token of, each once
+      ++questEpoch;
+      touchedQuests.clear ();
+      uint64_t s = total;
+      auto list = [&] (const auto &links) {
+        for (const auto &cl : links)
+          for (size_t i : questsByComp[cl.first])
+            if (questStamp[i] != questEpoch) {
+              questStamp[i] = questEpoch;
+              touchedQuests.push_back (i);
+              s -= stage.cur[i];
+            }
+      };
+      list (comps.consumedBy (t));
+      list (comps.producedBy (t));
+      for (size_t i : touchedQuests) {
+        if (s > cutoff) return cutoff + 1;
+        s += distanceOf (*current, stage.quests[i], &eff);
       }
       return s;
     }
@@ -505,6 +547,9 @@ template<typename T>
     {
       Stage &top = stack.back ();
       locate (m);
+      tabulate (top);
+      uint64_t total = 0;
+      for (uint64_t d : top.cur) total += d;
       uint32_t best = NONE;
       uint64_t bestAfter = std::numeric_limits<uint64_t>::max ();
       uint64_t bestAlign = std::numeric_limits<uint64_t>::max ();
@@ -513,7 +558,10 @@ template<typename T>
         if (std::find (top.tabu.begin (), top.tabu.end (), t) != top.tabu.end ()) continue;
         uint64_t align = alignCost (t);
         if (align == UNREACHED) continue;
-        uint64_t after = stageAfter (top, t);
+        // a barrier can only win by a lower outcome, or the same outcome with a cheaper alignment
+        uint64_t cutoff = align < bestAlign ? bestAfter : bestAfter - 1;
+        if (bestAfter == 0 && align >= bestAlign) continue;
+        uint64_t after = stageAfter (top, t, total, cutoff);
         if (std::tie (after, align) < std::tie (bestAfter, bestAlign)) {
           bestAfter = after;
           bestAlign = align;
