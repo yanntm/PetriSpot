@@ -31,7 +31,22 @@ this for where everything lives and what is in flight.
   `run_oar.sh` calls, log `submit-2026-09-06.log` next to it. Results land in
   `RD/`, `QLA/`, `SMA/`, `UBA/`; read them with `mcclogs2csv.py` and
   `totallogs2csv.py`, warmup tables in
-  `/data/ythierry/MCC26run/warmup-2026-09-06/csv/`.
+  `/data/ythierry/MCC26run/warmup-2026-09-06/csv/`. That submission ended at
+  03:02; a second one, `submit-2026-09-06b.sh` (log `submit-2026-09-06b.log`),
+  started at 03:10 with the baseline examinations RC, RF, LTLC, LTLF, CTLC,
+  CTLF, 1953 jobs each, same settings, into `RC/` ... `CTLF/`. Read those with
+  `mcclogs2csv.py` against `csv/2026-09-05/` (the campaign had no RC/RF/LTL/CTL
+  then, so this is their first baseline).
+* **RD, read early** (all 1953 in by 03:00, tables in
+  `/data/ythierry/MCC26run/2026-09-06/csv-peek/`, baseline in
+  `/data/ythierry/MCC26archive/2026-09-06-precampaign/csv/`): 0 wrong, missed
+  14 -> 9, bonus 11 unchanged. Gained 8 deadlocks by the walk (the three Shield
+  targets among them), lost 3 FALSE proofs (DatabaseWithMutex-PT-20, PGCD
+  D02N100 PT and COL) to the wall: the escalated deadlock walk now spends 30 s
+  per call, 4 to 6 calls per run, ahead of the engines that prove absence. The
+  user's reading: walk beside the SMT proof, not before it, and check that the
+  SMT deadlock timeouts escalate at all (`DeadlockTester`). Of the 9 missed,
+  5 rest on a single tool (2 on 2025 gold, i.e. us last year).
 * The `-timeout` flag of ITS-Tools is a per-engine budget, not a deadline: the
   harness kill ends every run that does not close its cohort.
 
