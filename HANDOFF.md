@@ -4,6 +4,27 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## Rerun in preparation (2026-09-06, 16:00)
+
+The walker gained components and the quest sweep (PetriSpot up to `c514d28`),
+ITS-Tools its two fixes (walker verdict polarity `3aeb7f95`, skeleton enabling
+polarity `d26cddfa`). The chain to the cluster: PetriSpot CI deploys `petri64`
+to `Inv-Linux` (done for `be8b012` at 13:43 UTC; `c514d28`, the boxed
+semiflows, in progress), then ITS-Tools CI must rebuild so the product ships
+that binary (an empty commit on ITS-Tools master triggers it; `cf1e02af` was
+pushed for `be8b012` and is superseded; push another once `c514d28` is on
+`Inv-Linux`), then `install_itstools.sh` in `/data/ythierry/MCC26deploy/
+MCC-drivers` and the rsync of `itstools/` to the cluster (recipes below), a
+warmup on AirplaneLD, then `~/MCC26/MCC-drivers/submit-2026-09-06c.sh` on the
+cluster head (staged, not run: it moves `QLA SMA UBA RC RF RD` aside as
+`*-2026-09-06a`, all mirrored locally, and resubmits them; edit `EXAMS`). The
+queue held 5 500 baseline jobs (LTLF, CTLC, CTLF) at 15:45: the user decides
+whether the rerun waits behind them. On the cluster the Java hands the QLA
+atoms to the walker with a 30 s sweep, so the auto sweep choice (components,
+quests) applies without a Java change. Collect the rerun into
+`/data/ythierry/MCC26run/2026-09-06c/` and point `ITS-Tools latest` at it in
+`MCC-analysis/campaign/example.json`.
+
 ## Next session: the walk engine on very large nets
 
 Read `WALK_PLAN.md` sections 9 and 10 first. Section 9 measured why the walk
