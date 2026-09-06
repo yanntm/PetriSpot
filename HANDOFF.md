@@ -63,7 +63,10 @@ this for where everything lives and what is in flight.
 * **RF: one wrong value shared with the contest.** `LastZero-COL-N20`
   ReachabilityFireability formula 13: ITS-Tools says FALSE in the contest and
   in our run, smpt, Tapaal and 2025-gold say TRUE. Deterministic on the
-  ITS-Tools side, not the walker; to look at (`2026-09-06/RF/OAR.1336369`).
+  ITS-Tools side, not the walker: the verdict is tagged `CPN_APPROX`, the
+  skeleton over-approximation of the coloured net (4 places, 3 transitions)
+  ruling the fireability unreachable before the unfolding (log
+  `2026-09-06/RF/OAR.1336369`, line 106). A skeleton soundness bug to chase.
 * **Findings to act on** (details in the two READMEs): UBA has 313 wall runs
   that never reach a walk, stalled after the invariants; QLA's residue is
   seven families where one SMT call on 79 k atoms eats 687 s for nothing;
