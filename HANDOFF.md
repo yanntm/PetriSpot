@@ -1,8 +1,50 @@
 # Handoff — MCC 2026 campaign, the portfolio design, the first fixes, the total examinations
 
-State of the work as of 2026-09-06. Read `PORTFOLIO.md` first if you are
+State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
+
+## Session of 2026-09-06, afternoon: the campaigns read
+
+* **Cluster.** RD, QLA, SMA, UBA complete (every oracle has exactly one run;
+  the AirplaneLD warmup duplicates are set aside in
+  `/data/ythierry/MCC26run/2026-09-06/warmup/`). Of the baseline submission,
+  RC is complete and collected; RF was at 1902/1953 and LTLC, LTLF, CTLC, CTLF
+  had not started at 11:00 (about 7900 jobs queued). Fetch them with the
+  rsync recipe below, collect with `mcclogs2csv.py` into
+  `Petri/test/mcc/csv/2026-09-06-baseline/`, rerun `report.py` there.
+  Logs are in `/data/ythierry/MCC26run/2026-09-06/{RD,QLA,SMA,UBA,RC}` with
+  their `.stderr`; the Eclipse `configuration/*.log` in `eclipse-logs/`.
+* **Tables and reports** committed under `Petri/test/mcc/csv/2026-09-06/`
+  and `csv/2026-09-06-baseline/`, each with a `README.md` (the reading) and a
+  generated `REPORT.md` (every table). `Petri/test/mcc/README.md` documents
+  the scripts: `report.py`, `toolboard.py`, `totalcheck.py`, `ubacheck.py`,
+  `eclipselogs.py`.
+* **A wrong verdict, reproducible.** RC `NeoElection-PT-3` formula 00 and
+  `PT-7` formula 05: FALSE against a four tool TRUE. PetriSpot's
+  `WalkDriver.h` `makeTargets` prints `FORMULA propN FALSE TECHNIQUES
+  TOPOLOGICAL TRIVIAL` when a goal folds to constant false (a sound
+  `Simplify.h` rule: the predicate over an emptied syphon), and ITS-Tools
+  `PetriSpotWalker.readVerdicts` takes every FORMULA line as a witness
+  (`publishWalkerVerdict`: "EF holds, AG does not") without reading the value.
+  `INTEROP.md` line 409 promises PetriSpot never emits a non-witness verdict.
+  Local reproduction: `Petri/test/logs/neo3-RC-local.log` (its-tools of the
+  deploy on `/data/ythierry/neotest/NeoElection-PT-3`, 40 s). Fix not yet
+  chosen: suppress the line on the sexpr path in PetriSpot, read the value in
+  the Java reader, or both. **No oracle is published until this is fixed and
+  the totals rerun.**
+* **Total oracles, staged only.** `pnmcc-models-2026/merge_total_oracles.py`
+  (uncommitted in that repo) merged the run vectors into the skeletons:
+  `/data/ythierry/MCC26run/2026-09-06/oracles-merged/`, 0 conflicts, QLA
+  51 %, SMA 89 %, UBA 54 % filled. Cross-checks against the consensus:
+  `totalcheck.csv` 1484 QLA + 1603 SMA confirmed, `ubacheck.csv` 22 933
+  bounds confirmed, 0 contradictions either way.
+* **Findings to act on** (details in the two READMEs): UBA has 313 wall runs
+  that never reach a walk, stalled after the invariants; QLA's residue is
+  seven families where one SMT call on 79 k atoms eats 687 s for nothing;
+  the contest ITS-Tools beats us on 40 RC instances, a dozen of them closed
+  there in under three minutes while we burn 1800 s; `eclipse_fatal` is
+  always a Java OutOfMemoryError (`-Xmx16384m`).
 
 ## Session of 2026-09-06: total examinations and streaming
 
