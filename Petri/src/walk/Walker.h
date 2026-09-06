@@ -390,6 +390,7 @@ template<typename T>
       auto sliceStart = clock::now ();
       WalkStats &st = result.stats;
       uint64_t stepsAtStart = st.steps, claimsAtStart = result.claims;
+      uint64_t noveltyAtStart = tracker ? tracker->distinctFired () : 0;
       uint64_t ms = activeMs; // running time, refreshed every 64 iterations
       WalkContext<T> ctx { net, marking, enabled, rng, knowledge, tracker ? &tracker->localCounts () : nullptr };
       bool capped = false;
@@ -466,6 +467,7 @@ template<typename T>
       if (report) {
         report->steps = st.steps - stepsAtStart;
         report->claims = result.claims - claimsAtStart;
+        report->novelty = tracker ? tracker->distinctFired () - noveltyAtStart : 0;
         report->micros = micros;
         report->capped = capped && !over;
         report->finished = over;

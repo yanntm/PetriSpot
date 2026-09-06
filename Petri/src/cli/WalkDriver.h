@@ -170,7 +170,8 @@ template<typename T>
         std::cout << "Strategy " << k.kind << ": " << k.tasks << " task" << (k.tasks > 1 ? "s" : "") << ", " << k.steps
             << " steps in " << static_cast<uint64_t> (ms) << " ms (" << static_cast<uint64_t> (k.steps / ms) << " steps/ms), "
             << k.claims << " claims (" << static_cast<uint64_t> (k.claims * 1000.0 / ms) << "/s), " << k.slices << " slices, "
-            << k.cappedSlices << " capped, longest " << k.maxSliceMicros / 1000 << " ms." << std::endl;
+            << k.cappedSlices << " capped, longest " << k.maxSliceMicros / 1000 << " ms, " << k.novelty << " first firings; share "
+            << static_cast<int> (k.share * 100.0 + 0.5) << "%." << std::endl;
       }
     }
   }
@@ -224,9 +225,11 @@ template<typename T>
       printFormula (o, targets, c);
     };
     petri::walk::SchedulerSpec sched;
-    sched.tasks = o.tasks;
+    sched.tasks = o.tasks ? o.tasks : 2 * o.threads; // two tasks per runner: every strategy of a pool runs on every model
     sched.sliceSteps = o.slice;
     sched.sliceMillis = o.sliceMs;
+    sched.adaptive = o.shares != "equal";
+    sched.shareFloor = o.shareFloor;
     petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, targets, focus, specs, o.threads, budget,
                                                                      seed, pool.get (), o.debugSteps, onClaim,
                                                                      o.partition, knowledge, policy, components, policies,

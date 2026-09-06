@@ -1199,8 +1199,14 @@ DLCflexbar and FamilyReunion 30 s):
    report gives steps per millisecond: on Erlangen rarity runs at 0.4
    steps/ms against the quests' 1.5, on RERS both near 50 and rarity claims
    80 times more.
-2. **Adaptive shares.** RERS and ResIsolation in one run must each approach
-   their best sweep; Erlangen must come back toward the all-quest 2 792.
+2. **Adaptive shares** (done 2026-09-06 night, `Scheduler::reward`). Reward
+   per kind decayed over three running seconds against its running time,
+   shares above a floor of a tenth; two tasks per runner the default. In one
+   configuration: RERS 29 352 (91 % rarity; all-rarity 30 121), ResIsolation
+   1 000 targets in 10.6 s (86 % quests; all-quest 6 to 8 s), Erlangen full
+   QLA 2 140 (94 % quests; all-quest 2 792; equal shares 1 444), Stigmergy
+   1 492 (its noise band), DLCflexbar all 76 160. The first version scored
+   per-slice rates and rewarded bursts; the time-weighted score fixed it.
 3. **Spawn with budget transfer** for the quests' barriers, replacing the
    stage stack; Stigmergy and the CAN gathering target.
 4. **LP tasks.** A simplex yielding between pivot batches; hints arrive as

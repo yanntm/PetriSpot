@@ -296,17 +296,30 @@ clock; each of the `--threads` runners pops the smallest clock, runs one slice
 of `--slice` steps capped by `--sliceMs` of wall clock (a coarse step ends the
 slice, and is counted as capped), books the slice's steps, claims and running
 time into the task and advances its clock by the time divided by its share,
-and pushes it back unless the walk is over. Shares are equal for now (round
-robin); a task whose targets were claimed by another finishes at its first
-step. The report has one line per task and one per strategy kind: steps,
-running milliseconds, steps per millisecond, claims and claims per second,
-slices and capped slices. With twice as many tasks as runners every strategy
-of a pool runs on every model, each kind getting half the time
-(RERS17pb114-PT-1 full QLA in 10 s: 25 505 claims, rarity 1 317 a second at
-52 steps/ms, quests 16 a second at 131; ResIsolation 1 000 targets in 14 s,
-quests 38 claims a second at 0.8 ms a step, rarity 5). WALK_PLAN.md section
-10.11 has the design and the steps that follow: shares that follow the
-claims, subquests as child tasks with a budget, LP tasks.
+and pushes it back unless the walk is over. A task whose targets were
+claimed by another finishes at its first step.
+
+Shares follow results (`--shares=adaptive`, the default). A slice's reward is
+its claims plus a small weight (0.05) of the transitions the task fired for
+the first time, so a focused walk without claims still tells its kinds
+apart. Each strategy kind keeps its reward and its running time decayed
+exponentially over a horizon of three running seconds; the ratio is the
+kind's score, a reward rate no slice length can bias (a first version
+averaged per-slice rates and gave the long, bursty quest slices of Stigmergy
+the time that rarity's short steady slices had earned). The kinds' shares are
+a floor shared equally (`--shareFloor`, 0.1 of the time) plus the rest in
+proportion to the scores, split equally among a kind's tasks; a kind that
+stops paying keeps its trickle and comes back when it pays again. With two
+tasks per runner (the default) every strategy of a pool runs on every model
+and the time goes where the claims are: RERS17pb114-PT-1 full QLA in 10 s,
+29 352 claims with rarity at 91 % (all-rarity 30 121, all-quest 4 088);
+ResIsolation 1 000 targets in 10.6 s with the quests at 86 % (all-quest 6 to
+8 s, all-rarity 125 claims in 20 s); Erlangen full QLA 2 140 in 30 s with
+the quests at 94 % (all-quest 2 792, equal shares 1 444). The report has one
+line per task and one per kind: steps, running milliseconds, steps per
+millisecond, claims and claims per second, slices and capped slices, first
+firings, the final share. WALK_PLAN.md section 10.11 has the design and the
+steps that follow: subquests as child tasks with a budget, LP tasks.
 
 The driver (`cli/WalkDriver.h`) applies a policy on top: an optional sweep
 round (all threads random, no focus, all targets open) followed by rounds with

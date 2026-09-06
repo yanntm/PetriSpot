@@ -29,6 +29,7 @@ struct SliceReport
 {
   uint64_t steps = 0;      // steps taken in the slice
   uint64_t claims = 0;     // targets claimed in the slice
+  uint64_t novelty = 0;    // transitions this task fired for the first time in the slice
   uint64_t micros = 0;     // running time of the slice
   bool capped = false;     // the deadline ended the slice before the steps did
   bool finished = false;   // the task has nothing left to do
@@ -42,7 +43,7 @@ public:
   double share = 1.0;      // weight in the scheduler: a task with twice the share gets twice the slices
   double vruntime = 0.0;   // virtual clock: advances by the slice's running time divided by the share
   // totals over the slices
-  uint64_t steps = 0, micros = 0, claims = 0, slices = 0, cappedSlices = 0, maxSliceMicros = 0;
+  uint64_t steps = 0, micros = 0, claims = 0, novelty = 0, slices = 0, cappedSlices = 0, maxSliceMicros = 0;
 
   virtual ~Task () = default;
   virtual SliceReport run (const Slice &slice) = 0;
@@ -54,6 +55,7 @@ public:
     steps += r.steps;
     micros += r.micros;
     claims += r.claims;
+    novelty += r.novelty;
     ++slices;
     if (r.capped) ++cappedSlices;
     if (r.micros > maxSliceMicros) maxSliceMicros = r.micros;

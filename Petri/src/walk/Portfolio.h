@@ -243,7 +243,8 @@ struct KindReport
 {
   std::string kind;
   unsigned tasks = 0;
-  uint64_t steps = 0, micros = 0, claims = 0, slices = 0, cappedSlices = 0, maxSliceMicros = 0;
+  uint64_t steps = 0, micros = 0, claims = 0, novelty = 0, slices = 0, cappedSlices = 0, maxSliceMicros = 0;
+  double share = 0.0, score = 0.0; // the kind's final share of the time and reward rate
 };
 
 /** A target won by a thread: where, by whom, and how it was reached. */
@@ -365,9 +366,15 @@ template<typename T>
       k.steps += t.steps;
       k.micros += t.micros;
       k.claims += t.claims;
+      k.novelty += t.novelty;
       k.slices += t.slices;
       k.cappedSlices += t.cappedSlices;
       k.maxSliceMicros = std::max (k.maxSliceMicros, t.maxSliceMicros);
+    }
+    for (const KindShare &ks : scheduler.shares ()) {
+      KindReport &k = kinds[ks.kind];
+      k.share = ks.share;
+      k.score = ks.score;
     }
     for (auto &kv : kinds) out.kinds.push_back (kv.second);
 
