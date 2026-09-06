@@ -21,6 +21,14 @@ target checks a step (0.4 steps/ms), on RERS the quest tasks fire a cheap
 local loop at 130 steps/ms with 1 arc visit a step and claim nothing.
 Walker.h is 521 lines; the target index is the piece to extract next.
 
+**Step 2 landed too** (44a1eb0): shares follow the claims per running
+second, decayed over three seconds, above a floor of a tenth; two tasks per
+runner by default. One configuration now reaches RERS 29 352 (rarity 91 %),
+ResIsolation 1 000 targets in 10.6 s (quests 86 %), Erlangen full QLA 2 140
+(quests 94 %), DLCflexbar 76 160 of 76 160. Steps 3 (subquests as child tasks
+with a budget) and 4 (LP tasks) are next; the binary on the cluster is
+6a5d288, before the scheduler.
+
 ## 2026-09-06, 21:30: the QLA rerun read, and what it taught
 
 **QLA rerun collected** into `/data/ythierry/MCC26run/2026-09-06c/QLA`
