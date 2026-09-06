@@ -9,6 +9,7 @@
 #ifndef PETRI_WALK_WALKER_H_
 #define PETRI_WALK_WALKER_H_
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -39,6 +40,7 @@ struct WalkStats
   uint64_t flips = 0;     // enabled-status changes
   uint64_t targetChecks = 0; // goal evaluations
   uint64_t saturations = 0;  // updates that fired a transition more than once
+  uint64_t distinctFired = 0; // transitions fired at least once, a coverage measure of the walk
 };
 
 struct WalkResult
@@ -96,6 +98,7 @@ template<typename T>
     // from these lists as they are met, so the lists shrink over the run.
     std::vector<uint32_t> own;
     std::vector<std::vector<uint32_t>> up, down;
+    std::vector<bool> firedOnce;    // per transition: fired at least once in this walk
     std::vector<typename TargetSet<T>::Mention> mentionBuf;
 
     /** Index the given targets; deadlock targets are checked apart and skipped here. */
@@ -192,6 +195,7 @@ template<typename T>
         touched.push_back ({ p, newv > oldv });
       }, static_cast<long long> (times));
       if (recordTrace) trace.insert (trace.end (), times, t);
+      firedOnce[t] = true;
     }
 
     /** Evaluate an open target here; record a bound's value, claim a target that holds. */
@@ -271,7 +275,7 @@ template<typename T>
           initialMarking (n.initialMarking ()), initialEnabled (n),
           marking (n.initialMarking ()), enabled (n),
           published (tgs.size (), std::numeric_limits<long long>::min ()), stamp (tgs.size (), 0),
-          up (tgs.places ()), down (tgs.places ())
+          up (tgs.places ()), down (tgs.places ()), firedOnce (n.transitionCount (), false)
     {
       initialEnabled.initialize (initialMarking);
       enabled.assign (initialEnabled);
@@ -358,6 +362,7 @@ template<typename T>
           std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - start).count ());
       st.arcVisits = enabled.arcVisits;
       st.flips = enabled.flips;
+      st.distinctFired = static_cast<uint64_t> (std::count (firedOnce.begin (), firedOnce.end (), true));
       return result;
     }
 

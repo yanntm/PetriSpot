@@ -80,7 +80,8 @@ template<typename T>
           << " after " << st.steps << " steps, " << st.resets << " resets (" << st.deadEnds << " dead ends, "
           << st.stalls << " stalls, " << st.poolRestarts << " from pool), " << st.millis << " ms ("
           << (st.steps / ms) << " steps/ms; " << (st.steps ? st.arcVisits / st.steps : 0) << " arc visits/step, "
-          << (st.steps ? st.targetChecks / st.steps : 0) << " checks/step"
+          << (st.steps ? st.targetChecks / st.steps : 0) << " checks/step, "
+          << st.distinctFired << " distinct transitions fired"
           << (st.saturations ? ", " + std::to_string (st.saturations) + " saturated" : "") << ")";
       if (rep.strategy != "random") std::cout << ", best heuristic " << rep.minHeuristic;
       if (rep.claims > 1 || (rep.claims == 1 && !rep.found)) std::cout << ", " << rep.claims << " targets claimed";

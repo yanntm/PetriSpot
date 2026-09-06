@@ -759,3 +759,90 @@ Directions to weigh, none decided:
 * **Effort share.** On the cluster this run got two walker calls totalling
   62 s of 1800; the rest was flattening and decision diagrams. Whatever the
   walker's speed, the portfolio starves it here (`PORTFOLIO.md`).
+
+## 10. Awareness (design, 2026-09-06): firing statistics, rare events, shared restart points
+
+The number behind this section: on ResIsolation-PT-N10P4 with 1 000
+`fireable` targets, 4 threads, a 20 s random sweep, each thread fires 87 to 96
+distinct transitions in about 550 000 steps, out of 147 855; the union claims
+about 125 targets whatever the size of the target set. The walk is not slow
+at exploring, it is not exploring: uniform choice among the enabled
+transitions keeps it cycling in a region of ninety transitions. The runs also
+report 0 resets: with `runLength` at a million steps and 27 steps/ms, a thread
+never restarts inside the 30 to 60 s the cluster gives a call, so the shared
+pool never receives or serves a state there. Whatever the target cost, this
+is where the twenty minutes of a long run would go.
+
+The direction: a little memory in the walker, bounded and mostly counters, so
+that threads know what has been done and steer toward what has not.
+
+### Firing statistics
+
+* Per thread, `fired[t]`: firings of `t` in this walk (an array of |T|
+  32-bit counters, 600 KB on the largest nets; `distinctFired` in the report
+  already comes from it). Incremented in `fire`, O(1).
+* Shared, `firedAll[t]`: the merge of every thread's counts, updated at run
+  end and at every reset (O(|T|) per merge, amortised by the restart
+  schedule; on hub nets where resets are rare, also every K steps). Plain
+  atomics, no lock; a stale read is harmless.
+* Rarity of `t` = `1 / (1 + firedAll[t])`; a never-fired enabled transition
+  is a rare event.
+
+### Rare-event choice
+
+A strategy (`RandomStrategy` variant, or the epsilon share of the guided
+ones) that prefers rarely fired enabled transitions. The enabled set can hold
+tens of thousands of transitions on hub nets, so no scan: draw `k` candidates
+uniformly from the enabled list (`--sample`, k about 8) and fire the least
+fired of them; with probability epsilon fire the first. O(k) per step. This
+is the novelty pressure of 4.5 with the memory that 4.5 lacked: it pushes the
+walk out of the ninety-transition cycle toward transitions never fired, which
+on a `fireable` sweep are the open targets themselves.
+
+### Which states to share
+
+The `SharedPool` (3.9) exists with a bounded capacity, a score and a draw at
+restart. Publish a state when the walk has reason to believe it is a branching
+point it could not explore:
+
+* **a rare event just happened**: a transition with `firedAll[t] == 0` (or
+  below a rank) was fired; the marking after it is new ground;
+* **it enables much**: the enabled count is high relative to the walk's
+  running average, or many of the enabled transitions are rarely fired (the
+  sample of k gives an estimate for free);
+* **the heuristic tied**: a guided strategy found several candidates at the
+  best score and chose at random; the state is where guidance ran out.
+
+The score is the count of rarely fired enabled transitions at the state
+(estimated from the sample); the pool keeps the best-scored few. Memory stays
+bounded by the pool capacity; there is no state hashing and no growth.
+
+### Restarts that matter
+
+Two changes to the restart schedule, both cheap:
+
+* **a time-based run length**: a run ends after about a second of wall clock
+  as well as after `runLength` steps, so that a 30 s call on a hub net
+  restarts a few dozen times and the pool is actually used;
+* **novelty stall**: a run that fired no new transition (per thread) in the
+  last K steps restarts, drawing from the pool; the epsilon of guided
+  strategies applies to the rare-event choice rather than to uniform random.
+
+### Threads and related goals
+
+Splitting a sweep by id modulo the thread count (section 9) loses the finds a
+thread walks past. If a split is wanted, it should follow the support: targets
+whose atoms share places (for `fireable`, transitions sharing pre-places) go
+to the same thread, so that the region a thread explores is where its targets
+live, and a guided strategy can aim at "the nearest of my open targets" (the
+minimum over the own targets of the unsatisfied-atom count, kept incrementally
+by the delta counters of section 9). Grouping by the hub places a target
+needs, or by a hash of its place set, is enough for a first version.
+
+### Measure
+
+`distinct transitions fired` in the thread report, and claims, on the
+ResIsolation 1 000-target sweep as the yardstick (today 90 and 125), then on
+ErlangenMainframe and StigmergyElection from the QLA campaign. The goal is
+thousands of distinct transitions in 20 s and a claims curve that keeps rising
+across the minutes, not the first 20 s.
