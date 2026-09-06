@@ -38,6 +38,14 @@ template<typename T>
     std::vector<T> m0;
 
   public:
+    /** A sparse vector of the net's integer type as one of the program's coefficient type. */
+    static SparseArray<long long> toLongLong (const SparseArray<T> &v)
+    {
+      SparseArray<long long> r (v.size ());
+      for (size_t i = 0; i < v.size (); ++i) r.append (v.keyAt (i), static_cast<long long> (v.valueAt (i)));
+      return r;
+    }
+
     /** Conjuncts beyond this many and the goal is declined rather than enumerated. */
     static constexpr size_t MAX_CASES = 64;
 
@@ -80,9 +88,7 @@ template<typename T>
         const SparseArray<T> &line = effectsT.getColumn (pl);
         if (line.size () == 0) continue;
         Row r;
-        r.coeffs.reserve (line.size ());
-        for (size_t i = 0; i < line.size (); ++i)
-          r.coeffs.emplace_back (static_cast<uint32_t> (line.keyAt (i)), static_cast<long long> (line.valueAt (i)));
+        r.coeffs = toLongLong (line);
         r.lo = -static_cast<double> (m0[pl]);
         r.hi = INF;
         p.addRow (std::move (r));
@@ -110,7 +116,7 @@ template<typename T>
       long long shift;
       if (!atomRow (form, r, shift)) return false;
       std::vector<double> c (p.columns, 0.0);
-      for (const auto &e : r.coeffs) c[e.first] = static_cast<double> (e.second);
+      for (size_t i = 0; i < r.coeffs.size (); ++i) c[r.coeffs.keyAt (i)] = static_cast<double> (r.coeffs.valueAt (i));
       p.setMaximise (c);
       return true;
     }
@@ -145,11 +151,11 @@ template<typename T>
         for (size_t i = 0; i < line.size (); ++i)
           acc[static_cast<uint32_t> (line.keyAt (i))] += term.second * static_cast<long long> (line.valueAt (i));
       }
-      r.coeffs.clear ();
+      r.coeffs = SparseArray<long long> ();
       for (const auto &e : acc)
-        if (e.second != 0) r.coeffs.push_back (e);
+        if (e.second != 0) r.coeffs.append (e.first, e.second);
       rhs = a.constant - initialValue (a);
-      return !r.coeffs.empty ();
+      return r.coeffs.size () > 0;
     }
 
     /** lo/hi of a row from the comparison, tightened to the integers. NEQ never reaches here (split by dnf). */

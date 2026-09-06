@@ -12,20 +12,22 @@
 #define PETRI_LP_LPPROBLEM_H_
 
 #include <cstddef>
-#include <cstdint>
 #include <limits>
 #include <utility>
 #include <vector>
+
+#include "core/MatrixCol.h"
+#include "core/SparseArray.h"
 
 namespace petri::lp
 {
 
 constexpr double INF = std::numeric_limits<double>::infinity ();
 
-/** lo <= sum coeffs[i].second * x[coeffs[i].first] <= hi; coefficients sorted by column, non-zero. */
+/** lo <= coeffs . x <= hi, coeffs a sparse vector over the columns. */
 struct Row
 {
-  std::vector<std::pair<uint32_t, long long>> coeffs;
+  SparseArray<long long> coeffs;
   double lo = -INF;
   double hi = INF;
 };
@@ -35,12 +37,18 @@ struct LpProblem
   size_t columns = 0;
   std::vector<double> lower;    // per column, -INF allowed
   std::vector<double> upper;    // per column, INF allowed
-  std::vector<Row> rows;
+  MatrixCol<long long> rows;    // one sparse column of this matrix per row of the program, over the columns
+  std::vector<double> lo, hi;   // per row
   std::vector<double> objective; // per column, to minimise; empty for a feasibility problem
 
   explicit LpProblem (size_t cols = 0)
-      : columns (cols), lower (cols, 0.0), upper (cols, INF)
+      : columns (cols), lower (cols, 0.0), upper (cols, INF), rows (cols, 0)
   {
+  }
+
+  size_t rowCount () const
+  {
+    return rows.getColumnCount ();
   }
 
   bool hasObjective () const
@@ -63,16 +71,26 @@ struct LpProblem
 
   size_t addRow (Row r)
   {
-    rows.push_back (std::move (r));
-    return rows.size () - 1;
+    colsValid = false;
+    rows.appendColumn (std::move (r.coeffs));
+    lo.push_back (r.lo);
+    hi.push_back (r.hi);
+    return rowCount () - 1;
   }
 
-  size_t nonZeros () const
+  /** The program's matrix by column: the transpose of the rows, computed once and kept while no row is added. */
+  const MatrixCol<long long>& byColumn () const
   {
-    size_t n = 0;
-    for (const Row &r : rows) n += r.coeffs.size ();
-    return n;
+    if (!colsValid) {
+      cols = rows.transpose ();
+      colsValid = true;
+    }
+    return cols;
   }
+
+private:
+  mutable MatrixCol<long long> cols;
+  mutable bool colsValid = false;
 };
 
 } // namespace petri::lp

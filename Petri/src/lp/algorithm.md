@@ -76,12 +76,19 @@ precision, with the tolerances and safeguards of the trade:
   basis of fixed artificials would take hundreds of zero-step pivots to
   leave, and that alone made the first prototype ten times slower. A row
   whose artificial cannot reach zero is the certificate of infeasibility.
-* **Basis.** A dense inverse of the basis (rows are few on the nets that
-  matter: hundreds of places against a hundred thousand transitions) updated
-  by the product form at every pivot, refactorised every `REFACTOR` pivots
-  by Gaussian elimination on the basis columns. Sparse LU is the next step
-  when a net with tens of thousands of places asks for it; the interface
-  (`Basis`) hides the representation.
+* **Basis.** The inverse of a sparse basis is dense and is never formed.
+  `Basis.h` keeps it in *product form*: a signed diagonal for the slack and
+  artificial columns, then one sparse eta per pivot (the pivot column as
+  it was), applied by `ftran` for columns and `btran` for the duals. Every
+  `REFACTOR` pivots the file is rebuilt from the basis columns: each basic
+  unit column is assigned to its own row (a basis is a set of columns, the
+  row order is free), the structural columns are pivoted into whichever free
+  row gives the largest pivot, sparsest first; a column with no usable pivot
+  made the basis singular and leaves it. The first rebuild assumed a basic
+  slack sits in its own row; a slack re-enters wherever the ratio test puts
+  it, and the wrong diagonal produced a wrong inverse and false verdicts
+  until the check `B⁻¹ A_B = I` under `--lpDebug` located it. Sparse LU
+  with updates is the step after, behind the same interface.
 * **Pricing.** A full sweep of the columns costs milliseconds on a hundred
   thousand transitions, a pivot a fraction of one, so a sweep must serve
   many pivots: it keeps the sixty-four columns of largest reduced cost, the
@@ -166,19 +173,21 @@ a solution is accepted, the problem is infeasible, or the budget is spent.
 
 ### What the prototype measured about scale
 
-Every solve of a branch starts from scratch with a dense `m × m` inverse,
-`m` the number of places: 15 ms a solve at 830 rows (DatabaseWithMutex
-PT-10, 3 966 branches in 60 s without closing), 170 ms and 200 MB at 5 000
-(Philosophers 1 000), refused above 6 000 rows. Two changes fix this, in
-order: the **product form of the inverse** with sparse eta vectors instead
-of the dense matrix (a basis here is the slack identity plus a few hundred
-structural columns, so the work per operation is `O(k·m)` for `k` structural
-basics, and the row limit goes away), and a **warm start of a split**: the
-parent's optimal basis stays dual feasible when a row is added, so a branch
-is a handful of dual simplex pivots rather than a phase 1. For deadlock
-freedom on the wide instances the branching itself may stay too wide; the
-classical route is structural, a marked trap in every siphon, and belongs
-to the siphon work of WALK_PLAN.md section 10.6.
+The first prototype kept a dense `m × m` inverse, `m` the number of places:
+15 ms a solve at 830 rows, 170 ms and 200 MB at 5 000, refused above 6 000.
+With the product form (above) and branches as overlays of rows over a shared
+base problem whose columns are computed once: Philosophers 100 in 23 ms
+(147 before), ResIsolation 0.63 ms a pivot (0.79), no row limit, Philosophers
+10 000 (50 000 rows) accepted at 27 ms a solve. What remains is the number
+of solves: a deadlock tree of a thousand nodes re-solves each from the slack
+basis. The **warm start of a split** is next: the parent's optimal basis
+stays dual feasible when a row is added, so a branch is a handful of dual
+simplex pivots. For deadlock freedom on the wide instances (DatabaseWithMutex
+PT-04: 41 000 branches in 10 s without closing) the branching itself is too
+wide; on a net with known place bounds the disjunction of one transition is
+a single linear cut (`Σ_{p∈pre} s_p ≤ |pre| − 1` on a safe net), which the
+P-semiflows can supply, and the classical route is structural, a marked trap
+in every siphon (WALK_PLAN.md section 10.6).
 
 Cuts on a solved program are re-solved warm: the dual simplex is the natural
 tool once rows are added, and is the first extension of `Simplex` after the

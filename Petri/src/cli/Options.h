@@ -65,6 +65,7 @@ struct Options
   std::string lpHintsFile;          // --lpHints: where the Parikh vectors go, (parikh NAME (t k)...) forms
   double lpTime = 5.0;              // --lpTime: seconds per property
   size_t lpSolves = 100000;         // --lpSolves: linear programs per property (splits of a refinement)
+  bool lpDebug = false;             // --lpDebug: the solver's refactorisation trace on stderr
   petri::walk::WalkBudget budget;
   uint64_t seed = 1; // every walk call of the run derives its own seed from it, every thread its own from that
   bool trace = false;
@@ -162,6 +163,7 @@ inline void addOptions (CLI::App &app, Options &o)
                 "answered, Parikh vectors written to --lpHints. No walk.");
   wk->add_option ("--lpHints", o.lpHintsFile, "With --lp: write the Parikh vectors here, for a later --hints.");
   wk->add_option ("--lpTime", o.lpTime, "With --lp: seconds per property (default 5).");
+  wk->add_flag ("--lpDebug", o.lpDebug, "With --lp: trace the solver's refactorisations on stderr.");
   wk->add_option ("--lpSolves", o.lpSolves, "With --lp: linear programs per property, the splits of a refinement (default 100000).");
   wk->add_option ("--hints", o.hintsFile,
                   "Hints file: (parikh NAME (t k)...) forms naming properties of --props (see INTEROP.md).");

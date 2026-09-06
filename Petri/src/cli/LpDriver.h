@@ -76,7 +76,7 @@ template<typename T>
         petri::lp::StateEquation<T>::objectiveShortest (p);
         std::vector<std::unique_ptr<petri::lp::Refiner>> dead;
         dead.push_back (std::make_unique<petri::lp::DeadlockRefiner<T>> (pn, se.effectMatrix ()));
-        petri::lp::RefineOutcome out = petri::lp::refine (std::move (p), dead, limits, o.lpSolves);
+        petri::lp::RefineOutcome out = petri::lp::refine (p, dead, limits, o.lpSolves, o.lpDebug);
         totalSolves += out.solves;
         totalPivots += out.result.pivots;
         std::cout << "LP " << prop.name << ": deadlock ";
@@ -108,6 +108,7 @@ template<typename T>
           continue;
         }
         petri::lp::Simplex simplex (limits);
+        simplex.debug = o.lpDebug;
         petri::lp::LpResult r = simplex.solve (p);
         totalSolves++;
         totalPivots += r.pivots;
@@ -136,7 +137,7 @@ template<typename T>
         if (dead) { ++constantFalse; continue; }
         petri::lp::LpProblem p = se.build (cj);
         petri::lp::StateEquation<T>::objectiveShortest (p);
-        petri::lp::RefineOutcome out = petri::lp::refine (std::move (p), refiners, limits, o.lpSolves);
+        petri::lp::RefineOutcome out = petri::lp::refine (p, refiners, limits, o.lpSolves, o.lpDebug);
         solves += out.solves;
         pivots += out.result.pivots;
         if (out.result.feasible ()) {

@@ -6,8 +6,8 @@
  * a_i.x - r_i + art_i = 0 with the slack r_i bounded by [lo_i, hi_i] and an
  * artificial art_i that phase 1 drives to zero (minimising the sum of their
  * absolute values); phase 2 minimises the objective with the artificials
- * fixed at zero. The basis inverse is dense, updated by the product form at
- * each pivot and refactorised periodically by Gauss-Jordan elimination.
+ * fixed at zero. The basis inverse is kept in product form (Basis.h), one
+ * sparse eta per pivot, and rebuilt from the basis columns periodically.
  * Pricing is Dantzig over a candidate list refreshed by full sweeps, the ratio test is
  * Harris's two-pass, Bland's rule takes over after a run of degenerate
  * pivots. Limits: a pivot budget, a deadline, a row count the dense inverse
@@ -21,10 +21,14 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <limits>
 #include <utility>
 #include <vector>
 
+#include "core/MatrixCol.h"
+#include "core/SparseArray.h"
+#include "lp/Basis.h"
 #include "lp/LpProblem.h"
 
 namespace petri::lp
@@ -53,7 +57,7 @@ struct LpLimits
   size_t maxPivots = 2000000;
   std::chrono::steady_clock::time_point deadline;
   bool hasDeadline = false;
-  size_t maxRows = 6000; // the dense inverse: maxRows^2 doubles
+  size_t maxRows = std::numeric_limits<size_t>::max (); // no limit: the inverse is sparse
 };
 
 struct LpResult
@@ -79,24 +83,39 @@ class Simplex
   static constexpr uint32_t NONE = std::numeric_limits<uint32_t>::max ();
 
   size_t m = 0, nStruct = 0, n = 0;          // rows, structural columns, all columns
-  std::vector<std::vector<std::pair<uint32_t, double>>> cols; // structural columns by row
+  const MatrixCol<long long> *cols = nullptr; // structural columns of the base problem, by row
+  MatrixCol<long long> extraCols;             // the extra rows of this solve, by column; their row index is mBase + k
+  size_t mBase = 0;                           // rows of the base problem
   std::vector<double> lower, upper, cost, x;  // per column (structural, slacks, artificials)
   std::vector<uint32_t> basis;                // per row, the basic column
   std::vector<int32_t> rowOf;                 // per column, its row when basic, -1 otherwise
-  std::vector<double> Binv;                   // m x m, row-major
+  Basis binv;                                 // the basis inverse in product form
+  std::vector<double> work;                   // a dense vector of size m for ftran
   std::vector<double> y, alpha;               // duals of the phase, entering column in the basis
   std::vector<uint32_t> candidates;           // multiple pricing: the best columns of the last sweep
   static constexpr size_t CANDIDATES = 64;
   size_t degenerate = 0;
   bool bland = false;
   size_t pivots = 0, sinceRefactor = 0;
+  double minPivot = INF; size_t blandPivots = 0; // debug statistics of the pivots since the last refactor
   LpLimits limits;
+
+public:
+  bool debug = false;
+  bool reported = false;
+
+private:
 
   template<class F>
     void forEachEntry (uint32_t j, F f) const
     {
       if (j < nStruct) {
-        for (const auto &e : cols[j]) f (e.first, e.second);
+        const SparseArray<long long> &c = cols->getColumn (j);
+        for (size_t i = 0, e = c.size (); i < e; ++i) f (static_cast<uint32_t> (c.keyAt (i)), static_cast<double> (c.valueAt (i)));
+        if (mBase < m) {
+          const SparseArray<long long> &x2 = extraCols.getColumn (j);
+          for (size_t i = 0, e = x2.size (); i < e; ++i) f (static_cast<uint32_t> (mBase + x2.keyAt (i)), static_cast<double> (x2.valueAt (i)));
+        }
       } else if (j < nStruct + m) {
         f (static_cast<uint32_t> (j - nStruct), -1.0);
       } else {
@@ -113,64 +132,76 @@ class Simplex
     return upper[j] < INF && x[j] >= upper[j] - TOL_FEAS;
   }
 
-  /** Binv from scratch: Gauss-Jordan on the basis columns; then the basic values from the nonbasic ones. */
+  /**
+   * The eta file from scratch. A basic unit column (a slack -e_i or an
+   * artificial +e_i, wherever the pivots left it) is assigned to its own
+   * row i and goes into the signed diagonal; a set of basic columns has no
+   * row order of its own. The remaining rows are free, and each structural
+   * basic column is pivoted into whichever free row gives it the largest
+   * pivot, sparsest columns first. A column that finds no usable pivot made
+   * the basis singular: it leaves the basis at its current value and its row
+   * takes the artificial. Then the basic values are recomputed from the
+   * nonbasic ones.
+   */
   void refactor ()
   {
-    std::vector<double> B (m * m, 0.0);
-    for (size_t k = 0; k < m; ++k)
-      forEachEntry (basis[k], [&] (uint32_t i, double v) { B[i * m + k] = v; });
-    std::fill (Binv.begin (), Binv.end (), 0.0);
-    for (size_t i = 0; i < m; ++i) Binv[i * m + i] = 1.0;
-    for (size_t c = 0; c < m; ++c) {
-      size_t p = c;
-      for (size_t r = c + 1; r < m; ++r)
-        if (std::fabs (B[r * m + c]) > std::fabs (B[p * m + c])) p = r;
-      if (std::fabs (B[p * m + c]) < 1e-12) continue; // singular: keep going, the next pivot repairs
-      if (p != c) {
-        for (size_t k = 0; k < m; ++k) {
-          std::swap (B[p * m + k], B[c * m + k]);
-          std::swap (Binv[p * m + k], Binv[c * m + k]);
-        }
-      }
-      double d = 1.0 / B[c * m + c];
-      for (size_t k = 0; k < m; ++k) {
-        B[c * m + k] *= d;
-        Binv[c * m + k] *= d;
-      }
-      for (size_t r = 0; r < m; ++r) {
-        if (r == c) continue;
-        double f = B[r * m + c];
-        if (f == 0.0) continue;
-        for (size_t k = 0; k < m; ++k) {
-          B[r * m + k] -= f * B[c * m + k];
-          Binv[r * m + k] -= f * Binv[c * m + k];
-        }
-      }
+    std::vector<double> d (m, 1.0);
+    std::vector<uint32_t> newBasis (m, NONE);
+    std::vector<uint32_t> structural;
+    for (size_t k = 0; k < m; ++k) {
+      uint32_t b = basis[k];
+      if (b < nStruct) { structural.push_back (b); continue; }
+      size_t i = b < nStruct + m ? b - nStruct : b - nStruct - m;
+      if (newBasis[i] != NONE) { structural.push_back (b); continue; } // the slack and the artificial of one row: dependent
+      newBasis[i] = b;
+      d[i] = b < nStruct + m ? -1.0 : 1.0;
     }
-    // x_B = -Binv * (sum over nonbasic j of A_j x_j)
-    std::vector<double> rhs (m, 0.0);
+    std::vector<size_t> freeRows;
+    for (size_t r = 0; r < m; ++r)
+      if (newBasis[r] == NONE) freeRows.push_back (r);
+    binv.reset (m, d);
+    std::sort (structural.begin (), structural.end (), [&] (uint32_t a, uint32_t b) {
+      return cols->getColumn (a).size () < cols->getColumn (b).size ();
+    });
+    size_t dropped = 0;
+    for (uint32_t j : structural) {
+      std::fill (work.begin (), work.end (), 0.0);
+      forEachEntry (j, [&] (uint32_t r, double v) { work[r] = v; });
+      binv.ftran (work);
+      size_t bestRow = m;
+      double bestPivot = TOL_PIVOT;
+      for (size_t r : freeRows)
+        if (std::fabs (work[r]) > bestPivot) { bestPivot = std::fabs (work[r]); bestRow = r; }
+      if (bestRow == m) { ++dropped; continue; } // dependent: out of the basis, its row keeps the artificial
+      binv.pivot (bestRow, work);
+      newBasis[bestRow] = j;
+      freeRows.erase (std::find (freeRows.begin (), freeRows.end (), bestRow));
+    }
+    for (size_t r : freeRows) newBasis[r] = static_cast<uint32_t> (nStruct + m + r);
+    basis = std::move (newBasis);
+    std::fill (rowOf.begin (), rowOf.end (), -1);
+    for (size_t k = 0; k < m; ++k) rowOf[basis[k]] = static_cast<int32_t> (k);
+    // x_B = -B^-1 (sum over nonbasic j of A_j x_j)
+    std::fill (work.begin (), work.end (), 0.0);
     for (uint32_t j = 0; j < n; ++j) {
       if (rowOf[j] >= 0 || x[j] == 0.0) continue;
-      forEachEntry (j, [&] (uint32_t i, double v) { rhs[i] += v * x[j]; });
+      forEachEntry (j, [&] (uint32_t i, double v) { work[i] += v * x[j]; });
     }
-    for (size_t k = 0; k < m; ++k) {
-      double s = 0.0;
-      for (size_t i = 0; i < m; ++i) s -= Binv[k * m + i] * rhs[i];
-      x[basis[k]] = s;
-    }
+    binv.ftran (work);
+    for (size_t k = 0; k < m; ++k) x[basis[k]] = -work[k];
     sinceRefactor = 0;
+    if (debug) std::cerr << "refactor at pivot " << pivots << ": " << structural.size () - dropped << " structural basics, "
+        << dropped << " dropped, etas " << binv.etaCount () << " (" << binv.nonZeros () << " entries), residual " << residual ()
+        << "; since the last: smallest pivot " << minPivot << ", " << blandPivots << " Bland pivots" << std::endl;
+    minPivot = INF;
+    blandPivots = 0;
   }
 
-  /** Duals of the current cost: y = c_B Binv. */
+  /** Duals of the current cost: y = c_B B^-1. */
   void computeDuals (const std::vector<double> &c)
   {
-    std::fill (y.begin (), y.end (), 0.0);
-    for (size_t k = 0; k < m; ++k) {
-      double ck = c[basis[k]];
-      if (ck == 0.0) continue;
-      const double *row = &Binv[k * m];
-      for (size_t i = 0; i < m; ++i) y[i] += ck * row[i];
-    }
+    for (size_t k = 0; k < m; ++k) y[k] = c[basis[k]];
+    binv.btran (y);
   }
 
   double reducedCost (uint32_t j, const std::vector<double> &c) const
@@ -232,13 +263,12 @@ class Simplex
     return best;
   }
 
-  /** alpha = Binv * A_q. */
+  /** alpha = B^-1 A_q. */
   void enteringColumn (uint32_t q)
   {
     std::fill (alpha.begin (), alpha.end (), 0.0);
-    forEachEntry (q, [&] (uint32_t i, double v) {
-      for (size_t k = 0; k < m; ++k) alpha[k] += Binv[k * m + i] * v;
-    });
+    forEachEntry (q, [&] (uint32_t i, double v) { alpha[i] = v; });
+    binv.ftran (alpha);
   }
 
   /** Harris two-pass ratio test; returns the leaving row, m for a bound flip, NONE-like m+1 when unbounded. */
@@ -296,22 +326,62 @@ class Simplex
     uint32_t b = basis[leave];
     double delta = -dir * alpha[leave];
     x[b] = delta < 0 ? lower[b] : upper[b];
-    // product form: row `leave` of Binv scaled, the others cleared of the entering column
-    double piv = alpha[leave];
-    double *prow = &Binv[leave * m];
-    for (size_t i = 0; i < m; ++i) prow[i] /= piv;
-    for (size_t k = 0; k < m; ++k) {
-      if (k == leave || alpha[k] == 0.0) continue;
-      double f = alpha[k];
-      double *row = &Binv[k * m];
-      for (size_t i = 0; i < m; ++i) row[i] -= f * prow[i];
+    if (debug) {
+      minPivot = std::min (minPivot, std::fabs (alpha[leave]));
+      if (bland) ++blandPivots;
+    }
+    binv.pivot (leave, alpha);
+    if (debug && !reported) {
+      // the new inverse must send the entering column to e_leave
+      std::fill (work.begin (), work.end (), 0.0);
+      forEachEntry (q, [&] (uint32_t r, double v) { work[r] = v; });
+      binv.ftran (work);
+      double dev = 0.0;
+      for (size_t r = 0; r < m; ++r) dev = std::max (dev, std::fabs (work[r] - (r == leave ? 1.0 : 0.0)));
+      if (dev > 1e-6) {
+        reported = true;
+        std::cerr << "pivot " << pivots << ": entering " << q << (q < nStruct ? " structural" : (q < nStruct + m ? " slack" : " artificial"))
+            << " leaves row " << leave << " (was " << b << "), alpha[leave] " << alpha[leave] << ", theta " << theta
+            << ", bland " << bland << ", etas " << binv.etaCount () << ", deviation " << dev << std::endl;
+      }
     }
     rowOf[b] = -1;
     rowOf[q] = static_cast<int32_t> (leave);
     basis[leave] = q;
     ++pivots;
     ++sinceRefactor;
-    if (sinceRefactor >= REFACTOR) refactor ();
+    if (sinceRefactor >= REFACTOR) {
+      if (debug) {
+        // does the maintained inverse still send every basic column to its unit vector?
+        double worst = 0.0;
+        size_t worstRow = m;
+        for (size_t k = 0; k < m; ++k) {
+          std::fill (work.begin (), work.end (), 0.0);
+          forEachEntry (basis[k], [&] (uint32_t r, double v) { work[r] = v; });
+          binv.ftran (work);
+          for (size_t r = 0; r < m; ++r) {
+            double dev = std::fabs (work[r] - (r == k ? 1.0 : 0.0));
+            if (dev > worst) { worst = dev; worstRow = k; }
+          }
+        }
+        std::cerr << "before refactor at pivot " << pivots << ": inverse deviation " << worst << " at row " << worstRow
+            << " (basic column " << (worstRow < m ? basis[worstRow] : 0) << "), residual " << residual () << std::endl;
+      }
+      refactor ();
+    }
+  }
+
+  /** Debug: the largest violation of a row equation a.x - r + art = 0 by the current point. */
+  double residual () const
+  {
+    std::vector<double> v (m, 0.0);
+    for (uint32_t j = 0; j < n; ++j) {
+      if (x[j] == 0.0) continue;
+      forEachEntry (j, [&] (uint32_t i, double a) { v[i] += a * x[j]; });
+    }
+    double worst = 0.0;
+    for (size_t i = 0; i < m; ++i) worst = std::max (worst, std::fabs (v[i]));
+    return worst;
   }
 
   bool outOfBudget (LpStatus &why) const
@@ -356,18 +426,27 @@ public:
 
   LpResult solve (const LpProblem &p)
   {
+    return solve (p, std::vector<Row> ());
+  }
+
+  /** The base problem with extra rows appended for this solve only: a branch or a cut, without copying the base. */
+  LpResult solve (const LpProblem &p, const std::vector<Row> &extra)
+  {
     LpResult res;
-    m = p.rows.size ();
+    mBase = p.rowCount ();
+    m = mBase + extra.size ();
     nStruct = p.columns;
     n = nStruct + 2 * m;
     if (m > limits.maxRows) {
       res.status = LpStatus::TooLarge;
       return res;
     }
-    // columns from the rows
-    cols.assign (nStruct, {});
-    for (size_t i = 0; i < m; ++i)
-      for (const auto &e : p.rows[i].coeffs) cols[e.first].emplace_back (static_cast<uint32_t> (i), static_cast<double> (e.second));
+    cols = &p.byColumn ();
+    if (!extra.empty ()) {
+      MatrixCol<long long> byRow (nStruct, 0);
+      for (const Row &r : extra) byRow.appendColumn (r.coeffs);
+      extraCols = byRow.transpose ();
+    }
     lower.assign (n, 0.0);
     upper.assign (n, INF);
     cost.assign (n, 0.0);
@@ -379,14 +458,14 @@ public:
       x[j] = lower[j] > -INF ? lower[j] : (upper[j] < INF ? upper[j] : 0.0);
     }
     for (size_t i = 0; i < m; ++i) {
-      lower[nStruct + i] = p.rows[i].lo;
-      upper[nStruct + i] = p.rows[i].hi;
+      lower[nStruct + i] = i < mBase ? p.lo[i] : extra[i - mBase].lo;
+      upper[nStruct + i] = i < mBase ? p.hi[i] : extra[i - mBase].hi;
     }
     // row activities at the starting point, slacks clamped into their range, artificials take the rest
     std::vector<double> v (m, 0.0);
     for (size_t j = 0; j < nStruct; ++j)
       if (x[j] != 0.0)
-        for (const auto &e : cols[j]) v[e.first] += e.second * x[j];
+        forEachEntry (static_cast<uint32_t> (j), [&] (uint32_t i, double a) { v[i] += a * x[j]; });
     std::vector<double> cost1 (n, 0.0);
     basis.assign (m, 0);
     rowOf.assign (n, -1);
@@ -408,10 +487,12 @@ public:
       }
     }
     // the basis matrix is diagonal (+1 artificial, -1 slack): its inverse is itself
-    Binv.assign (m * m, 0.0);
-    for (size_t i = 0; i < m; ++i) Binv[i * m + i] = basis[i] < nStruct + m ? -1.0 : 1.0;
+    std::vector<double> d (m);
+    for (size_t i = 0; i < m; ++i) d[i] = basis[i] < nStruct + m ? -1.0 : 1.0;
+    binv.reset (m, d);
     y.assign (m, 0.0);
     alpha.assign (m, 0.0);
+    work.assign (m, 0.0);
     candidates.clear ();
     degenerate = 0;
     bland = false;

@@ -6,10 +6,14 @@ the tree. `algorithm.md` describes the method; this file maps the sources.
 * `LpProblem.h` — the statement of a linear program: columns with bounds,
   ranged rows of integer coefficients (`lo ≤ a·x ≤ hi`, `±∞` allowed), an
   optional objective. A builder used by `StateEquation`; no arithmetic.
+* `Basis.h` — the basis inverse in product form: a signed diagonal and one
+  sparse eta per pivot; `ftran`, `btran`, `pivot`, `reset`.
 * `Simplex.h` — the solver: bounded-variable primal simplex in doubles,
-  two phases, dense product-form basis inverse, partial pricing, Harris
-  ratio test, pivot and time limits. Returns `LpResult` (status, solution,
-  the infeasible row). Knows nothing of Petri nets.
+  slack starting basis, two phases, candidate pricing refreshed by full
+  sweeps, Harris ratio test, Bland after a run of degenerate pivots, periodic
+  rebuild of the basis, pivot and time limits; `solve(base, extraRows)` for a
+  branch or a cut without copying the base. Returns `LpResult`. Knows nothing
+  of Petri nets. `--lpDebug` traces the rebuilds with a residual check.
 * `StateEquation.h` — from a net and a goal expression to `LpProblem`s: the
   marking as affine forms of the transition counts, non-negativity rows,
   the atoms of one conjunct as rows, the goal's disjunctive normal form as a

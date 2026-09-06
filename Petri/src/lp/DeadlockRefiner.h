@@ -28,6 +28,7 @@
 #include "lp/LpProblem.h"
 #include "lp/Refiner.h"
 #include "lp/Simplex.h"
+#include "lp/StateEquation.h"
 
 namespace petri::lp
 {
@@ -53,10 +54,7 @@ template<typename T>
     Row starve (size_t p, T w) const
     {
       Row r;
-      const SparseArray<T> &line = effectsT.getColumn (p);
-      r.coeffs.reserve (line.size ());
-      for (size_t i = 0; i < line.size (); ++i)
-        r.coeffs.emplace_back (static_cast<uint32_t> (line.keyAt (i)), static_cast<long long> (line.valueAt (i)));
+      r.coeffs = StateEquation<T>::toLongLong (effectsT.getColumn (p));
       r.lo = -INF;
       r.hi = static_cast<double> (w) - 1.0 - static_cast<double> (net.getMarks ()[p]);
       return r;

@@ -50,36 +50,42 @@ struct RefineOutcome
   bool infeasible = false; // every branch infeasible: the goal is unreachable
 };
 
-/** Depth-first over the branches, at most `maxSolves` linear programs. */
-inline RefineOutcome refine (LpProblem problem, const std::vector<std::unique_ptr<Refiner>> &refiners,
-                             const LpLimits &limits, size_t maxSolves = 64)
+/**
+ * Depth-first over the branches, at most `maxSolves` linear programs. The
+ * base problem is shared; a node of the tree is the list of rows added on
+ * top of it (its overlay), so a branch costs its own rows and nothing of the
+ * base.
+ */
+inline RefineOutcome refine (const LpProblem &base, const std::vector<std::unique_ptr<Refiner>> &refiners,
+                             const LpLimits &limits, size_t maxSolves = 64, bool debug = false)
 {
   RefineOutcome out;
-  std::vector<LpProblem> stack;
-  stack.push_back (std::move (problem));
+  std::vector<std::vector<Row>> stack;
+  stack.push_back ({});
   bool sawLimit = false;
   while (!stack.empty () && out.solves < maxSolves) {
-    LpProblem p = std::move (stack.back ());
+    std::vector<Row> overlay = std::move (stack.back ());
     stack.pop_back ();
     Simplex simplex (limits);
-    LpResult r = simplex.solve (p);
+    simplex.debug = debug;
+    LpResult r = simplex.solve (base, overlay);
     ++out.solves;
     out.result = r;
     if (r.status == LpStatus::Infeasible) continue;
     if (!r.feasible ()) { sawLimit = true; continue; }
     bool accepted = true;
     for (const auto &ref : refiners) {
-      Verdict v = ref->examine (p, r);
+      Verdict v = ref->examine (base, r);
       if (v.kind == Verdict::Kind::Accept) continue;
       accepted = false;
       if (v.kind == Verdict::Kind::Cut) {
-        for (auto &row : v.cuts) p.addRow (std::move (row));
+        for (auto &row : v.cuts) overlay.push_back (std::move (row));
         ++out.cuts;
-        stack.push_back (std::move (p));
+        stack.push_back (std::move (overlay));
       } else {
         for (auto &rows : v.branches) {
-          LpProblem b = p;
-          for (auto &row : rows) b.addRow (std::move (row));
+          std::vector<Row> b = overlay;
+          for (auto &row : rows) b.push_back (std::move (row));
           stack.push_back (std::move (b));
           ++out.branches;
         }
