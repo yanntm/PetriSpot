@@ -4,6 +4,23 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 01:30: Walker.h split, the quest tool, seats
+
+ca706a8 moves the target index to `walk/TargetIndex.h` (Walker.h 474
+lines). The next commit is the first cut of step 3b: a `quest` tool (one
+target per task, `QuestSweep::pick` at spawn, the task ends on the claim),
+spawns built outside the scheduler's lock, a spawn attempt whenever a task
+ends, a seat per kind; the auto sweep runs sync, quest and rare under the
+shares. Yardsticks, 4 runners: Stigmergy 2 357 (1 554 before), ResIsolation
+1 000 in 12 s (8.9 s), Erlangen 1 866 (2 458), RERS 29 042, DLCflexbar
+76 160; the trade-off is written in WALK_PLAN 10.12 step 3b. Peterson (the
+user asked): QLA answered in full up to PT-4 (690 atoms in 1 216 s), PT-5
+954 of 1 242, PT-6 1 698 of 2 030, PT-7 2 535 of 3 096 in the rerun (the
+morning: 928, 1 297, 1 887); SMA in full up to PT-4, then 513 of 834, 808 of
+1 330, 825 of 1 992 (morning 596, 657, 761): the walker carries most of it
+(`walk solved` 1 655 on PT-5 QLA against 954 answered, the rest duplicates of
+the identical-property reduction), the diagrams the small instances.
+
 ## 2026-09-07, 00:30: the coordinator (step 3a), SMA collected
 
 Commits 42ee6df (WALK_PLAN 10.12, the coordinator design) and ee14593
