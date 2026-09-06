@@ -67,19 +67,41 @@ template<typename T>
     // per transition: the places it consumes from and produces into, as (component, local index),
     // one entry per component the place belongs to; the tables a stage choice scans
     std::vector<std::vector<std::pair<uint32_t, uint32_t>>> consumed, produced;
+    size_t work = 0;     // transitions' touches on the covering, the cost of the tables and of a stage choice
+    size_t skipped = 0;  // semiflows left out of the covering
 
   public:
-    /** From the columns of a flow basis: one component per non-negative column. */
+    /** Work the construction and the quests over hub places may cost before the decomposition is refused. */
+    static constexpr size_t MAX_WORK = 20000000;
+
+    /**
+     * From the columns of a flow basis: one component per non-negative column,
+     * taken smallest first while they cover a place not yet covered (a
+     * covering, not the whole basis: a place in thousands of semiflows is a
+     * hub, not a local state, and every transition touching it would belong to
+     * thousands of processes). When the transitions' touches on the covering
+     * exceed MAX_WORK the decomposition is left empty; `refused()` says so.
+     */
     Components (const WalkNet<T> &net, const MatrixCol<T> &flows)
         : ofPlace (net.placeCount ()), syncDegree (net.transitionCount (), 0)
     {
       const std::vector<T> &m0 = net.initialMarking ();
-      for (size_t c = 0; c < flows.getColumnCount (); ++c) {
+      std::vector<size_t> order (flows.getColumnCount ());
+      for (size_t c = 0; c < order.size (); ++c) order[c] = c;
+      std::sort (order.begin (), order.end (), [&] (size_t a, size_t b) {
+        return flows.getColumn (a).size () < flows.getColumn (b).size ();
+      });
+      std::vector<bool> covered (net.placeCount (), false);
+      for (size_t c : order) {
         const SparseArray<T> &col = flows.getColumn (c);
-        bool positive = true;
-        for (size_t i = 0; i < col.size (); ++i) positive = positive && col.valueAt (i) > 0;
-        // a single place is a constant, not a process
-        if (!positive || col.size () < 2) continue;
+        bool positive = true, news = false;
+        for (size_t i = 0; i < col.size (); ++i) {
+          positive = positive && col.valueAt (i) > 0;
+          news = news || !covered[col.keyAt (i)];
+        }
+        // a single place is a constant, not a process; a flow covering nothing new is left out
+        if (!positive || col.size () < 2 || !news) { skipped += col.size () >= 2 && positive; continue; }
+        for (size_t i = 0; i < col.size (); ++i) covered[col.keyAt (i)] = true;
         Component k;
         for (size_t i = 0; i < col.size (); ++i) {
           k.places.push_back (col.keyAt (i));
@@ -94,6 +116,16 @@ template<typename T>
         for (size_t p : comps[c].places) ofPlace[p].push_back (c);
       for (auto &l : ofPlace)
         std::sort (l.begin (), l.end (), [this] (uint32_t a, uint32_t b) { return comps[a].size () < comps[b].size (); });
+      // the touches of the transitions on the covering: the size of the edge tables and of every stage choice
+      for (uint32_t t = 0; t < net.transitionCount (); ++t) {
+        const SparseArray<T> &eff = net.effect (t);
+        for (size_t i = 0; i < eff.size (); ++i) work += ofPlace[eff.keyAt (i)].size ();
+      }
+      if (work > MAX_WORK) {
+        comps.clear ();
+        for (auto &l : ofPlace) l.clear ();
+        return;
+      }
       buildEdges (net);
       sign ();
       for (uint32_t c = 0; c < comps.size (); ++c) {
@@ -106,6 +138,15 @@ template<typename T>
     size_t size () const
     {
       return comps.size ();
+    }
+    /** The decomposition was refused for its work (transitions' touches on the covering), see MAX_WORK. */
+    bool refused () const
+    {
+      return work > MAX_WORK;
+    }
+    size_t workEstimate () const
+    {
+      return work;
     }
     const Component& component (uint32_t c) const
     {
@@ -202,7 +243,7 @@ template<typename T>
       for (uint32_t d : syncDegree) ++degrees[d];
       size_t uncovered = 0;
       for (const auto &l : ofPlace) uncovered += l.empty ();
-      os << "Components: " << comps.size () << " (sizes";
+      os << "Components: " << comps.size () << " of " << comps.size () + skipped << " semiflows (sizes";
       for (const auto &s : sizes) os << " " << s.first << "x" << s.second;
       os << "), " << classes.size () << " isomorphism classes by degree profile, " << uncovered
           << " places in no component; transitions by components synchronised:";

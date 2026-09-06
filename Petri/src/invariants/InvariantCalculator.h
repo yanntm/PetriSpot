@@ -149,7 +149,10 @@ template<typename T>
 
       mat = mat.transpose ();
 
-      MatrixCol<T> matB = phase1PIPE (mat, onlyPositive, heur);
+      MatrixCol<T> matB = phase1PIPE (mat, onlyPositive, heur, deadline);
+      if (matB.getColumnCount () == 0) {
+        return {MatrixCol<T> (), {}}; // phase 1 stopped at the deadline: no basis, nothing to keep
+      }
 
 //		const MatrixCol<T> matB = phase1PIPE(new MatrixCol<T>(mat));
       // We want to work with columns in this part of the algorithm
@@ -199,7 +202,7 @@ template<typename T>
      * @return The transformation matrix matB representing the basis of flows.
      */
     static MatrixCol<T> phase1PIPE (MatrixCol<T> &matC, bool onlyPositive,
-                                    const EliminationHeuristic &heur)
+                                    const EliminationHeuristic &heur, Deadline deadline = NO_DEADLINE)
     {
       // Build the initial transformation matrix.
       MatrixCol<T> matB = MatrixCol<T>::identity (matC.getColumnCount (),
@@ -258,7 +261,13 @@ template<typename T>
       std::pair<size_t, size_t> counts (0, 0);
 
       // Main elimination loop: reduce matC to zero by applying row operations, updating matB accordingly.
+      size_t rounds = 0;
       while (!matC.isZero ()) {
+        // a partial phase 1 is no basis at all: past the deadline the caller gets nothing
+        if ((++rounds & 15) == 0 && std::chrono::steady_clock::now () > deadline) {
+          std::cout << "Phase 1 stopped at the deadline after " << rounds << " eliminations: no flow basis." << std::endl;
+          return MatrixCol<T> ();
+        }
         applyRowElimination (matC, matB, rowSigns, counts, onlyPositive, heur);
         if (DEBUG) {
           std::cout << "Mat max : " << matC.maxVal () << std::endl;

@@ -75,8 +75,18 @@ template<typename T>
       std::cout << "Flows: none, the sweep goes without components." << std::endl;
       return nullptr;
     }
+    if (millisSince (time) > box * 1000) {
+      std::cout << "Flows: " << mat.getColumnCount () << " P-semiflows in " << millisSince (time)
+          << " ms, over the box of " << box << " s: the sweep goes without components." << std::endl;
+      return nullptr;
+    }
     auto comps = std::make_unique<petri::walk::Components<T>> (wnet, mat);
     std::cout << "Flows: " << mat.getColumnCount () << " P-semiflows in " << millisSince (time) << " ms. ";
+    if (comps->refused ()) {
+      std::cout << "Components refused: the transitions touch the covering " << comps->workEstimate ()
+          << " times, over " << petri::walk::Components<T>::MAX_WORK << "; the sweep goes without." << std::endl;
+      return nullptr;
+    }
     comps->printStats (std::cout);
     return comps;
   }
@@ -318,6 +328,7 @@ template<typename T>
   void runProperties (const Options &o, const SparsePetriNet<T> &pn)
   {
     using petri::walk::NO_FOCUS;
+    auto propsStart = std::chrono::steady_clock::now (); // the total budget counts the components too
     std::vector<petri::expr::Property> props = loadProperties (o, pn);
     if (o.printProps) {
       printProperties (props, pn, o.printPropsFormat);
@@ -369,7 +380,8 @@ template<typename T>
 
     if (o.sweepTime > 0 && targets.openCount () >= 2) {
       long ms = o.sweepTime * 1000;
-      if (totalMs > 0) ms = std::min (ms, totalMs);
+      // the components (flows and their box) were paid out of the same total: the sweep gets what is left
+      if (totalMs > 0) ms = std::min (ms, std::max<long> (1000, totalMs - millisSince (propsStart)));
       std::cout << "Sweep: " << targets.openCount () << " open properties, " << ms << " ms of " << sweepChoice
           << " walks" << (o.sweepChoice == "auto" ? " (chosen)" : "") << ", restarts on " << sweepPolicy.describe () << "."
           << std::endl;

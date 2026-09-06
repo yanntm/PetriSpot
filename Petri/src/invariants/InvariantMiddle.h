@@ -311,9 +311,9 @@ template<typename T>
 
     /**
      * With a deadline instead of a kill: phase 2 (semiflows) stops there and
-     * keeps the semiflows it has, phase 1 (flows) always completes, no thread
-     * is left behind. For a caller that would rather have part of the basis
-     * than none, the walker.
+     * keeps the semiflows it has; phase 1 (flows) stopped there yields nothing,
+     * a partial elimination being no basis. No thread is left behind. For a
+     * caller that would rather have part of the basis than none, the walker.
      */
     static Invariants computePInvariantsUntil (
         MatrixCol<T> &pn, bool onlyPositive, int seconds,

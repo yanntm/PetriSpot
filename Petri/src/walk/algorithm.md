@@ -354,7 +354,16 @@ here: a gate of the model (WALK_PLAN.md section 10), not of the choice.
 `--strategy=sync`; flows with negative coefficients left places uncovered on
 ErlangenMainframe, semiflows cover every place): a semiflow is a component,
 its places the local states, its value at the initial marking the tokens it
-carries. A transition
+carries. Not every semiflow is a process, and there can be exponentially
+many: the decomposition takes a *covering*, the smallest semiflows first
+while each covers a place not yet covered (DLCflexbar-PT-8b has 3 040
+semiflows sharing hub places; every transition touching a hub belonged to
+thousands of processes, and the tables took 32 GB), and it is refused when
+the transitions' touches on the covering exceed `MAX_WORK`. The invariant
+engine runs under a box of a quarter of the walk's total time in both
+phases (a phase 1 stopped there yields no basis: FamilyReunion's 113 229
+flows never end their phase 2), and the sweep takes what the box left of the
+total. A transition
 that takes from a component and gives back to it is a local move of that
 process; one touching several components synchronises them (its *sync
 degree*). Each component has a local graph, and `questDistances(c, p)` gives
