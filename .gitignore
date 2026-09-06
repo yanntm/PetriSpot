@@ -14,3 +14,4 @@
 /Petri/src/petri128
 /Petri/src/kersconv
 /Petri/test/logs/
+__pycache__/
