@@ -19,8 +19,8 @@ this for where everything lives and what is in flight.
   wrapped at 80 columns (`pnmcc-models-2026/make_total_oracles.sh`, in
   `oracle.tar.gz`; 5043 files committed in MCC-drivers). `run_test.pl` reads
   them by index. `SupportedExamination.txt` in ITS-Tools-MCC admits the three.
-* **Collector** `Petri/test/mcc/totallogs2csv.py`; a rendering of the vectors
-  as images ordered by net locality was discussed, not designed.
+* **Collectors** `Petri/test/mcc/totallogs2csv.py` (one row per run) and
+  `log2oracle.py` (one run into its vector oracle).
 * **Cluster.** Old `RD/` and the first total warmup archived in
   `/data/ythierry/MCC26archive/2026-09-06-precampaign/`, cleared on the
   cluster. Product `202609060003` deployed. AirplaneLD warmup for RD, QLA,
@@ -34,6 +34,61 @@ this for where everything lives and what is in flight.
   `/data/ythierry/MCC26run/warmup-2026-09-06/csv/`.
 * The `-timeout` flag of ITS-Tools is a per-engine budget, not a deadline: the
   harness kill ends every run that does not close its cohort.
+
+### Picking up the 2026-09-06 campaigns
+
+The submitter is detached on the cluster head (`setsid nohup`), the jobs are
+OAR's: nothing depends on a local session. To pick up:
+
+1. **Is the submission complete?** `tail ~/MCC26/MCC-drivers/submit-2026-09-06.log`
+   ends with `SUBMISSION DONE` and four timestamps; `oarstat -u ythierry` says
+   what is still queued or running. Expect RD 1953 logs, QLA, SMA, UBA 1681
+   each. A job killed by walltime leaves a log without verdicts, a job never
+   submitted leaves no log: diff the oracle list against the `Running test`
+   lines as the `comm` recipe in `BENCH.md` does, and resubmit those alone.
+2. **Fetch**, never with `--delete`:
+   ```
+   cd /data/ythierry/MCC26run && mkdir -p 2026-09-06
+   for d in RD QLA SMA UBA ; do rsync -rz --exclude='*.stderr' cluster.lip6.fr:MCC26/MCC-drivers/$d 2026-09-06/ ; done
+   ```
+3. **Tables**, committed under `Petri/test/mcc/csv/2026-09-06/` with a
+   `README.md` saying what the campaign showed:
+   ```
+   cd ~/git/PetriSpot/Petri/test/mcc
+   python3 mcclogs2csv.py /data/ythierry/MCC26run/2026-09-06/RD -o csv/2026-09-06/
+   python3 toolsupport.py ~/git/pnmcc-models-2026/website/raw-result-analysis.csv csv/2026-09-06/verdicts.csv -o csv/2026-09-06/support.csv
+   python3 totallogs2csv.py /data/ythierry/MCC26run/2026-09-06/{QLA,SMA,UBA} -o csv/2026-09-06/ --oracles /data/ythierry/MCC26run/2026-09-06/oracles
+   ```
+   RD is read against `csv/2026-09-06-RD/` (the three Shield instances are the
+   target). For the totals, `total-runs.csv` has per run: `completion`,
+   `witnessed` against `proved`, the engine per verdict (`initial`, `walk`,
+   `smt`, `dd`), the quartile times `t25..t100`, and `failure`. The questions
+   `TOTAL_QUERIES.md` asks: where completion falls off along a family, whether
+   the residue is the same atoms across instances (diff the vector oracles of
+   two instances), knee or slope in the quartiles.
+
+### Updating the oracles of pnmcc-models-2026 from our logs
+
+Today every published vector is `?`. The pipeline to fill them:
+
+1. `log2oracle.py -o DIR QLA/*.stdout` (or the collector's `--oracles`) writes
+   one vector per run, the run's verdicts and `?` where it said nothing.
+2. **Merge** into the published vectors: a `?` takes the run's value, an equal
+   value stays, a disagreement (`T` against `F`, two different bounds) is a
+   finding to report, never overwrite. This script does not exist yet; it is a
+   few lines over two vectors of the same length, position by position, and
+   belongs in `pnmcc-models-2026` next to `make_total_oracles.sh`.
+3. **Store** the filled vectors in `pnmcc-models-2026`: the generator runs at
+   CI time and produces `?` only, so a committed folder of filled files, copied
+   over the generated ones before `oracle.tar.gz` is packed, is the shape (the
+   same way `oracleSS.tar.gz` is layered in by `install_inputs.sh`). Then
+   `MCC-drivers/oracle/` is refreshed from the archive and committed, as for
+   the consensus oracles.
+
+A vector filled from our own runs is a regression oracle, not a truth: the
+self certifying side (QLIVE `T`, STABLE `F`, a bound's lower end) is
+witnessed, the other side rests on our proofs alone. `TOTAL_QUERIES.md`
+says so; keep that caveat with the files.
 
 ## What this session did
 
@@ -184,6 +239,10 @@ meant **LTSmin was never reached**. Now `/ 1000`.
 ## Useful commands
 
 ```
+# the total examinations: tables, and one vector oracle per run
+python3 ~/git/PetriSpot/Petri/test/mcc/totallogs2csv.py QLA SMA UBA -o <outdir> --oracles <outdir>/oracles
+python3 ~/git/PetriSpot/Petri/test/mcc/log2oracle.py QLA/OAR.123.stdout
+
 # collect a campaign into CSV, from the log directory
 cd /data/ythierry/MCC26run
 python3 ~/git/PetriSpot/Petri/test/mcc/mcclogs2csv.py L OS QL RD SM UB -o <outdir>
