@@ -24,8 +24,14 @@ this for where everything lives and what is in flight.
 * **Cluster.** Old `RD/` and the first total warmup archived in
   `/data/ythierry/MCC26archive/2026-09-06-precampaign/`, cleared on the
   cluster. Product `202609060003` deployed. AirplaneLD warmup for RD, QLA,
-  SMA, UBA submitted at 1800 s / 4 cores / `tall`; the four full campaigns
-  follow once it checks out (RD 1953 jobs, each total examination 1681).
+  SMA, UBA passed (RD 18/18 against the oracle, every atom closed on the
+  totals). The four full campaigns, RD 1953 jobs then QLA, SMA, UBA 1681
+  each, 1800 s / 4 cores / `tall`, were submitted from 02:20 on 2026-09-06 by
+  `~/MCC26/MCC-drivers/submit-2026-09-06.sh` on the cluster head, sequential
+  `run_oar.sh` calls, log `submit-2026-09-06.log` next to it. Results land in
+  `RD/`, `QLA/`, `SMA/`, `UBA/`; read them with `mcclogs2csv.py` and
+  `totallogs2csv.py`, warmup tables in
+  `/data/ythierry/MCC26run/warmup-2026-09-06/csv/`.
 * The `-timeout` flag of ITS-Tools is a per-engine budget, not a deadline: the
   harness kill ends every run that does not close its cohort.
 
