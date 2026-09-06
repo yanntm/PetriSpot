@@ -82,6 +82,23 @@ template<typename T>
     bool ok = true;
 
   public:
+    /**
+     * The tokens a single-place atom asks for: `c*p >= k`, `c*p > k` or `c*p == k`
+     * read as p >= need (an equality is quested as its lower side; the claim
+     * itself is checked on the exact predicate). False for any other atom.
+     */
+    static bool questNeed (const petri::expr::LinearAtom &a, long long &need)
+    {
+      using petri::expr::Cmp;
+      if (a.terms.size () != 1 || a.terms[0].second <= 0) return false;
+      long long c = a.terms[0].second;
+      if (a.op == Cmp::GE) need = (a.constant + c - 1) / c;
+      else if (a.op == Cmp::GT) need = a.constant / c + 1;
+      else if (a.op == Cmp::EQ) need = a.constant / c;
+      else return false;
+      return true;
+    }
+
     /** Print the stage sequence and the stuck states on stderr, this many times. */
     uint64_t debugSteps = 0;
 
@@ -319,14 +336,9 @@ template<typename T>
           if (!collect (c, out)) return false;
         return true;
       case Expression::Kind::Atom: {
-        const auto &a = e.atom;
-        if (a.terms.size () != 1 || a.terms[0].second <= 0) return false;
         long long need;
-        if (a.op == Cmp::GE) need = (a.constant + a.terms[0].second - 1) / a.terms[0].second;
-        else if (a.op == Cmp::GT) need = a.constant / a.terms[0].second + 1;
-        else if (a.op == Cmp::EQ) need = a.constant / a.terms[0].second;
-        else return false;
-        addQuest (a.terms[0].first, need, out);
+        if (!questNeed (e.atom, need)) return false;
+        addQuest (e.atom.terms[0].first, need, out);
         return true;
       }
       default:

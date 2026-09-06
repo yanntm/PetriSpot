@@ -360,8 +360,10 @@ barrier still knows which way to lean. A degree profile signature groups
 components that look alike.
 
 `ComponentStrategy` (`sync`) walks toward a goal that is a conjunction of
-`place >= k` atoms, one quest per atom: the process holding the place is
-driven to it. The distance of a marking is the sum over the unsatisfied quests
+single-place atoms, one quest per atom: `place >= k`, `place > k` and
+`place == k` are all quested as the lower bound they imply (the claim itself
+is checked on the exact predicate; ITS-Tools poses fireability on a safe net
+as `p == 1`), and the process holding the place is driven to it. The distance of a marking is the sum over the unsatisfied quests
 of the process's distance to its place; the choice is greedy on the distance
 after firing among a few sampled enabled transitions (`--sample`, 16), with
 an epsilon share of random moves that never undo a satisfied quest. A

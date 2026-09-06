@@ -181,7 +181,7 @@ template<typename T>
       return true;
     }
 
-    /** Summed component distance of the goal's atoms from the located marking; UNREACHED when an atom is not `place >= k`. */
+    /** Summed component distance of the goal's atoms from the located marking; UNREACHED when an atom is not one `questNeed` reads. */
     uint64_t distance (const petri::expr::Expression &e, const Marking<T> &m) const
     {
       using petri::expr::Expression;
@@ -197,9 +197,9 @@ template<typename T>
       }
       case Expression::Kind::Atom: {
         const auto &a = e.atom;
-        if (a.terms.size () != 1 || a.terms[0].second <= 0 || a.op != petri::expr::Cmp::GE) return UNREACHED;
+        long long need;
+        if (!ComponentStrategy<T>::questNeed (a, need)) return UNREACHED;
         size_t p = a.terms[0].first;
-        long long need = (a.constant + a.terms[0].second - 1) / a.terms[0].second;
         long long have = m.get (p);
         if (have >= need) return 0;
         const auto &cs = comps.componentsOf (p);
