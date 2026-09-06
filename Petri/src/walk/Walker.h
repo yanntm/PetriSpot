@@ -416,7 +416,8 @@ template<typename T>
         st.steps += times;
         runSteps += times;
         checkTouched (result);
-        if (tracker) tracker->observe (marking);
+        // a dead marking is no restart point: nothing can be explored from it
+        if (tracker && !enabled.empty ()) tracker->observe (marking);
       }
       publishRun ();
       if (tracker) {
