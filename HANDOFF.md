@@ -4,6 +4,23 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-06, 20:00: the in-house LP engine, first prototype
+
+`Petri/src/lp/` (design in its `algorithm.md`, map in `README.md`; commit
+22b1d3c): a bounded-variable primal simplex over the state equation, goals
+in disjunctive normal form, `--lp --lpHints=FILE --lpTime=S` in
+`cli/LpDriver.h`. Tested as raw PetriSpot: Airplane's invariant proved;
+49 of 50 ResIsolation QLA targets get a Parikh vector in about a second
+(`Petri/test/logs/lp-resiso-50b.log`); Erlangen's three open targets in 2 s;
+the Stigmergy target's hint takes the walk from 1.6 to 10 s to 1.2 s; the
+CAN gathering target gets a vector the walk does not realise (spurious:
+traps are the next refiner). Not built yet, in the order the design gives:
+the exact rational check of an infeasibility certificate (until then the
+`FORMULA` lines of `--lp` are a floating-point verdict for tests only, no
+other path consumes them), the trap fixpoint and cut, a warm start of the
+base problem across the atoms of a total examination, the dual simplex for
+cuts, the rounding repair of a Parikh vector.
+
 ## 2026-09-06, 18:51: the rerun is submitted
 
 Product `202609061624` ships the `petri64` of PetriSpot `0ae6e4c` (checksum
