@@ -670,3 +670,73 @@ AirplaneLD-PT-0010, Angiogenesis-PT-05, and the challenge
 ErlangenMainframeV1-PT-bP09C09 ReachabilityFireability (333 places, 59403
 transitions, 16 properties, 209 fireability atoms; ITS-Tools solves 4/16,
 TAPAAL all). The win condition is time-to-counterexample on such queries.
+
+## 9. Hub places (2026-09-06): where the per-step cost stops being sparse
+
+Measured on the QuasiLivenessAll campaign (`Petri/test/probes/qla_coverage.py`
+over `Petri/test/mcc/csv/2026-09-06/total-runs.csv`, 1680 P/T instances, one
+target per transition, 1800 s): completion is 1.0 at the median in every
+transition-count decile up to 27 934 transitions; in the top decile it is
+0.376 and 86 of 168 runs hit the wall. Among the 249 runs at the wall, the 110
+with at least 20 000 transitions have a median completion of 0.294, the others
+0.935. The top decile is also where the arcs per place jump: median 413
+against 14 in the decile below, and 4 000 to 24 000 on ErlangenMainframe. The
+two phenomena at the wall are distinct: small nets with a handful of dead
+transitions that need a proof, not a walk (DoubleExponent 196/198, LamportFastMutEx
+529/536, SieveSingleMsgMbox 745/749), and hub-dense nets where the walk itself
+crawls.
+
+ResIsolation-PT-N10P4, 445 places, 147 855 transitions, 2.06 M place-to-transition
+arcs: twenty places are each consumed by 98 305 transitions. Walker alone,
+4 threads, random sweep, 20 s:
+
+| targets | steps/ms per thread | target checks per step | arc visits per step |
+| ---: | ---: | ---: | ---: |
+| 1 000 | 27 | 208 to 263 | 65 530 |
+| 10 000 | 6 to 8 | 3 100 to 3 700 | 65 500 |
+| 95 000 | 0.4 | 41 000 to 43 000 | 65 000 |
+
+Two costs, both from the hubs, both violating the "proportional to the arcs
+touched" promise of 3.5 and 3.6:
+
+1. **Enabled set maintenance.** A hub place moving between 0 and 1 crosses the
+   weight-1 threshold of its 98 305 consumers; `onPlaceChanged` visits each
+   one. The weight-sorted consumer list bounds the visit to the weights
+   crossed, which is everything when every consumer has weight 1. This is the
+   65 000 arc visits per step, present with 1 000 targets as with 95 000, and
+   it caps the walk at about 27 steps/ms where a sparse net does 20 000. Read
+   arcs are not the issue: `Marking::apply` iterates the effect, so a
+   transition that only tests a place never touches it.
+2. **Target checks.** `fireable(t)` is desugared onto the pre-places of `t`
+   (decision 7.3), so the place-to-targets index puts the target of every
+   consumer of a hub on that hub's list; a step that moves the hub re-evaluates
+   them all, 876 000 candidate ids at the median firing on this net. Indexing
+   `fireable` targets by transition was considered and rejected: the whole
+   chain reasons on state predicates, and the walker must stay that way.
+
+Directions to weigh, none decided:
+
+* **Hub metric.** Consumers of a place against the tokens it can hold: a
+  place with 98 305 weight-1 consumers and a 0/1 marking is a hub; the arcs
+  per place of the parsed net (413 at the median of the top decile) flags the
+  nets where any of this matters. Only such nets pay for a mitigation.
+* **Blinders per thread.** Each thread walks a sub-net where a random
+  fraction of a hub's consumers is switched off (removed from its consumer
+  list and never chosen). Every state reached is reachable, so verdicts stay
+  sound; threads take different fractions, the shared pool (3.9) carries
+  markings across them, so the exploration is no more incomplete than the
+  restart schedule already makes it. Cost scales with the fraction kept.
+* **Lazy hubs.** Do not update a hub's consumers on a move; mark the hub
+  stale and let the strategy verify enabledness at choice time (one `pre`
+  scan), drawing also among the stale hub's consumers so that newly enabled
+  ones are not lost. Sound (a fired transition is verified), biased in
+  distribution, no fan-out visit per step.
+* **Delta target checks.** Per-target unsatisfied-atom counters, the 3.5
+  scheme applied to the atoms of a conjunction: a place move flips only the
+  atoms whose threshold it crosses, a target is reached when its counter hits
+  zero. This keeps state predicates, turns cost 2 into the same order as
+  cost 1, and needs a fallback to full evaluation for targets whose normal
+  form is not a conjunction of atoms or whose atoms carry several places.
+* **Effort share.** On the cluster this run got two walker calls totalling
+  62 s of 1800; the rest was flattening and decision diagrams. Whatever the
+  walker's speed, the portfolio starves it here (`PORTFOLIO.md`).
