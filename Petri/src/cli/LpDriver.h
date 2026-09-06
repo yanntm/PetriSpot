@@ -22,6 +22,7 @@
 #include "cli/WalkDriver.h"
 #include "core/SparsePetriNet.h"
 #include "expr/Property.h"
+#include "lp/DeadlockRefiner.h"
 #include "lp/Parikh.h"
 #include "lp/Refiner.h"
 #include "lp/StateEquation.h"
@@ -64,9 +65,39 @@ template<typename T>
       petri::lp::LpLimits limits;
       limits.hasDeadline = true;
       limits.deadline = tp + std::chrono::milliseconds (static_cast<long> (o.lpTime * 1000));
-      if (prop.kind == PropertyKind::Unsupported || prop.kind == PropertyKind::Deadlock) {
+      if (prop.kind == PropertyKind::Unsupported) {
         std::cout << "LP " << prop.name << ": skipped (" << to_string (prop.kind) << ")." << std::endl;
         ++skipped;
+        continue;
+      }
+      if (prop.kind == PropertyKind::Deadlock) {
+        // the state equation alone, the dead-marking condition built lazily by splits
+        petri::lp::LpProblem p = se.build ({});
+        petri::lp::StateEquation<T>::objectiveShortest (p);
+        std::vector<std::unique_ptr<petri::lp::Refiner>> dead;
+        dead.push_back (std::make_unique<petri::lp::DeadlockRefiner<T>> (pn, se.effectMatrix ()));
+        petri::lp::RefineOutcome out = petri::lp::refine (std::move (p), dead, limits, o.lpSolves);
+        totalSolves += out.solves;
+        totalPivots += out.result.pivots;
+        std::cout << "LP " << prop.name << ": deadlock ";
+        if (out.result.feasible () && !out.infeasible) {
+          petri::expr::ParikhHint hint = petri::lp::toParikh (out.result.x);
+          ++hinted;
+          std::cout << "candidate, Parikh of " << hint.counts.size () << " transitions, " << hint.total () << " firings";
+          if (hints.is_open ()) {
+            hints << "(parikh " << sexprAtom (prop.name);
+            for (const auto &c : hint.counts) hints << " (" << sexprAtom (pn.getTnames ()[c.first]) << " " << c.second << ")";
+            hints << ")\n";
+          }
+        } else if (out.infeasible) {
+          ++proved;
+          std::cout << "impossible" << std::endl << "FORMULA " << prop.name << " FALSE TECHNIQUES STATE_EQUATION LP";
+        } else {
+          ++unknown;
+          std::cout << "unknown (budget)";
+        }
+        std::cout << ", " << out.solves << " solves, " << out.branches << " branches, " << out.result.pivots
+            << " pivots, " << millisSince (tp) << " ms." << std::endl;
         continue;
       }
       if (prop.kind == PropertyKind::Bound) {
@@ -105,7 +136,7 @@ template<typename T>
         if (dead) { ++constantFalse; continue; }
         petri::lp::LpProblem p = se.build (cj);
         petri::lp::StateEquation<T>::objectiveShortest (p);
-        petri::lp::RefineOutcome out = petri::lp::refine (std::move (p), refiners, limits);
+        petri::lp::RefineOutcome out = petri::lp::refine (std::move (p), refiners, limits, o.lpSolves);
         solves += out.solves;
         pivots += out.result.pivots;
         if (out.result.feasible ()) {

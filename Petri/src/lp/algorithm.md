@@ -153,6 +153,32 @@ a solution is accepted, the problem is infeasible, or the budget is spent.
 * **Integrality** (planned). A GCD test on each equality row is free; a
   bounded branch and bound on the fractional variables is the escalation,
   behind the same `Split` interface.
+* **Deadlock** (`DeadlockRefiner`, built). A dead marking starves every
+  transition, one disjunction per transition: far too many conjuncts for a
+  normal form, so the condition is built lazily. The refiner reads the
+  candidate marking, takes a transition still enabled there (the one with
+  the fewest pre-places) and splits on which pre-place to starve, the
+  emptiest first, one row `s_p ≤ w − 1` per branch. Every branch infeasible
+  is a proof of deadlock freedom. Measured on 2026-09-06: DatabaseWithMutex
+  PT-02 and PT-04 proved deadlock-free; Philosophers 5, 10 and 100 give the
+  deadlock's Parikh vector (every left fork once) in `n + 1` solves. The
+  larger instances hit the cost of a solve, not the branching: see below.
+
+### What the prototype measured about scale
+
+Every solve of a branch starts from scratch with a dense `m × m` inverse,
+`m` the number of places: 15 ms a solve at 830 rows (DatabaseWithMutex
+PT-10, 3 966 branches in 60 s without closing), 170 ms and 200 MB at 5 000
+(Philosophers 1 000), refused above 6 000 rows. Two changes fix this, in
+order: the **product form of the inverse** with sparse eta vectors instead
+of the dense matrix (a basis here is the slack identity plus a few hundred
+structural columns, so the work per operation is `O(k·m)` for `k` structural
+basics, and the row limit goes away), and a **warm start of a split**: the
+parent's optimal basis stays dual feasible when a row is added, so a branch
+is a handful of dual simplex pivots rather than a phase 1. For deadlock
+freedom on the wide instances the branching itself may stay too wide; the
+classical route is structural, a marked trap in every siphon, and belongs
+to the siphon work of WALK_PLAN.md section 10.6.
 
 Cuts on a solved program are re-solved warm: the dual simplex is the natural
 tool once rows are added, and is the first extension of `Simplex` after the

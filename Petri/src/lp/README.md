@@ -19,9 +19,11 @@ the tree. `algorithm.md` describes the method; this file maps the sources.
 * `Refiner.h` — the `Accept / Cut / Split` interface between a candidate
   solution and the refinements (traps, read arcs, predecessor, integrality:
   planned, see `algorithm.md` section 4) and the loop that applies them.
+* `DeadlockRefiner.h` — the dead-marking condition built lazily: a split on
+  the pre-places of a transition still enabled in the candidate.
 
-The driver is `cli/LpDriver.h` (`--lp`, `--lpHints=FILE`): one solve per
-property, `FORMULA ... TECHNIQUES STATE_EQUATION` on infeasibility, the
+The driver is `cli/LpDriver.h` (`--lp`, `--lpHints=FILE`, `--lpTime=S`,
+`--lpSolves=N`): one solve per property (a refinement tree for a deadlock), `FORMULA ... TECHNIQUES STATE_EQUATION` on infeasibility, the
 Parikh vectors as `(parikh NAME (t k)...)` forms in the hints file that
 `--hints` reads back.
 
