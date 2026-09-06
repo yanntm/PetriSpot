@@ -18,9 +18,13 @@ waiting (the user accepted the risk to those runs). The submitter
 log `submit-2026-09-06c.log`, runs `QLA SMA UBA RD QL SM OS` in that order,
 1800 s / 4 cores / `tall`, one `run_oar.sh` after another; it moved the
 previous results aside as `*-2026-09-06a` (QLA, SMA, UBA, RD from this
-morning; QL, SM, OS from 2026-09-05), every one mirrored under
-`/data/ythierry/MCC26run/` (`2026-09-06/` and the 09-05 directories). L is
-not rerun. Collect into `/data/ythierry/MCC26run/2026-09-06c/` with the
+morning; QL, SM, OS from 2026-09-05). Those seven, then RC, RF, LTLC, L and
+UB, were copied whole (stdout and stderr, file counts checked) to
+`/data/ythierry/MCC26archive/{2026-09-06a,2026-09-06-baseline,2026-09-05}/`
+and removed from the cluster, whose tree is the 29 GB of INPUTS plus the
+running LTLF and the rerun; the stdout mirrors the pages read stay under
+`/data/ythierry/MCC26run/`. LTLF is to be archived the same way when it
+ends. L is not rerun. Collect into `/data/ythierry/MCC26run/2026-09-06c/` with the
 rsync recipe and point `ITS-Tools latest` at it in
 `~/git/MCC-analysis/campaign/example.json` (the 9-run warmup sets of the
 09-05 totals were deleted; `build.py` no longer lists a total examination
