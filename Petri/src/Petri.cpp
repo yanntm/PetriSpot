@@ -14,6 +14,7 @@
 #include "cli/InvariantDriver.h"
 #include "cli/Options.h"
 #include "cli/WalkDriver.h"
+#include "cli/LpDriver.h"
 #include "cli11/CLI11.hpp"
 #include "core/Log.h"
 #include "core/SparsePetriNet.h"
@@ -117,7 +118,10 @@ static int main_noex (int argc, char *argv[])
       pn.reset (loadXML<VAL> (o.modelPath));
     }
     exportNet (o, *pn);
-    if (!o.propsFile.empty ()) petri::cli::runProperties (o, *pn);
+    if (!o.propsFile.empty ()) {
+      if (o.lp) petri::cli::runLp (o, *pn);
+      else petri::cli::runProperties (o, *pn);
+    }
     if (o.findDeadlock) petri::cli::runDeadlock (o, *pn);
     if (o.invariants ()) petri::cli::runInvariants (o, *pn);
   }

@@ -61,6 +61,9 @@ struct Options
   bool printProps = false;
   std::string printPropsFormat = "infix"; // infix | sexpr | sexpr-index
   bool findDeadlock = false;
+  bool lp = false;                  // --lp: the properties through the state equation (lp/)
+  std::string lpHintsFile;          // --lpHints: where the Parikh vectors go, (parikh NAME (t k)...) forms
+  double lpTime = 5.0;              // --lpTime: seconds per property
   petri::walk::WalkBudget budget;
   uint64_t seed = 1; // every walk call of the run derives its own seed from it, every thread its own from that
   bool trace = false;
@@ -154,6 +157,10 @@ inline void addOptions (CLI::App &app, Options &o)
                   "Property file: MCC XML (.xml) or s-expressions (any other extension, see INTEROP.md).");
   wk->add_option ("--propsSyntax", o.propsSyntax, "Property syntax: auto (by extension, default), mcc, sexpr.")
       ->check (CLI::IsMember ({ "auto", "mcc", "sexpr" }));
+  wk->add_flag ("--lp", o.lp, "Solve the properties over the state equation (linear programming): unreachable goals "
+                "answered, Parikh vectors written to --lpHints. No walk.");
+  wk->add_option ("--lpHints", o.lpHintsFile, "With --lp: write the Parikh vectors here, for a later --hints.");
+  wk->add_option ("--lpTime", o.lpTime, "With --lp: seconds per property (default 5).");
   wk->add_option ("--hints", o.hintsFile,
                   "Hints file: (parikh NAME (t k)...) forms naming properties of --props (see INTEROP.md).");
   wk->add_option ("--hintStrategies", o.hintStrategies,
