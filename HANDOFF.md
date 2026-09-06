@@ -14,8 +14,15 @@ in the thread report. Section 10 is the plan the user is to comment on
 before code: SAT-style principles (restarts, counters, one adaptive
 strategy, learning from blockages), the memory, the structure the invariant
 engine gives (components from unit semiflows, interaction hypergraph,
-projections, siphons), and eight ordered steps with yardsticks; step 0 and 1
-are the natural start. The yardstick run:
+projections, siphons), and eight ordered steps with yardsticks. Steps 1 and 2 landed
+on 2026-09-06 (`Knowledge.h`, `NoveltyTracker.h`, `RestartPolicy.h`,
+`RareStrategy.h`, commit 76bcd0a): restarts happen, the pool is fed, and the
+yardstick moved from about 90 to 153 distinct transitions per thread, where
+every 147 000-transition ResIsolation instance stops whatever the choice. The
+family has no dead transition (N08P1 fully live, the field says quasi-live
+wherever it decided), the net has 14 P-flows sharing p0..p12 and 13
+token-producing transitions: the fourteen-input transitions are barriers, and
+step 4 (components, freezing) is what should open them. The yardstick run:
 
 ```
 cd /data/ythierry/resiso   # ResIsolation-PT-N10P4 extracted, qla-1000.sexpr from Petri/test/probes/qla_props.py
