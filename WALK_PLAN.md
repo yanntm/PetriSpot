@@ -1212,3 +1212,74 @@ DLCflexbar and FamilyReunion 30 s):
 4. **LP tasks.** A simplex yielding between pivot batches; hints arrive as
    children of the target they serve; the total examinations get their
    proved side.
+
+### 10.12 The coordinator: what decides after a slice (design, 2026-09-06 night; direction agreed)
+
+Three things kept apart. A *task* is (start state, tool, goal, budget): it
+explores and reports. The *pool of states* is the memory: sparse markings
+with the record of what was tried from each and what it yielded (the
+`SharedPool` of today, with a table per entry). The *coordinator* is the
+only thing that decides: it reads the slice reports, continues or parks
+tasks, and spawns new ones from (state, tool) pairs. The scheduler keeps the
+queue and the runners; the share update of step 2 moves into the coordinator
+as one of its tables.
+
+**What a slice returns.** Steps, claims, first firings, running time, capped,
+as now; plus the progress signals the strategies already compute and throw
+away: the best heuristic distance reached and its drop over the slice,
+bounds raised, quest stages crossed, restarts the strategy asked for; and the
+best state of the slice, a sparse marking with those figures attached.
+
+**Continue, park, spawn.** A task that progressed in its last few slices
+(a claim, a distance drop, a stage crossed, first firings) is pushed back:
+reinjection, and depth for what pays. A task without progress over the window
+is parked: its best state enters the pool with the record (tool, goal, yield,
+cost), its remaining budget returns, the task dies and its dense state is
+freed. The coordinator spawns when a runner would idle and the live count is
+under a cap (three or four tasks per runner): breadth is bounded by the cap.
+
+**Spawning is a bandit over (state, tool).** Arms are pairs of a pooled
+state (the initial marking included) and a tool of the catalogue; the
+estimate of an arm is the yield per running second of what ran from that
+state with that tool, optimistic when untried. So at the start every tool
+runs from the initial marking on a small budget, the broad experiment, and
+the estimates then concentrate the spawns. Aversion is the same table read
+the other way: a pair that yielded nothing is low, a state whose every tool
+failed is evicted, a tool low from every state is the kind whose share falls.
+Two levels of the table: per tool (the shares of step 2) and per (state,
+tool). Bounded: the pool is a few hundred entries, the table pool times
+catalogue. No visited states, no per-state anything of the state space.
+
+**The catalogue.** Rarity, random, best-first on a goal, relaxed plan on a
+goal, quests toward a target with components, parikh on an LP hint, deadlock
+descent; settings as tools of their own where they matter (rarity's sample
+size, the guided ones' epsilon, saturation). "Quest toward target T" is
+instantiated per target: the coordinator picks T for a spawn from a state by
+the component distance from that state, `QuestSweep::retarget` moved up one
+level and given a memory (a target given up from a state class stays so).
+
+**What it learns.** Yield per tool on this model and per (state, tool). Step
+cost per tool (steps per millisecond, arc visits and checks per step): the
+calibration, and the trigger to switch a tool to its sampled variant when a
+step's cost climbs with the net. Blockages: the barrier or atoms a quest
+stalls on, the targets hopeless from a state class; a bias for the tools
+that take one, a class not worth re-entering. Budgets in running time,
+granted in slices, renewed on progress; the call's total conserves. What it
+must not learn: anything per state of the state space.
+
+The signals are a small vector per slice and per arm; a policy learnt from
+them across models (a tuned rule, a small network) is a possibility the
+architecture leaves open, with the usual caution about the corpus it would
+be trained on. Any policy beats none; several policies are the only way with
+these problems.
+
+**Code, step 3a.** `SliceReport` gains the progress signals; `WalkTask` hands
+back its best state (`Strategy::bestOfRun`). `Walker::begin` takes a start
+marking. `Coordinator.h`: the pool, the arm table, the catalogue, the spawn
+factory (a callback the portfolio provides), the window, the cap, the grant;
+it replaces `Scheduler::reward`. `Scheduler` accepts tasks added and removed
+while it runs. **Step 3b.** `QuestSweep`'s retarget becomes a spawn decision;
+`ComponentStrategy`'s stage stack becomes spawn-and-wait of a child task.
+Yardsticks: the four sweeps, plus the CAN gathering target and the Stigmergy
+single target, where reinjection of a progressing quest and eviction of dead
+states should show.
