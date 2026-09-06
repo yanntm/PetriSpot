@@ -122,9 +122,13 @@ template<typename T>
      * @param heur         Heuristic settings for row elimination and pivot selection (default: EliminationHeuristic()).
      * @return An unordered set of SparseArray<T> representing the invariants.
      */
+    /** A point in time after which phase 2 stops and keeps the semiflows it has; the default never comes. */
+    using Deadline = std::chrono::steady_clock::time_point;
+    static constexpr Deadline NO_DEADLINE = Deadline::max ();
+
     static std::pair<MatrixCol<T>, Permutations> calcInvariantsPIPE (
         MatrixCol<T> &mat, bool onlyPositive, const EliminationHeuristic &heur =
-            EliminationHeuristic ())
+            EliminationHeuristic (), Deadline deadline = NO_DEADLINE)
     {
       if (mat.getColumnCount () == 0 || mat.getRowCount () == 0) {
         return {MatrixCol<T> (), {}};
@@ -169,10 +173,10 @@ template<typename T>
         /* FACTORIZATION */
         auto [perms, colsB] = factorizeBasis (matB);
         matB = colsB;
-        phase2Pipe (matB, heur);
+        phase2Pipe (matB, heur, deadline);
         return {matB,perms};
       } else {
-        phase2Pipe (matB, heur);
+        phase2Pipe (matB, heur, deadline);
         return {matB, {}};
       }
 
@@ -285,7 +289,7 @@ template<typename T>
      * @param heur        Heuristic settings for row selection.
      */
     static void phase2Pipe (MatrixCol<T> &colsB,
-                            const EliminationHeuristic &heur)
+                            const EliminationHeuristic &heur, Deadline deadline = NO_DEADLINE)
     {
       bool allPositive = true;
       for (size_t col =0,cole=colsB.getColumnCount() ; col < cole ; ++col) {
@@ -348,8 +352,13 @@ template<typename T>
       }
 
       int iter = 0;
+      bool stopped = false;
       // Step 3: Iteratively eliminate rows to ensure all coefficients are non-negative.
       while (true) {
+        if (std::chrono::steady_clock::now () > deadline) {
+          stopped = true;
+          break;
+        }
 
         if (DEBUG) {
           std::cout << "Iteration " << iter << "Basis size: "
@@ -383,6 +392,18 @@ template<typename T>
                          filteredCount, msut, posRows);  // Pass msut always
 
         if (DEBUG) ++iter;
+      }
+
+      if (stopped) {
+        // every column is a flow; the non-negative ones are semiflows already, keep those
+        size_t kept = 0, total = colsB.getColumnCount ();
+        for (size_t col = 0; col < total; ++col) {
+          if (colsB.getColumn (col).isPurePositive ()) ++kept;
+          else colsB.getColumn (col).clear ();
+        }
+        colsB.dropEmptyColumns ();
+        std::cout << "Phase 2 stopped at the deadline after " << iter << " iterations: " << kept
+            << " semiflows kept of " << total << " columns." << std::endl;
       }
 
       // Step 4: Stats and finalize

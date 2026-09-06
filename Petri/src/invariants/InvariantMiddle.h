@@ -309,17 +309,32 @@ template<typename T>
       }
     }
 
+    /**
+     * With a deadline instead of a kill: phase 2 (semiflows) stops there and
+     * keeps the semiflows it has, phase 1 (flows) always completes, no thread
+     * is left behind. For a caller that would rather have part of the basis
+     * than none, the walker.
+     */
+    static Invariants computePInvariantsUntil (
+        MatrixCol<T> &pn, bool onlyPositive, int seconds,
+        const EliminationHeuristic &heuristic = EliminationHeuristic ())
+    {
+      return computePInvariants (pn, onlyPositive, heuristic,
+                                 std::chrono::steady_clock::now () + std::chrono::seconds (seconds));
+    }
+
   public:
 
     static Invariants computePInvariants (
         MatrixCol<T> &pn, bool onlyPositive,
-        const EliminationHeuristic &heuristic = EliminationHeuristic ())
+        const EliminationHeuristic &heuristic = EliminationHeuristic (),
+        typename petri::InvariantCalculator<T>::Deadline deadline = petri::InvariantCalculator<T>::NO_DEADLINE)
     {
       auto startTime = std::chrono::steady_clock::now ();
       try {
         auto tpn = pn.transpose ();
         auto inv = petri::InvariantCalculator<T>::calcInvariantsPIPE (
-            tpn, onlyPositive, heuristic);
+            tpn, onlyPositive, heuristic, deadline);
         std::string logMessage = "Computed "
             + std::to_string (inv.first.getColumnCount ()) + " invariants in "
             + std::to_string (
