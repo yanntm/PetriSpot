@@ -259,7 +259,8 @@ template<typename T>
           ++st.resets;
           runSteps = 0;
           reset (&st);
-          checkAll (result);
+          // back at the initial marking nothing has changed since the first check
+          if (fromPool) checkAll (result);
           continue;
         }
         if ((iterations++ & 1023) == 0) {
@@ -276,7 +277,7 @@ template<typename T>
           ++st.resets;
           runSteps = 0;
           reset (&st);
-          checkAll (result);
+          if (fromPool) checkAll (result);
           continue;
         }
         uint64_t times = saturate ? maxFirings (t) : 1;

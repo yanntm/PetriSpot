@@ -77,8 +77,12 @@ target lists merged with an epoch stamp per target (no clearing), and each
 candidate still open is evaluated in full (goal expressions are small trees).
 The cost per step is proportional to the arcs touched and to the targets that
 depend on them, never to the number of targets. Every open target is evaluated
-in full once at the start of a run and after each reset (the marking is then
-the initial one or a pooled state).
+in full once at the start of a run and after a reset to a pooled state; a
+reset to the initial marking checks nothing, the first check already covered
+it and no target can have started to hold there since. The proportionality
+breaks on hub places: a place consumed by tens of thousands of transitions
+puts all their `fireable` targets in its list, and a step that moves it
+re-evaluates them all (WALK_PLAN.md section 9).
 
 A walker has an optional *focus*: the target its strategy is built for. It
 claims any open target it happens to reach, and stops when its focus is
@@ -172,8 +176,8 @@ token): the marking and structural distances see no gradient there.
 restore initial marking and enabled snapshot; clear trace; check every open target
 loop:
   if focus solved or no target open: stop
-  if enabled empty: claim the deadlock targets; count a reset, restore, check all, continue
-  if run length exhausted: count a reset, restore, check all, continue
+  if enabled empty: claim the deadlock targets; count a reset, restore, check all if pooled, continue
+  if run length exhausted: count a reset, restore, check all if pooled, continue
   t = strategy.choose()  (RESTART: same as above)
   marking.apply(effect(t), enabled.onPlaceChanged, collect touched places); trace.push(t)
   check the open targets mentioning a touched place; claim those that hold
