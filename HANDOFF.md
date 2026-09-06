@@ -21,8 +21,20 @@ yardstick moved from about 90 to 153 distinct transitions per thread, where
 every 147 000-transition ResIsolation instance stops whatever the choice. The
 family has no dead transition (N08P1 fully live, the field says quasi-live
 wherever it decided), the net has 14 P-flows sharing p0..p12 and 13
-token-producing transitions: the fourteen-input transitions are barriers, and
-step 4 (components, freezing) is what should open them. The yardstick run:
+token-producing transitions: the fourteen-input transitions are barriers.
+**Step 4 landed the same day** (`Components.h`, `ComponentStrategy.h`,
+`QuestSweep.h`, `--strategy=sync`, `--sweepChoice=sync`, commits 70e1a82 to
+3a379ec): processes from the P-semiflows computed in-process, quests with
+freezing, stages through the barriers whose outcome brings the goal closest,
+a tabu on those that did not help, and a sweep that picks the nearest open
+targets one per thread. Yardsticks at 30 s on 4 threads: the 1 000-target
+file claimed in full in 7 s; the full QuasiLivenessAll of
+ResIsolation-PT-N10P4 50 917 of 147 855 (campaign: 153 in 1800 s) and of
+ErlangenMainframeV2-PT-bP10C08 1 570 of 79 094 (campaign: 321). The
+`--debugSteps` trace prints the stage sequence and the stuck states. Next:
+`sync` as an arm of the guided portfolio, the default sweep choice when
+components exist, the other families of WALK_PLAN.md section 9, then the
+self-configuration of section 10. The yardstick run:
 
 ```
 cd /data/ythierry/resiso   # ResIsolation-PT-N10P4 extracted, qla-1000.sexpr from Petri/test/probes/qla_props.py
