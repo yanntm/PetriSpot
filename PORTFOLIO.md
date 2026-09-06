@@ -406,6 +406,41 @@ A command language remains the right *mechanism* the day a policy needs it, and
 the libHSC s-expression surface is its natural carrier. It is not the next
 step.
 
+## Inside the process: the same pool, one level down
+
+"A pool, not a market" is the shape between the Java loop and the walker. The
+walker needs the same shape inside itself, and for the same reasons: the
+choice of what runs must follow measured effort, and effort must be reported
+per item. The design is WALK_PLAN.md section 10.11; what matters here is the
+contract.
+
+* **The walker is a pool of exploration tasks over a few runner threads.** A
+  task is one strategy exploring with its own state and a budget; the
+  runners are the cores the call was given (`--threads`, the cohort's share
+  of the machine). Many more tasks than runners: every strategy runs on every
+  model, and the scheduler's shares move toward those that produce claims,
+  bounds and novelty. Nothing is decided per model beforehand; the QLA rerun
+  of 2026-09-06 showed what that decision costs when it is wrong (RERS17pb114:
+  43 251 atoms on rarity, 508 on quests).
+* **Effort is core-milliseconds per task and per strategy kind**, with steps
+  per millisecond, claims per second and the count of slices cut by the
+  clock. This is G1's record one level down, and it is what a profile of the
+  model can be built from: which kinds pay on this net, at what step cost,
+  which depth of quest is affordable.
+* **A task never blocks a runner.** Slices are counted in steps and capped
+  by the clock; a step that became a scan of the whole net ends the slice
+  and is reported as coarse. The components' construction and the flows are
+  boxed the same way (6a5d288), after two families lost their whole call to
+  them.
+* **Budgets conserve.** The call's budget is what the Java loop gave; a task
+  that spawns a subquest pays it from its own budget. The loop above can
+  therefore trust that a 30 s call spends 30 s, whatever the recursion inside.
+* **Facts are published as found**, as now (`FORMULA`, `BOUND` lines on
+  stdout); a kill costs the exploration state, not the verdicts. The
+  exploration state (firing counts, promising restart markings, which kind
+  paid) is what "fewer, bigger calls" protects, and the per-kind report is
+  how the loop above could one day be told what worked, if it asks.
+
 ## Goals, in order
 
 **G1 — A record of effort, in `DoneProperties`.** Not more tracing: the same

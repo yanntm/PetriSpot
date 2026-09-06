@@ -1088,69 +1088,114 @@ tier-2 choice: its plan already names the transitions behind the barriers,
 so the sub-barrier could be read from the plan instead of scanned. Worth a
 second experiment once the budgeted version has a number.
 
-### 10.11 Time sharing: many workers, few cores, shares that follow results (design, 2026-09-06 night, to comment)
+### 10.11 A pool of exploration tasks (design, 2026-09-06 night; agreed, the plan below)
 
 What the day showed. Two sweeps, two families: the quest sweep claims
 ResIsolation's 1 000 targets where rarity claims 125, rarity claims 30 000
-RERS17pb114 atoms where quests claim 4 000. Splitting the four threads two
-and two (78160aa) caps the loss at half and the gain at half. And a strategy
-in a bad loop (a retarget per step, an abandon per step, a stage choice of
-40 ms repeated) burns its core to the end of the call: nothing above it sees
-that the core produces nothing.
+RERS17pb114 atoms where quests claim 4 000. Splitting four threads two and
+two (78160aa) caps the loss at half and the gain at half. A strategy in a bad
+loop (a retarget per step, an abandon per step, a stage choice of 40 ms
+repeated) burns its core to the end of the call, and nothing above it sees
+that the core produces nothing. And the choice of strategy per thread is
+frozen when the call starts.
 
-The idea. Decouple the strategies from the cores. The process is given `N`
-cores (pinned, or just `N` OS threads); it runs many *workers*, each a
-strategy instance with its own walker state (marking, enabled set, RNG,
-novelty tracker, restart policy), far more than `N`; a scheduler hands them
-time slices. Each worker holds a *share*; the scheduler is weighted fair
-(a CFS-like virtual clock: the next worker is the one with the smallest
-virtual time, which advances by `slice / share`), so a worker with twice the
-share gets twice the slices. Shares follow results: at the end of a slice the
-worker reports what it produced (claims, bound steps, novelty, quest
-progress), and shares move multiplicatively toward the productive workers
-with a floor so that no strategy starves entirely and can come back when the
-others stall, and a decay so that old success fades. The less efficient
-strategies on this model get less time as time goes by, without anyone
-deciding which strategy the model wants beforehand.
+**The idea.** Decouple the strategies from the cores. The process runs `N`
+*runner* threads, one per core it is given, and many *tasks*, each an
+exploration with its own state; a *scheduler* hands the tasks time slices.
+Diversity first: every strategy runs, on every model, and the time goes to
+those that produce, as measured, not as guessed.
 
-Slices in steps, capped in time. A slice is a number of steps (a thousand)
-with a wall-clock cap (a few ms), because a step costs microseconds on one
-net and milliseconds on another: the cap is what stops a worker whose single
-step became a stage choice over 147 000 transitions. A worker that hits the
-cap repeatedly is reported, and its share falls by itself since it produced
-nothing in its slice: the monitoring and the remedy are the same mechanism.
+**A task is a continuation kept as data.** A walk is a loop: choose, fire,
+check. Between two steps its whole state is heap data we already own (the
+marking, the enabled set, the RNG, the novelty tracker, the strategy's own
+state: the stage stack of `ComponentStrategy`, the quest of `QuestSweep`,
+the candidate list of a simplex). So a task is an object with
+`run(slice)` that returns at a step boundary when the slice is spent, and is
+resumed later by a call. No stack switching, no coroutine: what a virtual
+thread would give us minus the straight-line code. The exception is a long
+atomic operation inside one step (a stage choice over 147 855 transitions,
+a retarget ranking, an LP rebuild): it takes an internal checkpoint where it
+is a loop, and otherwise ends the slice after the step and marks the task
+*coarse* in the report; either way the slice's wall-clock cap is the
+watchdog.
 
-Subquests as workers. A quest that stalls behind a barrier does not push a
-stage in its own stack; it *spawns* a worker for the sub-barrier with an
-allocation taken from its own share (a fraction, bounded by 10.10's budget),
-a parent, and the marking to start from. The child runs under the same
-scheduler, reports to the parent when its barrier fires (the parent resumes
-from there) or when its allocation is spent (the barrier is tabu at the
-parent). Depth and width are bounded by the allocations, not by a constant;
-the DFS-like search of 10.10 is the case where a parent gives one child most
-of its share at a time. Freezing, tabu, and the distance tables stay as they
-are; `ComponentStrategy`'s stack becomes the parent-child tree of workers.
+**What a task carries.** A parent (or none), a budget in steps and a share
+for the scheduler, hints (a Parikh vector, a marking to start from), a
+restart policy with its counters, its strategy and the strategy's state, and
+its statistics. A task not running holds only its *sparse* marking and its
+plan; the dense working state (the enabled set is `O(|T|)` positions,
+600 KB on ResIsolation, 2 MB on FamilyReunion) is materialised on first run
+and may be dropped on a long suspension and rebuilt from the sparse marking.
+Ten thousand pending subquests are then free; a few dozen live tasks are the
+memory. A task has a state: runnable, waiting on children, finished with an
+outcome, so a quest that spawns the task of a sub-barrier suspends until the
+child reports; a field, not a coroutine.
 
-Monitoring. Per worker: steps, slices, wall time, claims, novelty, resets,
-spawned children and their outcomes, the largest step time seen. The thread
-report becomes a worker report, sorted by share, and a line per strategy
-kind sums its workers: the numbers that today need a run per sweep choice
-come out of one run. Determinism improves: slices are counted in steps and
-seeds are fixed, so two runs differ only through the shared claims and the
-wall-clock caps.
+**The scheduler.** One queue ordered by virtual time (CFS style: a task's
+clock advances by `slice / share`), one mutex, `N` runners each popping the
+smallest clock, running one slice, updating the task's statistics and
+share, pushing it back or retiring it. At slices of a millisecond and eight
+runners the lock is taken a few thousand times a second, which is nothing;
+per-runner queues with stealing become worth it at many cores or microsecond
+slices, and the interface does not change. Slices are counted in *steps*
+(`--slice`, a few thousand) with a wall-clock cap (`--sliceMs`): the
+interleaving is reproducible when the cap never fires, and the cap is also
+what stops a coarse step.
 
-Shape of the code (a design, no code yet): `walk/Scheduler.h` (the workers,
-the virtual clock, the shares and their update rule, the OS threads that pop
-workers), `Worker` = the present `Walker` plus its strategy, stats and share;
-`Portfolio.h` becomes the construction of the initial workers from the
-specs; `QuestSweep`'s thread rank becomes a worker rank; spawning goes
-through the scheduler with an allocation. The shared `TargetSet`, pool and
-`Knowledge` are unchanged. Knobs: cores, initial shares per strategy kind,
-the floor, the decay, the slice size and cap, the spawn fraction.
+**Shares follow results.** At the end of a slice the task reports what it
+produced: claims, bound steps, new transitions fired, quest progress. Shares
+move multiplicatively toward the productive tasks, summed per strategy kind
+so that one lucky task lifts its kind, with a floor (no kind starves, it can
+come back when the others stall) and a decay (old success fades). Initially
+shares are equal: diversity is the point until a kind is much better than
+the others on this model.
 
-Yardsticks: the four nets above in one run each (RERS17pb114-PT-1 full QLA
-in 10 s must approach rarity's 30 000; ResIsolation 1 000 targets must
-approach the all-quest 6 to 8 s; Erlangen full QLA 2 792 in 30 s;
-Stigmergy 1 496), then the QLA rerun's losing families (FamilyReunion,
-DLCflexbar, DLCshifumi, MultiCrashLeafsetExtension, ServersAndClients),
-where the first question is the overrun of the 30 s call, not the choice.
+**Budgets conserve.** The call's budget is the root's. A spawn transfers part
+of the parent's budget to the child, so the tree cannot explode whatever the
+recursion does: 10.10's caps become a consequence. A child reports its
+outcome to the parent (barrier fired, budget spent); a failed sub-barrier is
+tabu at the parent as today.
+
+**Measurements the pool gives for free.** Per task and per strategy kind:
+steps, slices, wall time, *steps per millisecond*, claims, claims per second,
+novelty per second, resets, children and their outcomes, the largest step
+time seen and the count of capped slices. The steps-per-millisecond figure
+per kind is the calibration the design lacked: it says which depths are
+feasible on this net, and it exposes a step whose cost climbed to
+`O(|T|)` or `O(largest fan-out)`, which is the signal to sample (a few
+candidates rather than every barrier, a slice of the targets rather than all)
+and keep a step `O(1)` where the exact figure is not worth its price.
+
+**Shape of the code.**
+
+```
+walk/Task.h        Slice (steps, deadline), SliceReport (steps, claims, novelty, micros, capped, finished),
+                   Task (label, kind, share, vruntime, budget, state; run(slice), finish(), report())
+walk/WalkTask.h    a Task over a Walker and its strategy bundle: today's thread body, resumable
+walk/Scheduler.h   the queue, the runners, the shares and their update, the summary per kind
+walk/Walker.h      run(budget) split into begin(budget), runSlice(steps, deadline), finish();
+                   the loop's locals become members
+walk/Portfolio.h   builds the initial tasks from the specs and hands them to the Scheduler;
+                   the thread report becomes the task report plus one line per strategy kind
+```
+
+Shared and unchanged: `TargetSet` (claims by compare-and-swap), the pool of
+restart markings, `Knowledge`. A task is owned by one runner at a time, so
+nothing inside it locks.
+
+**Plan, each step measured on the yardsticks** (RERS17pb114-PT-1 full QLA
+10 s; ResIsolation 1 000 targets 20 s; Erlangen and Stigmergy full QLA 30 s;
+DLCflexbar and FamilyReunion 30 s):
+
+1. **Plumbing.** Tasks over today's walkers, equal fixed shares, as many
+   tasks as `--tasks` (default the thread count, then twice it), `N` runners.
+   With tasks equal to runners the behaviour must match today's threads;
+   with twice the tasks every strategy of the sweep runs on every model. The
+   per-kind report with steps per millisecond appears here.
+2. **Adaptive shares.** RERS and ResIsolation in one run must each approach
+   their best sweep; Erlangen must come back toward the all-quest 2 792.
+3. **Spawn with budget transfer** for the quests' barriers, replacing the
+   stage stack; Stigmergy and the CAN gathering target.
+4. **LP tasks.** A simplex yielding between pivot batches; hints arrive as
+   children of the target they serve; the total examinations get their
+   proved side.
