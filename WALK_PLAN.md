@@ -925,12 +925,19 @@ campaign, then the campaign itself through the `campaign/` pages.
    interaction hypergraph in `--netStats`: components from unit semiflows,
    synchronisation degrees, hub degrees. Classify the 2026 P/T benchmark by
    these three numbers and put the table in the campaign pages.
-1. **Restarts and fairness** (two afternoons). Wall-time run length, novelty
-   stall, `enabledSince` and the oldest-enabled choice as the epsilon share of
-   every strategy. Expect the ninety-transition ceiling to move first here.
-2. **Counters and rarity.** Shared `firedAll`, the sampled least-fired choice,
-   publication of rare-event states to the pool, the tried-direction
-   accounting on pool entries.
+1. **Restarts and fairness** (done 2026-09-06: `RestartPolicy.h`, wall time
+   and novelty stall, `EnabledSet` age, the oldest-enabled tie break of
+   `RareStrategy`; the epsilon share of the guided strategies still uniform).
+   The ceiling moved from about 90 to 153 distinct transitions per thread on
+   the yardstick, and 153 is where every 147 000-transition ResIsolation
+   instance stops, cluster and local, random or rare: a gate of the model.
+   The family has no dead transition anywhere (N08P1 fully live), so the
+   147 702 open ones are live and unreached: the barrier of 10.3, and the
+   yardstick for step 4.
+2. **Counters and rarity** (done 2026-09-06 except the last item:
+   `Knowledge.h`, `NoveltyTracker.h`, `RareStrategy.h`, rare-event states
+   published to the pool, which is on by default with 32 entries). Missing:
+   the tried-direction accounting on pool entries.
 3. **One strategy.** Activity scores, relaxed-plan bumping on stalls, the mix
    of age, rarity and activity as the single strategy on every thread; retire
    `--strategies` when it is beaten on the yardsticks.

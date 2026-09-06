@@ -72,12 +72,15 @@ struct Options
   size_t sample = 0;
   uint64_t stall = 0;
   uint64_t debugSteps = 0;
-  size_t share = 0;
+  size_t share = 32;
   unsigned shareProb = 50;
   long totalTime = 0;
   bool escalate = false;   // raise the step budget rather than concede a round
   long roundTime = 1;
-  long sweepTime = 1; // random multi-target round before the focused rounds (0: none)
+  long sweepTime = 1; // multi-target round before the focused rounds (0: none)
+  std::string sweepChoice = "rare"; // transition choice of the sweep: rare (rarity and age) or random
+  uint64_t runTime = 1000;   // wall clock budget of one run before a restart, ms (0: none)
+  uint64_t noveltyStall = 100000; // sweep: restart after this many steps without a new transition (0: never)
   size_t partition = 0; // sweeps over at least this many targets are split between threads (0: never)
 
   bool invariants () const
@@ -183,7 +186,7 @@ inline void addOptions (CLI::App &app, Options &o)
   wk->add_option ("--strategies", o.strategies,
                   "Pool assigned round-robin to threads: name[:epsilon[:stall]],... (default with several "
                   "threads: random,bestfirst,structural,relaxed).");
-  wk->add_option ("--share", o.share, "Shared pool of up to n promising markings for restarts (default 0).");
+  wk->add_option ("--share", o.share, "Shared pool of up to n promising markings for restarts (default 32, 0 disables).");
   wk->add_option ("--shareProb", o.shareProb, "Percentage of restarts drawn from the pool (default 50).");
   wk->add_option ("--totalTime", o.totalTime,
                   "Global budget in seconds for all properties, walked in rounds of growing per-property budget.");
@@ -194,6 +197,12 @@ inline void addOptions (CLI::App &app, Options &o)
   wk->add_option ("--sweepTime", o.sweepTime,
                   "With at least two open properties, a first round of random walks checking all of them at once, "
                   "seconds (default 1, 0 disables).");
+  wk->add_option ("--sweepChoice", o.sweepChoice,
+                  "Transition choice of the sweep: rare (the least fired of a few sampled, the oldest enabled "
+                  "among equals) or random (default rare).");
+  wk->add_option ("--runTime", o.runTime, "Wall clock budget of one run before a restart, ms (default 1000, 0 none).");
+  wk->add_option ("--noveltyStall", o.noveltyStall,
+                  "Sweep: restart after this many steps without firing a new transition (default 100000, 0 never).");
   wk->add_option ("--partition", o.partition,
                   "Sweeps over at least this many properties are split between the threads, each checking its "
                   "share: fewer checks per step, but a thread walks past the finds another owns (default 0, never).");

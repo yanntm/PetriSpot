@@ -306,3 +306,33 @@ found from a pooled restart has no trace (the pool does not keep traces), so
 it is reported as a marking.
 
 Random strategies neither publish nor benefit beyond drawing.
+
+## Memory, rarity and restarts
+
+`Knowledge` is what the threads know together: one relaxed atomic counter per
+transition, the firings by anyone. `NoveltyTracker`, one per walker, holds the
+walker's own counts, the transitions it fired at least once, the steps since it
+last fired a new one, and the marking reached by the last *rare event*, a
+transition nobody had fired before. Its counts go to the shared knowledge at
+every reset and every 4096 steps, over the transitions touched since the last
+merge only, so a small net pays nothing and a large one pays for what it did.
+
+`RareStrategy` is the choice of a sweep: draw a few enabled transitions
+uniformly (`--sample`, 8 by default) and fire the one fired the fewest times,
+shared and own counts added, the longest enabled among equals (`EnabledSet`
+stamps the clock at which a transition joined the list). O(sample) per step,
+no scan of the enabled list. Uniform choice makes a transition that needs a
+rare conjunction exponentially rare; this fires it the moment it is enabled.
+
+`RestartPolicy` decides when a run ends, asked at every step with the run's
+steps, wall clock and steps since novelty: a step budget, a wall clock budget,
+a novelty stall, or any of them. A sweep restarts on all three (`--runLength`,
+`--runTime`, `--noveltyStall`), a focused round on the first two; a strategy
+may still answer `RESTART` on its own. The marking of the last rare event goes
+to the shared pool at the reset, so other threads restart from new ground.
+
+Measured on ResIsolation-PT-N10P4, 1 000 `fireable` targets, 4 threads, 20 s:
+restarts went from 0 to 19 per thread and the distinct transitions fired from
+about 90 to 153 per thread, with the rare and the uniform choice alike. 153 is
+where every 147 000-transition instance of the family stops, on the cluster as
+here: a gate of the model (WALK_PLAN.md section 10), not of the choice.

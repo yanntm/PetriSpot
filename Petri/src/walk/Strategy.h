@@ -9,8 +9,10 @@
 #include <cstdint>
 #include <limits>
 #include <random>
+#include <vector>
 
 #include "walk/EnabledSet.h"
+#include "walk/Knowledge.h"
 #include "walk/Marking.h"
 #include "walk/WalkNet.h"
 
@@ -24,6 +26,8 @@ template<typename T>
     const Marking<T> &marking;
     const EnabledSet<T> &enabled;
     std::mt19937_64 &rng;
+    const Knowledge *knowledge = nullptr;          // firings by every thread, when shared
+    const std::vector<uint32_t> *firedLocal = nullptr; // firings by this walker, per transition
   };
 
 /** Returned by Strategy::choose to ask the walker to restart the run. */

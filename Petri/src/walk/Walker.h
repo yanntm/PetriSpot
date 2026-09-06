@@ -1,10 +1,12 @@
 /*
  * Walker.h
  *
- * One explicit walk over a TargetSet with an optional focus: restart loop,
- * step budget, wall clock, incremental target checks over a thread-local
- * index of the targets it owns (all of them, or a subset of a large set),
- * claims, witness trace. See algorithm.md.
+ * One explicit walk over a TargetSet with an optional focus: the step loop,
+ * the restarts a RestartPolicy asks for, incremental target checks over a
+ * thread-local index of the targets it owns (all of them, or a subset of a
+ * large set), claims, witness trace. A NoveltyTracker, when injected, keeps
+ * the walker's firing memory and feeds the shared Knowledge and the pool.
+ * See algorithm.md.
  */
 #ifndef PETRI_WALK_WALKER_H_
 #define PETRI_WALK_WALKER_H_
@@ -19,7 +21,10 @@
 #include <vector>
 
 #include "walk/EnabledSet.h"
+#include "walk/Knowledge.h"
 #include "walk/Marking.h"
+#include "walk/NoveltyTracker.h"
+#include "walk/RestartPolicy.h"
 #include "walk/SharedPool.h"
 #include "walk/Strategy.h"
 #include "walk/TargetSet.h"
@@ -40,7 +45,9 @@ struct WalkStats
   uint64_t flips = 0;     // enabled-status changes
   uint64_t targetChecks = 0; // goal evaluations
   uint64_t saturations = 0;  // updates that fired a transition more than once
+  uint64_t policyResets = 0; // runs ended by the restart policy (the others: dead ends, stalls)
   uint64_t distinctFired = 0; // transitions fired at least once, a coverage measure of the walk
+  uint64_t rareEvents = 0;   // first firings, by anyone, of a transition
 };
 
 struct WalkResult
@@ -53,7 +60,7 @@ struct WalkResult
 struct WalkBudget
 {
   uint64_t maxSteps = 0;       // 0: unlimited
-  uint64_t runLength = 1000000; // steps between resets
+  uint64_t runLength = 1000000; // steps between resets, when no RestartPolicy is injected
   uint64_t timeoutMillis = 0;  // 0: unlimited
   bool recordTrace = false;    // keep the fired transitions of the current run
   const std::atomic<bool> *stop = nullptr; // external stop request, polled
@@ -98,8 +105,12 @@ template<typename T>
     // from these lists as they are met, so the lists shrink over the run.
     std::vector<uint32_t> own;
     std::vector<std::vector<uint32_t>> up, down;
-    std::vector<bool> firedOnce;    // per transition: fired at least once in this walk
     std::vector<typename TargetSet<T>::Mention> mentionBuf;
+
+    // Injected memory and policy; both optional.
+    NoveltyTracker<T> *tracker = nullptr;
+    const Knowledge *knowledge = nullptr;
+    const RestartPolicy *restartPolicy = nullptr;
 
     /** Index the given targets; deadlock targets are checked apart and skipped here. */
     void buildIndex (const std::vector<uint32_t> &ids)
@@ -136,10 +147,14 @@ template<typename T>
     bool fromPool = false;
     SparseArray<T> scratchMarking;
 
-    /** Offer the best state of the finished run to the pool, report the origin. */
+    /** Offer the best state of the finished run and the last rare event to the pool, report the origin. */
     void publishRun ()
     {
       if (!pool) return;
+      if (tracker && tracker->takeRareMarking (scratchMarking)) {
+        // a marking nobody had reached the way to: worth a restart, whatever its heuristic
+        pool->publish (scratchMarking, 0, std::vector<uint32_t> ());
+      }
       uint64_t h = 0;
       bool has = strategy.bestOfRun (scratchMarking, h);
       if (fromPool) pool->report (poolEntry.id, has && h < poolEntry.heuristic);
@@ -153,6 +168,10 @@ template<typename T>
     void reset (WalkStats *st = nullptr)
     {
       publishRun ();
+      if (tracker) {
+        tracker->merge ();
+        tracker->resetNovelty ();
+      }
       fromPool = false;
       if (pool && pool->draw (rng, poolEntry)) {
         fromPool = true;
@@ -195,7 +214,7 @@ template<typename T>
         touched.push_back ({ p, newv > oldv });
       }, static_cast<long long> (times));
       if (recordTrace) trace.insert (trace.end (), times, t);
-      firedOnce[t] = true;
+      if (tracker) tracker->onFired (t, times);
     }
 
     /** Evaluate an open target here; record a bound's value, claim a target that holds. */
@@ -275,7 +294,7 @@ template<typename T>
           initialMarking (n.initialMarking ()), initialEnabled (n),
           marking (n.initialMarking ()), enabled (n),
           published (tgs.size (), std::numeric_limits<long long>::min ()), stamp (tgs.size (), 0),
-          up (tgs.places ()), down (tgs.places ()), firedOnce (n.transitionCount (), false)
+          up (tgs.places ()), down (tgs.places ())
     {
       initialEnabled.initialize (initialMarking);
       enabled.assign (initialEnabled);
@@ -300,6 +319,19 @@ template<typename T>
     {
       saturate = s;
     }
+    void setTracker (NoveltyTracker<T> *t)
+    {
+      tracker = t;
+    }
+    void setKnowledge (const Knowledge *k)
+    {
+      knowledge = k;
+    }
+    /** Ends runs; without one, the step budget of the WalkBudget applies. */
+    void setRestartPolicy (const RestartPolicy *p)
+    {
+      restartPolicy = p;
+    }
 
     WalkResult run (const WalkBudget &budget)
     {
@@ -308,9 +340,12 @@ template<typename T>
       WalkResult result;
       recordTrace = budget.recordTrace;
       WalkStats &st = result.stats;
-      WalkContext<T> ctx { net, marking, enabled, rng };
+      WalkContext<T> ctx { net, marking, enabled, rng, knowledge, tracker ? &tracker->localCounts () : nullptr };
+      StepBudget fallback (budget.runLength);
+      const RestartPolicy &policy = restartPolicy ? *restartPolicy : fallback;
       uint64_t runSteps = 0;
       uint64_t iterations = 0;
+      uint64_t ms = 0, runStartMs = 0; // wall clock, refreshed every 1024 iterations
       fromPool = false;
       marking.assign (initialMarking);
       enabled.assign (initialEnabled);
@@ -323,9 +358,13 @@ template<typename T>
           if (done ()) break;
           ++st.deadEnds;
         }
-        if (enabled.empty () || runSteps >= budget.runLength) {
+        RunView view { runSteps, ms - runStartMs, tracker ? tracker->stepsSinceNovelty () : 0 };
+        bool policyEnd = !enabled.empty () && policy.shouldRestart (view);
+        if (enabled.empty () || policyEnd) {
           ++st.resets;
+          if (policyEnd) ++st.policyResets;
           runSteps = 0;
+          runStartMs = ms;
           reset (&st);
           refill ();
           // back at the initial marking nothing has changed since the first check
@@ -335,16 +374,16 @@ template<typename T>
         if ((iterations++ & 1023) == 0) {
           if (budget.stop && budget.stop->load (std::memory_order_relaxed)) break;
           if (budget.maxSteps && st.steps >= budget.maxSteps) break;
-          if (budget.timeoutMillis) {
-            auto ms = std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - start).count ();
-            if (static_cast<uint64_t> (ms) >= budget.timeoutMillis) break;
-          }
+          ms = static_cast<uint64_t> (std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - start).count ());
+          if (budget.timeoutMillis && ms >= budget.timeoutMillis) break;
+          if (tracker && (iterations & 4095) == 1) tracker->merge ();
         }
         uint32_t t = strategy.choose (ctx);
         if (t == RESTART) {
           ++st.stalls;
           ++st.resets;
           runSteps = 0;
+          runStartMs = ms;
           reset (&st);
           refill ();
           if (fromPool) checkAll (result);
@@ -357,12 +396,18 @@ template<typename T>
         st.steps += times;
         runSteps += times;
         checkTouched (result);
+        if (tracker) tracker->observe (marking);
+      }
+      publishRun ();
+      if (tracker) {
+        tracker->merge ();
+        st.distinctFired = tracker->distinctFired ();
+        st.rareEvents = tracker->rareEventCount ();
       }
       st.millis = static_cast<uint64_t> (
           std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - start).count ());
       st.arcVisits = enabled.arcVisits;
       st.flips = enabled.flips;
-      st.distinctFired = static_cast<uint64_t> (std::count (firedOnce.begin (), firedOnce.end (), true));
       return result;
     }
 

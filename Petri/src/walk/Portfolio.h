@@ -2,7 +2,8 @@
  * Portfolio.h
  *
  * Several walkers in parallel threads on one TargetSet, each with its own
- * strategy instance, seed and thread-local state. A sweep over at least
+ * strategy instance, seed, NoveltyTracker and thread-local state, sharing a
+ * Knowledge and a RestartPolicy built by the caller. A sweep over at least
  * partitionMin targets is split between the threads, each checking the ids
  * congruent to its rank; below that every thread checks every target. All aim at the same focus
  * (or none) and claim any target they reach; claims are published in order
@@ -33,6 +34,10 @@
 #include "walk/SharedPool.h"
 #include "walk/Strategy.h"
 #include "walk/StructuralDistance.h"
+#include "walk/Knowledge.h"
+#include "walk/NoveltyTracker.h"
+#include "walk/RareStrategy.h"
+#include "walk/RestartPolicy.h"
 #include "walk/TargetSet.h"
 #include "walk/Walker.h"
 
@@ -50,7 +55,7 @@ struct StrategySpec
   std::string label () const
   {
     std::string l = name + (saturate ? "+sat" : "");
-    if (name == "random" || name == "parikh") return l;
+    if (name == "random" || name == "rare" || name == "parikh") return l;
     return l + ":" + std::to_string (epsilon) + ":" + std::to_string (stall);
   }
 };
@@ -119,7 +124,8 @@ template<typename T>
   };
 
 /**
- * The strategy of spec aimed at focus; random when there is no focus. A
+ * The strategy of spec aimed at focus; without a focus (a sweep) the rarity
+ * and age choice, or uniform random when the spec says so. A
  * deadlock target has no goal atom either: every heuristic strategy becomes
  * the greedy descent of the enabled count (DeadlockStrategy). A bound without
  * a known limit becomes best-first on the value of the form (BoundDistance).
@@ -148,9 +154,15 @@ template<typename T>
         b.strategy = std::move (s);
         b.spec.name = "deadlock";
       }
-    } else if (!focus || n == "random") {
+    } else if (!focus) {
+      if (n == "random") {
+        b.strategy = std::make_unique<RandomStrategy<T>> ();
+      } else {
+        b.strategy = std::make_unique<RareStrategy<T>> (spec.sample);
+        b.spec.name = "rare";
+      }
+    } else if (n == "random") {
       b.strategy = std::make_unique<RandomStrategy<T>> ();
-      b.spec.name = "random";
     } else if (focus->isBound () && !focus->hasLimit ()) {
       b.distance = std::make_unique<BoundDistance<T>> (focus->boundForm ());
       auto s = std::make_unique<BestFirstStrategy<T>> (*b.distance, spec.epsilon, spec.sample, spec.stall);
@@ -224,7 +236,8 @@ template<typename T>
                                    WalkBudget budget, uint64_t seed, SharedPool<T> *pool,
                                    uint64_t debugSteps,
                                    const std::function<void (const Claim<T>&)> &onClaim = {},
-                                   size_t partitionMin = PARTITION_MIN)
+                                   size_t partitionMin = PARTITION_MIN, Knowledge *knowledge = nullptr,
+                                   const RestartPolicy *restartPolicy = nullptr)
   {
     PortfolioResult<T> out;
     out.reports.resize (threads);
@@ -243,6 +256,10 @@ template<typename T>
         for (uint32_t id = i; id < targets.size (); id += threads) subset.push_back (id);
       }
       Walker<T> walker (net, targets, focus, *bundle.strategy, seed + 7919u * i, partition ? &subset : nullptr);
+      NoveltyTracker<T> tracker (net.transitionCount (), knowledge);
+      walker.setTracker (&tracker);
+      walker.setKnowledge (knowledge);
+      walker.setRestartPolicy (restartPolicy);
       walker.setPool (pool);
       walker.setSaturate (bundle.spec.saturate);
       walker.setOnClaim ([&, i, label] (uint32_t id, const Marking<T> &m, const std::vector<uint32_t> *trace) {

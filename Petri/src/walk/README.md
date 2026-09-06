@@ -11,7 +11,15 @@ the data structures and the step.
 * `TargetSet.h` — the open targets of a run: atomic solved flags, the places
   each target mentions with the direction that can make it hold, the
   deadlock targets.
-* `Strategy.h` — transition choice interface (`RESTART` sentinel), `RandomStrategy`.
+* `Strategy.h` — transition choice interface (`RESTART` sentinel), `RandomStrategy`;
+  the `WalkContext` carries the shared `Knowledge` and the walker's own counts.
+* `RareStrategy.h` — the sweep's choice: the least fired of a few sampled
+  enabled transitions, the longest enabled among equals.
+* `Knowledge.h` — shared firing counts, one relaxed atomic per transition.
+* `NoveltyTracker.h` — a walker's memory: own counts merged into `Knowledge`,
+  coverage, steps since a new transition, the marking of the last rare event.
+* `RestartPolicy.h` — when a run ends: step budget, wall clock, novelty stall,
+  any of them; injected into the walker.
 * `GoalDistance.h` — distance interface, `MarkingDistance` (expression distance).
 * `StructuralDistance.h` — hop-based refinement for `place >= k` atoms.
 * `DeadlockStrategy.h` — greedy descent of the enabled-transition count, the
@@ -36,7 +44,10 @@ the data structures and the step.
   `ctx.enabled`, or `RESTART`), optionally `onReset` and `bestOfRun` (needed
   for the shared pool). Register a name in `makeStrategy` (`Portfolio.h`) so
   `--strategy` / `--strategies` accept it. Keep all mutable state inside the
-  strategy: one instance is created per thread.
+  strategy: one instance is created per thread; what threads share goes
+  through `Knowledge`, read from the `WalkContext`.
+* **A new restart rule**: implement `RestartPolicy::shouldRestart` over the
+  `RunView` and add it to the `AnyOf` the driver builds (`WalkDriver.h`).
 * **A new goal distance**: implement `GoalDistance<T>::of(marking)`; plug it
   into `BestFirstStrategy` through `makeStrategy`. Distances must be zero
   exactly when the goal holds.

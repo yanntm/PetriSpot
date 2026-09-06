@@ -28,6 +28,8 @@ template<typename T>
     std::vector<uint32_t> unsat;
     std::vector<uint32_t> position;
     std::vector<uint32_t> list;
+    std::vector<uint32_t> since;    // per transition: the clock at which it last became enabled
+    uint32_t clock = 0;             // advanced at every enabling
 
   public:
     /** Instrumentation: consumer arcs visited and enabled-status flips. */
@@ -39,6 +41,7 @@ template<typename T>
     {
       position[t] = static_cast<uint32_t> (list.size ());
       list.push_back (t);
+      since[t] = ++clock;
     }
     void remove (uint32_t t)
     {
@@ -53,7 +56,7 @@ template<typename T>
   public:
     explicit EnabledSet (const WalkNet<T> &n)
         : net (&n), unsat (n.transitionCount (), 0),
-          position (n.transitionCount (), NONE)
+          position (n.transitionCount (), NONE), since (n.transitionCount (), 0)
     {
       list.reserve (n.transitionCount ());
     }
@@ -63,6 +66,7 @@ template<typename T>
     {
       list.clear ();
       std::fill (position.begin (), position.end (), NONE);
+      clock = 0;
       const size_t nbT = net->transitionCount ();
       for (size_t t = 0; t < nbT; ++t) {
         const SparseArray<T> &pre = net->pre (t);
@@ -82,6 +86,8 @@ template<typename T>
       unsat = o.unsat;
       position = o.position;
       list = o.list;
+      since = o.since;
+      clock = o.clock;
     }
 
     /** Delta update after place p moved from oldv to newv. */
@@ -138,6 +144,11 @@ template<typename T>
     bool isEnabled (size_t t) const
     {
       return unsat[t] == 0;
+    }
+    /** Enablings that happened since t last became enabled: the larger, the longer t has waited. */
+    uint32_t age (size_t t) const
+    {
+      return clock - since[t];
     }
     const std::vector<uint32_t>& transitions () const
     {
