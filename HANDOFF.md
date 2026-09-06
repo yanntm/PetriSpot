@@ -29,16 +29,30 @@ this for where everything lives and what is in flight.
   (`publishWalkerVerdict`: "EF holds, AG does not") without reading the value.
   `INTEROP.md` line 409 promises PetriSpot never emits a non-witness verdict.
   Local reproduction: `Petri/test/logs/neo3-RC-local.log` (its-tools of the
-  deploy on `/data/ythierry/neotest/NeoElection-PT-3`, 40 s). Fix not yet
-  chosen: suppress the line on the sexpr path in PetriSpot, read the value in
-  the Java reader, or both. **No oracle is published until this is fixed and
-  the totals rerun.**
+  deploy on `/data/ythierry/neotest/NeoElection-PT-3`, 40 s). **Fixed in
+  ITS-Tools** (commit "PetriSpotWalker: a FORMULA value carries the
+  polarity"): `Verdicts.found` is WITNESS (1) or ABSENT (-1), every consumer
+  reads the polarity; the user's choice, PetriSpot's FALSE is trusted as a
+  proof. `INTEROP.md` section 5 documents it. Verified on a local product
+  built from the parent pom (`mvn -o install -DskipTests` in
+  `fr.lip6.move.gal.parent`, 1:22 min, product tarball under
+  `ITS-commandline/fr.lip6.move.gal.itscl.product/target/products/`,
+  extracted to `/data/ythierry/itstools-local/`): both instances answer TRUE
+  (`Petri/test/logs/neo{3,7}-RC-fixed.log`). Not pushed. The ITS-Tools tree
+  also carries the user's own uncommitted edits (`PetriSpotRunner.java`
+  DEBUG=2 and `--useQPlusBasis`, MANIFEST.MF churn): left alone.
+  **No oracle is published until the CI product carries the fix and RC and
+  the totals are rerun.**
 * **Total oracles, staged only.** `pnmcc-models-2026/merge_total_oracles.py`
   (uncommitted in that repo) merged the run vectors into the skeletons:
   `/data/ythierry/MCC26run/2026-09-06/oracles-merged/`, 0 conflicts, QLA
   51 %, SMA 89 %, UBA 54 % filled. Cross-checks against the consensus:
   `totalcheck.csv` 1484 QLA + 1603 SMA confirmed, `ubacheck.csv` 22 933
   bounds confirmed, 0 contradictions either way.
+* **Web report.** The user wants an interactive page rather than markdown or
+  pdf; `Petri/test/mcc/WEBREPORT.md` is the design (DataTables + Plotly +
+  Jinja2 as MCC-analysis does, one self-contained page per campaign folder),
+  awaiting the user's comments before code.
 * **Findings to act on** (details in the two READMEs): UBA has 313 wall runs
   that never reach a walk, stalled after the invariants; QLA's residue is
   seven families where one SMT call on 79 k atoms eats 687 s for nothing;
