@@ -2,7 +2,7 @@
  * Walker.h
  *
  * One explicit walk over a TargetSet with an optional focus: the step loop,
- * the restarts a RestartPolicy asks for, incremental target checks over a
+ * the restarts a RestartPolicy asks for, incremental target checks over the
  * thread-local index of the targets it owns (all of them, or a subset of a
  * large set), claims, witness trace. A NoveltyTracker, when injected, keeps
  * the walker's firing memory and feeds the shared Knowledge and the pool.
@@ -28,6 +28,7 @@
 #include "walk/RestartPolicy.h"
 #include "walk/SharedPool.h"
 #include "walk/Strategy.h"
+#include "walk/TargetIndex.h"
 #include "walk/TargetSet.h"
 #include "walk/WalkNet.h"
 
@@ -99,16 +100,7 @@ template<typename T>
 
     std::vector<std::pair<size_t, bool>> touched; // places changed by the last firing, and whether they grew
     std::vector<long long> published; // per bound target: last value sent to the shared maximum
-    std::vector<uint32_t> stamp;    // per target: epoch of its last candidacy
-    std::vector<uint32_t> candidates;
-    uint32_t epoch = 0;
-
-    // The targets this walker checks, and per place the ones an increase (up)
-    // or a decrease (down) of the place can make hold. Solved ids are dropped
-    // from these lists as they are met, so the lists shrink over the run.
-    std::vector<uint32_t> own;
-    std::vector<std::vector<uint32_t>> up, down;
-    std::vector<typename TargetSet<T>::Mention> mentionBuf;
+    TargetIndex<T> index;             // the targets this walker checks, by the places that can make them hold
 
     // Injected memory and policy; both optional.
     NoveltyTracker<T> *tracker = nullptr;
@@ -123,36 +115,6 @@ template<typename T>
     const AnyOf *composite = nullptr;
     uint64_t runSteps = 0, iterations = 0, activeMs = 0, runStartMs = 0;
     bool over = false;
-
-    /** Index the given targets; deadlock targets are checked apart and skipped here. */
-    void buildIndex (const std::vector<uint32_t> &ids)
-    {
-      own.clear ();
-      for (auto &l : up) l.clear ();
-      for (auto &l : down) l.clear ();
-      for (uint32_t id : ids) {
-        if (targets.target (id).isDeadlock () || targets.isSolved (id)) continue;
-        own.push_back (id);
-        targets.mentions (id, mentionBuf);
-        for (const auto &m : mentionBuf) {
-          if (m.direction >= 0) up[m.place].push_back (id);
-          if (m.direction <= 0) down[m.place].push_back (id);
-        }
-      }
-    }
-
-    /** A walker whose own targets are all solved takes over every open one. */
-    void refill ()
-    {
-      if (own.empty () && targets.openCount () > targets.deadlocks ().size ()) buildIndex (targets.openTargets ());
-    }
-
-    /** Drop list[i] as solved; the caller does not advance. */
-    static void dropAt (std::vector<uint32_t> &list, size_t i)
-    {
-      list[i] = list.back ();
-      list.pop_back ();
-    }
 
     SharedPool<T> *pool = nullptr;
     typename SharedPool<T>::Entry poolEntry; // origin of the current run when drawn
@@ -261,37 +223,16 @@ template<typename T>
       if (onClaim) onClaim (id, marking, recordTrace && !fromPool ? &trace : nullptr);
     }
 
-    /** Every own open target, dropping the solved ones met on the way. */
+    /** Every own open target. */
     void checkAll (WalkResult &result)
     {
-      for (size_t i = 0; i < own.size ();) {
-        if (targets.isSolved (own[i])) { dropAt (own, i); continue; }
-        check (own[i], result);
-        ++i;
-      }
+      index.forEachOwn ([&] (uint32_t id) { check (id, result); });
     }
 
-    /**
-     * The own open targets a place changed by the last firing can have made
-     * hold: those waiting for an increase of a place that grew, for a decrease
-     * of one that shrank. Solved ids met on the way leave the lists.
-     */
+    /** The own open targets a place changed by the last firing can have made hold. */
     void checkTouched (WalkResult &result)
     {
-      ++epoch;
-      candidates.clear ();
-      for (const auto &pc : touched) {
-        std::vector<uint32_t> &list = pc.second ? up[pc.first] : down[pc.first];
-        for (size_t i = 0; i < list.size ();) {
-          uint32_t id = list[i];
-          if (targets.isSolved (id)) { dropAt (list, i); continue; }
-          ++i;
-          if (stamp[id] == epoch) continue;
-          stamp[id] = epoch;
-          candidates.push_back (id);
-        }
-      }
-      for (uint32_t id : candidates) check (id, result);
+      index.forEachTouched (touched, [&] (uint32_t id) { check (id, result); });
     }
 
     void checkDeadlocks (WalkResult &result)
@@ -316,18 +257,10 @@ template<typename T>
         : net (n), targets (tgs), focus (focusTarget), strategy (st), rng (seed),
           initialMarking (n.initialMarking ()), initialEnabled (n),
           marking (n.initialMarking ()), enabled (n),
-          published (tgs.size (), std::numeric_limits<long long>::min ()), stamp (tgs.size (), 0),
-          up (tgs.places ()), down (tgs.places ())
+          published (tgs.size (), std::numeric_limits<long long>::min ()), index (tgs, subset)
     {
       initialEnabled.initialize (initialMarking);
       enabled.assign (initialEnabled);
-      if (subset) {
-        buildIndex (*subset);
-      } else {
-        std::vector<uint32_t> all (tgs.size ());
-        for (uint32_t i = 0; i < all.size (); ++i) all[i] = i;
-        buildIndex (all);
-      }
     }
 
     void setOnClaim (OnClaim cb)
@@ -427,11 +360,11 @@ template<typename T>
           if (inPlace) {
             ++st.inPlaceResets;
             resetInPlace ();
-            refill ();
+            index.refill ();
             continue;
           }
           reset (&st);
-          refill ();
+          index.refill ();
           // back at the initial marking nothing has changed since the first check
           if (fromPool) checkAll (result);
           continue;
@@ -463,7 +396,7 @@ template<typename T>
           runSteps = 0;
           runStartMs = ms;
           reset (&st);
-          refill ();
+          index.refill ();
           if (fromPool) checkAll (result);
           continue;
         }

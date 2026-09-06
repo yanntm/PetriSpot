@@ -39,9 +39,11 @@ the data structures and the step.
 * `ParikhStrategy.h` — choice restricted to the effect classes with firings
   left in a Parikh hint, relaxed as restarts accumulate.
 * `NetStats.h` — structural histograms (`--netStats`).
-* `Walker.h` — restart loop over a `TargetSet` with an optional focus, budget,
-  stop flag, incremental target checks over a thread-local up/down index of
-  the targets it owns, optional trace, pooled restarts.
+* `TargetIndex.h` — a walker's index of the targets it checks: the own ids
+  and, per place, the up and down lists of those a change can make hold.
+* `Walker.h` — the resumable walk over a `TargetSet` with an optional focus
+  (begin, slices, finish), restarts, target checks through its `TargetIndex`,
+  optional trace, pooled restarts.
 * `Task.h` — an exploration task for the scheduler: slice, slice report, share
   and virtual clock, totals.
 * `WalkTask.h` — a task over one `Walker` and its strategy, resumable; the
