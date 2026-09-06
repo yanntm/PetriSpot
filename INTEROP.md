@@ -254,6 +254,19 @@ A bound target without a hint never gets a `FORMULA` line nor an `UNKNOWN`
 line; its answer is its last `BOUND` line, and a reader cut off early holds
 the best value known at that time.
 
+The value of a `FORMULA` line carries the polarity and the reader must honour
+it. On a `reach` or `deadlock` form `TRUE` is a witness: a marking satisfying
+the predicate was reached. `FALSE` is a proof that no marking satisfies it:
+today it comes only from constant folding (`expr/Simplify.h`, a predicate
+that is unsatisfiable on any marking, e.g. `Σ places <= -1` after the caller
+reduced places to constants), printed with `TECHNIQUES TOPOLOGICAL TRIVIAL`;
+a stateful search could produce it later. On an `invariant` form the
+polarities swap. The Java side (`PetriSpotWalker.isWitness`) settles `EF` as
+the value says and `AG` as its negation, whichever way the verdict went. A
+reader that takes every `FORMULA` line for a witness answers the wrong way
+on a trivially unsatisfiable predicate: that was the two wrong verdicts of
+the 2026-09-06 baseline (`NeoElection-PT-3` and `PT-7`).
+
 Witnesses are not part of the fast path: without `--trace` the walker never
 records anything, and the MCC does not ask for traces. With `--trace` the
 trace is recorded, replay-verified and printed, indices on the PNET path and
@@ -406,9 +419,10 @@ validated on the MCC harness; it is listed here so the plan is whole.
 * `CoverWalker` (coverability with omega) for bounds.
 * Structural reductions, SMT, the `repr` mapping and everything that
   produces hints.
-* PetriSpot never proves unreachability; every verdict it emits is a
-  witness. The Java side's `AG` true / `EF` false verdicts keep coming from
-  its own methods.
+* PetriSpot proves unreachability only when the predicate folds to a
+  constant (section 5); every other verdict it emits is a witness. The Java
+  side's `AG` true / `EF` false verdicts otherwise keep coming from its own
+  methods.
 
 ---
 
