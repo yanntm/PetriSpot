@@ -33,7 +33,7 @@ this for where everything lives and what is in flight.
   `totallogs2csv.py`, warmup tables in
   `/data/ythierry/MCC26run/warmup-2026-09-06/csv/`. That submission ended at
   03:02; a second one, `submit-2026-09-06b.sh` (log `submit-2026-09-06b.log`),
-  started at 03:10 with the baseline examinations RC, RF, LTLC, LTLF, CTLC,
+  started at 03:32 with the baseline examinations RC, RF, LTLC, LTLF, CTLC,
   CTLF, 1953 jobs each, same settings, into `RC/` ... `CTLF/`. Read those with
   `mcclogs2csv.py` against `csv/2026-09-05/` (the campaign had no RC/RF/LTL/CTL
   then, so this is their first baseline).
