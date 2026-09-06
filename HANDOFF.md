@@ -4,6 +4,32 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 00:30: the coordinator (step 3a), SMA collected
+
+Commits 42ee6df (WALK_PLAN 10.12, the coordinator design) and ee14593
+(`walk/Coordinator.h`): tasks that stop progressing are parked (best state
+to the pool, yield to the arm table, walker freed), new tasks are spawned
+from (pooled state, tool) pairs by decayed yield, untried pairs first,
+nothing spawned once nothing is left. Yardsticks, 4 runners: Erlangen full
+QLA 2 417 (all-quest 2 792; equal shares 1 444), Stigmergy 1 609 (best),
+RERS 30 186 in 10 s (all-rarity 30 121), ResIsolation 1 000 in 9.6 s,
+DLCflexbar 76 160 of 76 160, controls unchanged; CAN gathering still open
+after 263 tasks over 139 pairs (the case for the LP refinements). Two policy
+bugs found and fixed on the way: fresh tasks rewarded for their own first
+firings (novelty is now what nobody fired before) and spawning after every
+target was claimed (the `more` hook). Options `--tasks` (live cap), `--grant`,
+`--spawn`, `--shares`, `--shareFloor`, `--slice`, `--sliceMs`.
+
+Housekeeping owed: `Walker.h` is 541 lines; the target index (own, up and
+down lists, the checks) should move to `TargetIndex.h`. Step 3b (quests as
+spawn decisions, child tasks with a budget) and step 4 (LP tasks) follow.
+
+**SMA rerun collected** into `2026-09-06c/SMA` (1 681 finished, tables in
+`csv/2026-09-06c/`, pages rebuilt): 59 models better, 42 worse, answered
+4.25 M -> 3.81 M; most of these runs used the 1624 binary (the swap to
+6a5d288 was at 21:25, SMA ran 19:20 to 22:17), so read them with the QLA
+caveats. UBA, RD, QL, SM, OS still running.
+
 ## 2026-09-06, 23:00: time sharing, step 1 landed
 
 WALK_PLAN.md 10.11 (rewritten as agreed: a pool of exploration tasks over
