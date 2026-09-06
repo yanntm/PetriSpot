@@ -148,7 +148,7 @@ template<typename T>
       const petri::walk::WalkStats &st = rep.stats;
       uint64_t ms = st.millis == 0 ? 1 : st.millis;
       if (o.quiet && !rep.found && res.found) continue;
-      std::cout << "Thread " << i << " [" << rep.strategy << "] " << (rep.found ? "found a witness" : "stopped")
+      std::cout << "Task " << i << " [" << rep.strategy << "] " << (rep.found ? "found a witness" : "stopped")
           << " after " << st.steps << " steps, " << st.resets << " resets (" << st.deadEnds << " dead ends, "
           << st.stalls << " stalls, " << st.poolRestarts << " from pool, " << st.condemned << " condemned), " << st.millis << " ms ("
           << (st.steps / ms) << " steps/ms; " << (st.steps ? st.arcVisits / st.steps : 0) << " arc visits/step, "
@@ -160,7 +160,18 @@ template<typename T>
       if (rep.strategy != "random") std::cout << ", best heuristic " << rep.minHeuristic;
       if (!rep.notes.empty ()) std::cout << ", " << rep.notes;
       if (rep.claims > 1 || (rep.claims == 1 && !rep.found)) std::cout << ", " << rep.claims << " targets claimed";
+      if (rep.slices > 1) std::cout << ", " << rep.slices << " slices (" << rep.cappedSlices << " capped, longest " << rep.maxSliceMicros / 1000 << " ms)";
       std::cout << "." << std::endl;
+    }
+    // one line per strategy kind: the calibration of the model
+    if (res.kinds.size () > 1 || res.reports.size () > 1) {
+      for (const petri::walk::KindReport &k : res.kinds) {
+        double ms = k.micros ? static_cast<double> (k.micros) / 1000.0 : 1.0;
+        std::cout << "Strategy " << k.kind << ": " << k.tasks << " task" << (k.tasks > 1 ? "s" : "") << ", " << k.steps
+            << " steps in " << static_cast<uint64_t> (ms) << " ms (" << static_cast<uint64_t> (k.steps / ms) << " steps/ms), "
+            << k.claims << " claims (" << static_cast<uint64_t> (k.claims * 1000.0 / ms) << "/s), " << k.slices << " slices, "
+            << k.cappedSlices << " capped, longest " << k.maxSliceMicros / 1000 << " ms." << std::endl;
+      }
     }
   }
 
@@ -212,9 +223,14 @@ template<typename T>
     std::function<void (const petri::walk::Claim<T>&)> onClaim = [&] (const petri::walk::Claim<T> &c) {
       printFormula (o, targets, c);
     };
+    petri::walk::SchedulerSpec sched;
+    sched.tasks = o.tasks;
+    sched.sliceSteps = o.slice;
+    sched.sliceMillis = o.sliceMs;
     petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, targets, focus, specs, o.threads, budget,
                                                                      seed, pool.get (), o.debugSteps, onClaim,
-                                                                     o.partition, knowledge, policy, components, policies);
+                                                                     o.partition, knowledge, policy, components, policies,
+                                                                     sched);
     printReports (o, res);
     if (pool) {
       std::cout << "Shared pool: " << pool->publishedCount () << " published, " << pool->drawnCount ()

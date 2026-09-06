@@ -1187,11 +1187,18 @@ nothing inside it locks.
 10 s; ResIsolation 1 000 targets 20 s; Erlangen and Stigmergy full QLA 30 s;
 DLCflexbar and FamilyReunion 30 s):
 
-1. **Plumbing.** Tasks over today's walkers, equal fixed shares, as many
-   tasks as `--tasks` (default the thread count, then twice it), `N` runners.
-   With tasks equal to runners the behaviour must match today's threads;
-   with twice the tasks every strategy of the sweep runs on every model. The
-   per-kind report with steps per millisecond appears here.
+1. **Plumbing** (done 2026-09-06 night: `Task.h`, `WalkTask.h`,
+   `Scheduler.h`, `Walker::begin/runSlice/finish`). Tasks over today's
+   walkers, equal fixed shares, `--tasks` of them (default the thread count),
+   `N` runners, slices of `--slice` steps capped by `--sliceMs`. Parity with
+   the threads held on every control (ResIsolation 1 000 in 13.6 s, RERS
+   25 135, Erlangen 3 in 1.4 s, Shield deadlock 0.3 s). With eight tasks on
+   four runners: RERS 25 505, ResIsolation 1 000 in 14 s, Erlangen full QLA
+   1 444 (2 792 all-quest: half the time to each kind, the shares of step 2
+   are what brings it back), Stigmergy 1 572 (best so far). The per-kind
+   report gives steps per millisecond: on Erlangen rarity runs at 0.4
+   steps/ms against the quests' 1.5, on RERS both near 50 and rarity claims
+   80 times more.
 2. **Adaptive shares.** RERS and ResIsolation in one run must each approach
    their best sweep; Erlangen must come back toward the all-quest 2 792.
 3. **Spawn with budget transfer** for the quests' barriers, replacing the

@@ -73,6 +73,9 @@ struct Options
   std::string strategy = "random";
   std::string strategies;
   unsigned threads = 1;
+  unsigned tasks = 0;               // --tasks: exploration tasks time-shared over the threads (0: one per thread)
+  uint64_t slice = 4096;            // --slice: steps a task runs before the next is scheduled
+  uint64_t sliceMs = 50;            // --sliceMs: wall clock cap of a slice
   unsigned epsilon = 10;
   size_t sample = 0;
   uint64_t stall = 0;
@@ -193,7 +196,11 @@ inline void addOptions (CLI::App &app, Options &o)
           if (base == k) return std::string ();
         return "unknown strategy " + s;
       }, "STRATEGY"));
-  wk->add_option ("--threads", o.threads, "Parallel walkers (default 1); first witness wins.");
+  wk->add_option ("--threads", o.threads, "Runner threads (default 1); first witness wins.");
+  wk->add_option ("--tasks", o.tasks, "Exploration tasks time-shared over the threads (default: one per thread; more "
+                  "runs every strategy of a pool on every model).");
+  wk->add_option ("--slice", o.slice, "Steps a task runs before another is scheduled (default 4096).");
+  wk->add_option ("--sliceMs", o.sliceMs, "Wall clock cap of a slice in ms; a coarse step ends the slice (default 50).");
   wk->add_option ("--strategies", o.strategies,
                   "Pool assigned round-robin to threads: name[:epsilon[:stall]],... (default with several "
                   "threads: random,bestfirst,structural,relaxed).");

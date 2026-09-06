@@ -42,8 +42,15 @@ the data structures and the step.
 * `Walker.h` — restart loop over a `TargetSet` with an optional focus, budget,
   stop flag, incremental target checks over a thread-local up/down index of
   the targets it owns, optional trace, pooled restarts.
-* `Portfolio.h` — strategy specs and factory, N threads on one target set,
-  claims published as they happen, trace verification.
+* `Task.h` — an exploration task for the scheduler: slice, slice report, share
+  and virtual clock, totals.
+* `WalkTask.h` — a task over one `Walker` and its strategy, resumable; the
+  `ThreadReport` it closes into.
+* `Scheduler.h` — time sharing: a heap of runnable tasks on their virtual
+  clock, runner threads taking one slice each (steps, capped by the clock).
+* `Portfolio.h` — strategy specs and factory, the tasks built from them and
+  run by the scheduler on one target set, claims published as they happen,
+  the per-kind summary, trace verification.
 * `SharedPool.h` — bounded shared pool of promising markings for restarts.
 
 ## Extending
@@ -52,7 +59,7 @@ the data structures and the step.
   `ctx.enabled`, or `RESTART`), optionally `onReset` and `bestOfRun` (needed
   for the shared pool). Register a name in `makeStrategy` (`Portfolio.h`) so
   `--strategy` / `--strategies` accept it. Keep all mutable state inside the
-  strategy: one instance is created per thread; what threads share goes
+  strategy: one instance is created per task; what tasks share goes
   through `Knowledge`, read from the `WalkContext`.
 * **A new restart rule**: implement `RestartPolicy::shouldRestart` over the
   `RunView` and add it to the `AnyOf` the driver builds (`WalkDriver.h`).

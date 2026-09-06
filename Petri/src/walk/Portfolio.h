@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <limits>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -42,6 +43,8 @@
 #include "walk/RareStrategy.h"
 #include "walk/RestartPolicy.h"
 #include "walk/TargetSet.h"
+#include "walk/Scheduler.h"
+#include "walk/WalkTask.h"
 #include "walk/Walker.h"
 
 namespace petri::walk
@@ -235,14 +238,12 @@ template<typename T>
     return b;
   }
 
-struct ThreadReport
+/** The tasks of one strategy kind summed: the calibration figures of the model (steps per ms, claims per second). */
+struct KindReport
 {
-  std::string strategy;
-  std::string notes;
-  WalkStats stats;
-  uint64_t minHeuristic = 0;
-  bool found = false;   // claimed the focus
-  uint64_t claims = 0;
+  std::string kind;
+  unsigned tasks = 0;
+  uint64_t steps = 0, micros = 0, claims = 0, slices = 0, cappedSlices = 0, maxSliceMicros = 0;
 };
 
 /** A target won by a thread: where, by whom, and how it was reached. */
@@ -264,7 +265,8 @@ template<typename T>
     size_t winner = 0;          // thread that claimed the focus
     std::string winnerStrategy;
     std::vector<Claim<T>> claims; // every target claimed, in claim order
-    std::vector<ThreadReport> reports;
+    std::vector<ThreadReport> reports; // one per task
+    std::vector<KindReport> kinds;     // one per strategy kind
   };
 
 /**
@@ -290,38 +292,44 @@ template<typename T>
                                    size_t partitionMin = PARTITION_MIN, Knowledge *knowledge = nullptr,
                                    const RestartPolicy *restartPolicy = nullptr,
                                    const Components<T> *components = nullptr,
-                                   const std::vector<const RestartPolicy*> *policies = nullptr)
+                                   const std::vector<const RestartPolicy*> *policies = nullptr,
+                                   SchedulerSpec sched = SchedulerSpec ())
   {
-    // a policy per strategy of the pool when given (aligned with specs), else the one policy for every thread
+    // a policy per strategy of the pool when given (aligned with specs), else the one policy for every task
     PortfolioResult<T> out;
-    out.reports.resize (threads);
     std::atomic<bool> stop (false);
     std::mutex mutex;
     budget.stop = &stop;
     const Target<T> *focusTarget = focus == NO_FOCUS ? nullptr : &targets.target (focus);
-    const bool partition = focus == NO_FOCUS && threads > 1 && partitionMin > 0 && targets.size () >= partitionMin;
-
-    auto body = [&] (unsigned i) {
-      StrategyBundle<T> bundle = makeStrategy (specs[i % specs.size ()], net, focusTarget, components, &targets, i);
-      if (bundle.relaxed && i == 0) bundle.relaxed->debugSteps = debugSteps;
-      if (bundle.sweep && i == 0) bundle.sweep->debugSteps = debugSteps;
-      if (bundle.sync && i == 0 && debugSteps > 0) {
-        bundle.sync->debugSteps = debugSteps;
-        bundle.sync->describe (std::cerr, Marking<T> (net.initialMarking ()));
+    sched.runners = threads;
+    unsigned taskCount = sched.tasks ? sched.tasks : threads;
+    const bool partition = focus == NO_FOCUS && taskCount > 1 && partitionMin > 0 && targets.size () >= partitionMin;
+    Scheduler scheduler (sched);
+    for (unsigned i = 0; i < taskCount; ++i) {
+      // the bundle outlives the task: the strategy references the bundle's distance, the report reads its counters
+      auto bundle = std::make_shared<StrategyBundle<T>> (
+          makeStrategy (specs[i % specs.size ()], net, focusTarget, components, &targets, i));
+      if (bundle->relaxed && i == 0) bundle->relaxed->debugSteps = debugSteps;
+      if (bundle->sweep && i == 0) bundle->sweep->debugSteps = debugSteps;
+      if (bundle->sync && i == 0 && debugSteps > 0) {
+        bundle->sync->debugSteps = debugSteps;
+        bundle->sync->describe (std::cerr, Marking<T> (net.initialMarking ()));
       }
-      std::string label = bundle.spec.label ();
+      std::string label = bundle->spec.label ();
       std::vector<uint32_t> subset;
       if (partition) {
-        for (uint32_t id = i; id < targets.size (); id += threads) subset.push_back (id);
+        for (uint32_t id = i; id < targets.size (); id += taskCount) subset.push_back (id);
       }
-      Walker<T> walker (net, targets, focus, *bundle.strategy, seed + 7919u * i, partition ? &subset : nullptr);
-      NoveltyTracker<T> tracker (net.transitionCount (), knowledge);
-      walker.setTracker (&tracker);
-      walker.setKnowledge (knowledge);
-      walker.setRestartPolicy (policies && !policies->empty () ? (*policies)[i % policies->size ()] : restartPolicy);
-      walker.setPool (pool);
-      walker.setSaturate (bundle.spec.saturate);
-      walker.setOnClaim ([&, i, label] (uint32_t id, const Marking<T> &m, const std::vector<uint32_t> *trace) {
+      const RestartPolicy *policy = policies && !policies->empty () ? (*policies)[i % policies->size ()] : restartPolicy;
+      auto task = std::make_unique<WalkTask<T>> (net, targets, focus, std::move (bundle->strategy), seed + 7919u * i,
+                                                 std::move (subset), knowledge, policy, pool, bundle->spec.saturate, budget,
+                                                 [bundle] (ThreadReport &rep) {
+                                                   rep.minHeuristic = bundle->minHeuristic ();
+                                                   rep.notes = bundle->notes ();
+                                                 });
+      task->label = label;
+      task->kind = bundle->spec.name;
+      task->setOnClaim ([&, i, label] (uint32_t id, const Marking<T> &m, const std::vector<uint32_t> *trace) {
         Claim<T> c;
         c.target = id;
         c.thread = i;
@@ -341,23 +349,27 @@ template<typename T>
         out.claims.push_back (std::move (c));
         if (onClaim) onClaim (out.claims.back ());
       });
-      WalkResult res = walker.run (budget);
-      ThreadReport &rep = out.reports[i];
-      rep.strategy = label;
-      rep.stats = res.stats;
-      rep.minHeuristic = bundle.minHeuristic ();
-      rep.notes = bundle.notes ();
-      rep.found = res.found;
-      rep.claims = res.claims;
-    };
-
-    if (threads <= 1) {
-      body (0);
-    } else {
-      std::vector<std::thread> pool_;
-      for (unsigned i = 0; i < threads; ++i) pool_.emplace_back (body, i);
-      for (auto &th : pool_) th.join ();
+      scheduler.add (std::move (task));
     }
+    auto deadline = budget.timeoutMillis ? std::chrono::steady_clock::now () + std::chrono::milliseconds (budget.timeoutMillis)
+                                         : std::chrono::steady_clock::time_point::max ();
+    scheduler.run (deadline, &stop);
+    out.reports.resize (taskCount);
+    std::map<std::string, KindReport> kinds;
+    for (unsigned i = 0; i < taskCount; ++i) {
+      const Task &t = scheduler.task (i);
+      out.reports[i] = static_cast<const WalkTask<T>&> (t).result ();
+      KindReport &k = kinds[t.kind];
+      k.kind = t.kind;
+      ++k.tasks;
+      k.steps += t.steps;
+      k.micros += t.micros;
+      k.claims += t.claims;
+      k.slices += t.slices;
+      k.cappedSlices += t.cappedSlices;
+      k.maxSliceMicros = std::max (k.maxSliceMicros, t.maxSliceMicros);
+    }
+    for (auto &kv : kinds) out.kinds.push_back (kv.second);
 
     bool anyTrace = false;
     for (const auto &c : out.claims) anyTrace = anyTrace || c.hasTrace;

@@ -205,6 +205,7 @@ else on stdout is a log (`INTEROP.md` section 5).
 | `--share=<n>`, `--shareProb=<p>` | shared restart pool |
 | `--totalTime=<s>`, `--roundTime=<s>` | round scheduling over all properties |
 | `--sweepTime=<s>` | random multi-target round before the focused rounds (default 1, 0 disables) |
+| `--threads=<n>`, `--tasks=<n>`, `--slice=<steps>`, `--sliceMs=<ms>` | runner threads, exploration tasks time-shared over them (default one per thread; more runs every strategy on every model), steps per slice and its wall-clock cap |
 | `--lp`, `--lpHints=<file>`, `--lpTime=<s>` | the properties over the state equation (`Petri/src/lp/`): an infeasible goal is answered (`TECHNIQUES STATE_EQUATION`), a feasible one writes its Parikh vector for a later `--hints`; seconds per property |
 | `--walkSteps=<n>`, `--runLength=<n>`, `--seed=<n>` | budgets and reproducibility; with `--walkSteps` the rounds stop as soon as one solves nothing and every walk hit the step budget |
 | `--escalate` | on such a round, multiply the step budget and walk on while `--totalTime` lasts, rather than concluding that more time cannot help |

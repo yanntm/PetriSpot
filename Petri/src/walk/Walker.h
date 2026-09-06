@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "walk/EnabledSet.h"
+#include "walk/Task.h"
 #include "walk/Knowledge.h"
 #include "walk/Marking.h"
 #include "walk/NoveltyTracker.h"
@@ -113,6 +114,15 @@ template<typename T>
     NoveltyTracker<T> *tracker = nullptr;
     const Knowledge *knowledge = nullptr;
     const RestartPolicy *restartPolicy = nullptr;
+
+    // The resumable loop's state between two slices (begin / runSlice / finish).
+    WalkBudget budget;
+    WalkResult result;
+    StepBudget fallback { 1000000 };
+    const RestartPolicy *policy = nullptr;
+    const AnyOf *composite = nullptr;
+    uint64_t runSteps = 0, iterations = 0, activeMs = 0, runStartMs = 0;
+    bool over = false;
 
     /** Index the given targets; deadlock targets are checked apart and skipped here. */
     void buildIndex (const std::vector<uint32_t> &ids)
@@ -346,40 +356,58 @@ template<typename T>
       restartPolicy = p;
     }
 
-    WalkResult run (const WalkBudget &budget)
+    /**
+     * The walk as a resumable loop: begin() takes the budget and the initial
+     * marking, runSlice() advances by at most maxSteps steps or until the
+     * slice deadline and says whether the walk is over, finish() closes the
+     * statistics. run() is the three in a row.
+     */
+    void begin (const WalkBudget &b)
     {
-      using clock = std::chrono::steady_clock;
-      auto start = clock::now ();
-      WalkResult result;
+      budget = b;
+      result = WalkResult ();
       recordTrace = budget.recordTrace;
-      WalkStats &st = result.stats;
-      WalkContext<T> ctx { net, marking, enabled, rng, knowledge, tracker ? &tracker->localCounts () : nullptr };
-      StepBudget fallback (budget.runLength);
-      const RestartPolicy &policy = restartPolicy ? *restartPolicy : fallback;
-      const AnyOf *composite = dynamic_cast<const AnyOf*> (&policy);
-      uint64_t runSteps = 0;
-      uint64_t iterations = 0;
-      uint64_t ms = 0, runStartMs = 0; // wall clock, refreshed every 1024 iterations
+      fallback = StepBudget (budget.runLength);
+      policy = restartPolicy ? restartPolicy : &fallback;
+      composite = dynamic_cast<const AnyOf*> (policy);
+      runSteps = 0;
+      iterations = 0;
+      activeMs = 0;
+      runStartMs = 0;
+      over = false;
       fromPool = false;
       marking.assign (initialMarking);
       enabled.assign (initialEnabled);
       trace.clear ();
       strategy.onReset ();
       checkAll (result);
-      while (!done ()) {
+    }
+
+    /** Advance the walk; true when it is over (targets done, budget spent, stop flag). */
+    bool runSlice (uint64_t maxSteps, std::chrono::steady_clock::time_point sliceDeadline, SliceReport *report = nullptr)
+    {
+      using clock = std::chrono::steady_clock;
+      auto sliceStart = clock::now ();
+      WalkStats &st = result.stats;
+      uint64_t stepsAtStart = st.steps, claimsAtStart = result.claims;
+      uint64_t ms = activeMs; // running time, refreshed every 64 iterations
+      WalkContext<T> ctx { net, marking, enabled, rng, knowledge, tracker ? &tracker->localCounts () : nullptr };
+      bool capped = false;
+      while (!over) {
+        if (done ()) { over = true; break; }
         if (enabled.empty ()) {
           checkDeadlocks (result);
-          if (done ()) break;
+          if (done ()) { over = true; break; }
           ++st.deadEnds;
         }
         RunView view { runSteps, ms - runStartMs, tracker ? tracker->stepsSinceNovelty () : 0 };
-        bool policyEnd = !enabled.empty () && policy.shouldRestart (view);
+        bool policyEnd = !enabled.empty () && policy->shouldRestart (view);
         if (enabled.empty () || policyEnd) {
           ++st.resets;
           if (policyEnd) ++st.policyResets;
           runSteps = 0;
           runStartMs = ms;
-          bool inPlace = policyEnd && (composite ? composite->keepsMarking (view) : policy.keepsMarking ());
+          bool inPlace = policyEnd && (composite ? composite->keepsMarking (view) : policy->keepsMarking ());
           if (inPlace) {
             ++st.inPlaceResets;
             resetInPlace ();
@@ -392,12 +420,15 @@ template<typename T>
           if (fromPool) checkAll (result);
           continue;
         }
+        if (st.steps - stepsAtStart >= maxSteps) break;
         // the clock every 64 steps: a step costs microseconds on most nets, milliseconds on hub-dense ones
         if ((iterations++ & 63) == 0) {
-          if (budget.stop && budget.stop->load (std::memory_order_relaxed)) break;
-          if (budget.maxSteps && st.steps >= budget.maxSteps) break;
-          ms = static_cast<uint64_t> (std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - start).count ());
-          if (budget.timeoutMillis && ms >= budget.timeoutMillis) break;
+          if (budget.stop && budget.stop->load (std::memory_order_relaxed)) { over = true; break; }
+          if (budget.maxSteps && st.steps >= budget.maxSteps) { over = true; break; }
+          auto now = clock::now ();
+          ms = activeMs + static_cast<uint64_t> (std::chrono::duration_cast<std::chrono::milliseconds> (now - sliceStart).count ());
+          if (budget.timeoutMillis && ms >= budget.timeoutMillis) { over = true; break; }
+          if (now >= sliceDeadline) { capped = true; break; }
           if (tracker && (iterations & 4095) == 1) tracker->merge ();
         }
         uint32_t t = strategy.choose (ctx);
@@ -430,17 +461,38 @@ template<typename T>
         // a dead marking is no restart point: nothing can be explored from it
         if (tracker && !enabled.empty ()) tracker->observe (marking);
       }
+      uint64_t micros = static_cast<uint64_t> (std::chrono::duration_cast<std::chrono::microseconds> (clock::now () - sliceStart).count ());
+      activeMs += micros / 1000;
+      if (report) {
+        report->steps = st.steps - stepsAtStart;
+        report->claims = result.claims - claimsAtStart;
+        report->micros = micros;
+        report->capped = capped && !over;
+        report->finished = over;
+      }
+      return over;
+    }
+
+    WalkResult finish ()
+    {
+      WalkStats &st = result.stats;
       publishRun ();
       if (tracker) {
         tracker->merge ();
         st.distinctFired = tracker->distinctFired ();
         st.rareEvents = tracker->rareEventCount ();
       }
-      st.millis = static_cast<uint64_t> (
-          std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - start).count ());
+      st.millis = activeMs;
       st.arcVisits = enabled.arcVisits;
       st.flips = enabled.flips;
       return result;
+    }
+
+    WalkResult run (const WalkBudget &b)
+    {
+      begin (b);
+      runSlice (std::numeric_limits<uint64_t>::max (), std::chrono::steady_clock::time_point::max ());
+      return finish ();
     }
 
     /** Replay a trace from the initial marking; true iff target id holds at its end. */

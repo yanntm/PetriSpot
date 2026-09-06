@@ -272,21 +272,41 @@ instance either.
 `--strategy`, else that pool, so a request for several threads spreads them
 over it instead of running one strategy several times.
 
-## Portfolio (threads)
+## Portfolio: tasks over runners
 
-`runPortfolio` starts N threads on one `TargetSet` and one focus; thread i
-runs its own `Walker` with its own `Marking`, `EnabledSet`, RNG (seed + 7919 i,
-the seed itself derived by the driver from `--seed`, default 1, per walk call:
-two runs repeat up to thread timing, the shared claims, pool and counters)
-and a fresh strategy instance built from `specs[i mod |specs|]` on the focus
-goal (random when there is no focus), so all hot state is thread-local. The
-`WalkNet`, the `TargetSet` and the goal expressions are shared read-only,
-except the atomic solved flags. Claims are published under a mutex, in claim
-order, through a callback; when the focus is claimed an atomic stop flag is
-raised, which every walker polls every 64 steps (a step is milliseconds on a
-hub-dense net, and the deadline overshot by seconds at 1024). After the threads join,
-recorded traces are replayed by one verifier walker before being reported.
-Strategy specs are `name[:epsilon[:stall]]`, e.g. `relaxed:0:300`.
+`runPortfolio` builds `--tasks` exploration tasks (default one per runner
+thread) on one `TargetSet` and one focus and hands them to the `Scheduler`;
+task i runs its own `Walker` with its own `Marking`, `EnabledSet`, RNG
+(seed + 7919 i, the seed itself derived by the driver from `--seed`, default
+1, per walk call) and a fresh strategy instance built from
+`specs[i mod |specs|]` on the focus goal (random when there is no focus), so
+all hot state belongs to the task, and a task is owned by one runner at a
+time. The `WalkNet`, the `TargetSet` and the goal expressions are shared
+read-only, except the atomic solved flags. Claims are published under a
+mutex, in claim order, through a callback; when the focus is claimed an
+atomic stop flag is raised, which every walker polls every 64 steps (a step
+is milliseconds on a hub-dense net). After the scheduler returns, recorded
+traces are replayed by one verifier walker before being reported. Strategy
+specs are `name[:epsilon[:stall]]`, e.g. `relaxed:0:300`.
+
+The walk is a resumable loop (`Walker::begin`, `runSlice`, `finish`): its
+state between two steps is data, so a `WalkTask` advances it by a slice and
+returns. The `Scheduler` keeps the runnable tasks in a heap on their virtual
+clock; each of the `--threads` runners pops the smallest clock, runs one slice
+of `--slice` steps capped by `--sliceMs` of wall clock (a coarse step ends the
+slice, and is counted as capped), books the slice's steps, claims and running
+time into the task and advances its clock by the time divided by its share,
+and pushes it back unless the walk is over. Shares are equal for now (round
+robin); a task whose targets were claimed by another finishes at its first
+step. The report has one line per task and one per strategy kind: steps,
+running milliseconds, steps per millisecond, claims and claims per second,
+slices and capped slices. With twice as many tasks as runners every strategy
+of a pool runs on every model, each kind getting half the time
+(RERS17pb114-PT-1 full QLA in 10 s: 25 505 claims, rarity 1 317 a second at
+52 steps/ms, quests 16 a second at 131; ResIsolation 1 000 targets in 14 s,
+quests 38 claims a second at 0.8 ms a step, rarity 5). WALK_PLAN.md section
+10.11 has the design and the steps that follow: shares that follow the
+claims, subquests as child tasks with a budget, LP tasks.
 
 The driver (`cli/WalkDriver.h`) applies a policy on top: an optional sweep
 round (all threads random, no focus, all targets open) followed by rounds with
