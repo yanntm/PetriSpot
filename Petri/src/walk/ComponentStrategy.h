@@ -55,6 +55,7 @@ template<typename T>
     uint32_t stageBarrier = NONE;         // the barrier the stage prepares, NONE when the stage is the goal
     bool needReplan = true;
     uint64_t hBefore = 0;                 // goal distance when the current barrier was chosen
+    bool stageBehind = false;             // the stage was set with a process already behind a barrier
     std::vector<uint32_t> tabu;           // barriers whose crossing did not lower the goal distance, this run
     unsigned epsilonPercent;
     size_t sampleSize;
@@ -138,6 +139,7 @@ template<typename T>
     uint64_t replans = 0;                 // stages set up
     uint64_t barriersFired = 0;           // stage barriers fired
     uint64_t hopeless = 0;                // runs abandoned with a process where its place is unreachable
+    uint64_t fallbacks = 0;               // stages revised because a process fell behind a barrier
     SparseArray<T> bestMarkingThisRun;
 
     /**
@@ -196,6 +198,13 @@ template<typename T>
         ++hopeless;
         return RESTART;
       }
+      if (total >= Components<T>::BARRIER_OFFSET && !stageBehind) {
+        // a process of this stage fell behind a barrier: stage again, a barrier may bring it back
+        ++fallbacks;
+        needReplan = true;
+        if (!replan (ctx.marking)) return RESTART;
+        total = measure (ctx.marking);
+      }
       if (total < minDistanceThisRun) {
         minDistanceThisRun = total;
         sinceImprovement = 0;
@@ -204,19 +213,18 @@ template<typename T>
       } else {
         ++sinceImprovement;
       }
-      bool trace = debugSteps > 0 && total <= 2;
+      bool trace = debugSteps > 0 && (total <= 2 || (n <= 2 && stageBarrier == NONE));
       if (trace) {
         --debugSteps;
         describeState (std::cerr, ctx.marking, ctx.enabled);
       }
       size_t k = sampleSize >= n ? n : sampleSize;
       if (n == 1 || (epsilonPercent > 0 && ctx.rng () % 100 < epsilonPercent)) {
-        // a random move, but never one that undoes a process already in place
+        // a sideways move: random among those that neither undo a process in place nor push one away
         for (size_t i = 0; i < k; ++i) {
           uint32_t t = ctx.enabled.at (ctx.rng () % n);
-          if (!breaksFrozen (t)) return t;
+          if (!breaksFrozen (t) && score (t, total) <= total + 1) return t;
         }
-        return ctx.enabled.at (ctx.rng () % n);
       }
 
       uint32_t best = RESTART;
@@ -312,6 +320,9 @@ template<typename T>
         for (size_t i = 0; i < pre.size (); ++i) addQuest (pre.keyAt (i), pre.valueAt (i));
       }
       cur.assign (quests.size (), 0);
+      stageBehind = false;
+      for (const Quest &q : quests)
+        if (distanceOf (m, q) >= Components<T>::BARRIER_OFFSET) stageBehind = true;
       return true;
     }
 

@@ -321,7 +321,8 @@ template<typename T>
     petri::walk::Knowledge knowledge (wnet.transitionCount ());
     petri::walk::AnyOf sweepPolicy, roundPolicy;
     sweepPolicy.add (std::make_unique<petri::walk::StepBudget> (o.budget.runLength));
-    sweepPolicy.add (std::make_unique<petri::walk::WallTime> (o.runTime));
+    // a quest sweep carries its progress in the marking (the processes forked and placed): restart it rarely
+    sweepPolicy.add (std::make_unique<petri::walk::WallTime> (sweepChoice == "sync" ? o.runTime * 10 : o.runTime));
     sweepPolicy.add (std::make_unique<petri::walk::NoveltyStall> (o.noveltyStall));
     roundPolicy.add (std::make_unique<petri::walk::StepBudget> (o.budget.runLength));
     roundPolicy.add (std::make_unique<petri::walk::WallTime> (o.runTime));

@@ -756,6 +756,19 @@ Directions to weigh, none decided:
   checks again and buys steps, but a thread walks past the finds another
   owns and the claims drop by 30 %: off by default, kept as a knob. The arc
   visits, 65 000 per step, are untouched by either.
+* **Epsilon in directive strategies (2026-09-06).** The one-in-ten random
+  move undid quests: a frozen process pushed off its rendezvous can only
+  return through a barrier. Now sideways only in `sync`. Two ideas to
+  develop: threads with epsilon 0 and a step budget, pure direction in short
+  bursts from pool states; and a restart state published whenever an epsilon
+  move is taken, so the diversion is remembered as a branching point rather
+  than suffered.
+* **The deadlock dual.** A deadlock is every process parked in a local state
+  with no self-move and whose synchronisations lack their partners. The quest
+  per component is "reach the nearest local sink" then freeze; barriers are
+  moves to avoid; the walker claims when the enabled set empties. Philosophers
+  holding their left fork is that sink. One more `ComponentStrategy` variant
+  on the same tables.
 * **Effort share.** On the cluster this run got two walker calls totalling
   62 s of 1800; the rest was flattening and decision diagrams. Whatever the
   walker's speed, the portfolio starves it here (`PORTFOLIO.md`).

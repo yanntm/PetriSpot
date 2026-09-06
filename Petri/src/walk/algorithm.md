@@ -394,6 +394,13 @@ its thread's rank so that four threads chase four targets, and runs a
 `ComponentStrategy` toward it; when the target is claimed, the quest gives up
 or the run restarts, it picks again. Every target satisfied on the way is
 claimed by the walker, so a quest that reaches a shared pre-set claims every
-transition on it. On ResIsolation-PT-N10P4, 4 threads: 1 000 `fireable`
-targets all claimed in 7 s, 31 172 of 95 000 in 30 s, where the uniform and
-the rarity sweeps claimed about 129 whatever the budget.
+transition on it. Above a few thousand open targets a random sample of them
+is ranked, the nearest of a few thousand being near enough; the quest sweep
+restarts ten times less often than the others, its progress (the processes
+forked and placed) living in the marking. Within a quest the random share of
+moves is sideways only, a move that neither undoes a process in place nor
+worsens the summed distance by more than one, and a process falling behind a
+barrier during a stage revises the stage at once. On 4 threads, 30 s, full
+QuasiLivenessAll sets: ResIsolation-PT-N10P4 51 029 of 147 855 (the
+campaign's 1800 s of every engine: 153), ErlangenMainframeV2-PT-bP10C08
+1 570 of 79 094 (321), StigmergyElection-PT-10b 3 704 of 120 600 (797).

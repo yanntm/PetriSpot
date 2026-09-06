@@ -123,7 +123,8 @@ template<typename T>
     {
       if (sync)
         return "stages " + std::to_string (sync->replans) + ", barriers fired " + std::to_string (sync->barriersFired)
-            + ", stranded " + std::to_string (sync->hopeless) + ", refusals " + std::to_string (sync->refusals);
+            + ", stranded " + std::to_string (sync->hopeless) + ", revised " + std::to_string (sync->fallbacks)
+            + ", refusals " + std::to_string (sync->refusals);
       if (sweep) return "quests " + std::to_string (sweep->retargets) + ", own target claimed " + std::to_string (sweep->claimedOwn);
       return "";
     }

@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <random>
 #include <vector>
 
 #include "expr/Expression.h"
@@ -77,7 +78,7 @@ template<typename T>
         ++claimedOwn;
         current = NONE;
       }
-      if (current == NONE && !retarget (ctx.marking)) return filler.choose (ctx);
+      if (current == NONE && !retarget (ctx.marking, ctx.rng)) return filler.choose (ctx);
       uint32_t t = quest->choose (ctx);
       if (t == RESTART) current = NONE; // the quest gave up: the walker restarts, the next choose picks again
       return t;
@@ -128,18 +129,35 @@ template<typename T>
       }
     }
 
+    /** Open targets to rank at a retarget: all of them below this, a random sample above. */
+    static constexpr size_t RANK_SAMPLE = 4096;
+
     /** Rank the open targets by distance and take the one of this thread's rank; false when none can be quested. */
-    bool retarget (const Marking<T> &m)
+    bool retarget (const Marking<T> &m, std::mt19937_64 &rng)
     {
       ++retargets;
       locate (m);
       ranked.clear ();
-      for (uint32_t id = 0; id < targets.size (); ++id) {
+      size_t n = targets.size ();
+      // a sample of the open targets when there are many: the nearest of a few thousand is near enough
+      size_t stride = n > RANK_SAMPLE ? n / RANK_SAMPLE : 1;
+      uint32_t first = stride > 1 ? static_cast<uint32_t> (rng () % stride) : 0;
+      for (uint32_t id = first; id < n; id += static_cast<uint32_t> (stride)) {
         if (targets.isSolved (id)) continue;
         const Target<T> &tg = targets.target (id);
         if (tg.isDeadlock () || tg.isBound ()) continue;
         uint64_t d = distance (tg.expression (), m);
         if (d != UNREACHED) ranked.emplace_back (d, id);
+      }
+      if (ranked.empty () && stride > 1) {
+        // the sample held no open target: look at them all
+        for (uint32_t id = 0; id < n; ++id) {
+          if (targets.isSolved (id)) continue;
+          const Target<T> &tg = targets.target (id);
+          if (tg.isDeadlock () || tg.isBound ()) continue;
+          uint64_t d = distance (tg.expression (), m);
+          if (d != UNREACHED) ranked.emplace_back (d, id);
+        }
       }
       if (ranked.empty ()) return false;
       size_t pick = std::min<size_t> (rank, ranked.size () - 1);
