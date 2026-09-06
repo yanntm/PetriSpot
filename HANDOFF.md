@@ -4,6 +4,25 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## Next session: the walk engine on very large nets
+
+Read `WALK_PLAN.md` sections 9 and 10 first. Section 9 measured why the walk
+crawls on hub-dense nets (65 000 arc visits per step, the target index) and
+what landed: per-walker up/down target lists, `--partition` (off), no
+re-check after a reset to the initial marking, `distinct transitions fired`
+in the thread report. Section 10 is the plan the user is to comment on
+before code: SAT-style principles (restarts, counters, one adaptive
+strategy, learning from blockages), the memory, the structure the invariant
+engine gives (components from unit semiflows, interaction hypergraph,
+projections, siphons), and eight ordered steps with yardsticks; step 0 and 1
+are the natural start. The yardstick run:
+
+```
+cd /data/ythierry/resiso   # ResIsolation-PT-N10P4 extracted, qla-1000.sexpr from Petri/test/probes/qla_props.py
+~/git/PetriSpot/build/petri64 -i ResIsolation-PT-N10P4/model.pnml --props=qla-1000.sexpr \
+    --threads=4 --totalTime=20 --sweepTime=20 -t 20      # today: about 90 distinct transitions, 125 claims
+```
+
 ## Session of 2026-09-06, afternoon: the campaigns read
 
 * **Cluster.** RD, QLA, SMA, UBA complete (every oracle has exactly one run;
