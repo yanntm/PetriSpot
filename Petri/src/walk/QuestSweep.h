@@ -85,6 +85,19 @@ template<typename T>
     {
     }
 
+    /**
+     * For a coordinator spawning one quest as a task: the open target of this
+     * rank by component distance from m, false when none can be quested.
+     */
+    bool pick (const Marking<T> &m, std::mt19937_64 &rng, uint32_t &target)
+    {
+      current = NONE;
+      unquestable.clear ();
+      if (!retarget (m, rng) || current == NONE || targets.target (current).isBound ()) return false;
+      target = current;
+      return true;
+    }
+
     void onReset () override
     {
       // a restart may land near another target: choose again; what could not be quested stays so

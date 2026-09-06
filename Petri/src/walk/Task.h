@@ -45,6 +45,7 @@ public:
   size_t tool = 0;         // index in the coordinator's catalogue
   uint64_t stateId = 0;    // the pooled state it started from, 0 for the initial marking
   bool finished = false;   // finish() was called: the report is final, the working state freed
+  unsigned grantLeft = 0;  // the coordinator's countdown: slices without progress before parking
   double share = 1.0;      // weight in the scheduler: a task with twice the share gets twice the slices
   double vruntime = 0.0;   // virtual clock: advances by the slice's running time divided by the share
   // totals over the slices

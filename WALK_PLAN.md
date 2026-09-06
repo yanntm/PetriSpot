@@ -1283,8 +1283,17 @@ spawning when nothing is left to do; the scheduler admits tasks while it runs
 and asks the spawn hook when a runner would idle. Yardsticks in
 `walk/algorithm.md`: Erlangen full QLA 2 417, Stigmergy 1 609, DLCflexbar
 76 160, RERS 30 186, ResIsolation 1 000 in 9.6 s, CAN gathering still open
-after 263 tasks over 139 pairs. **Step 3b.** `QuestSweep`'s retarget becomes a spawn decision;
-`ComponentStrategy`'s stage stack becomes spawn-and-wait of a child task.
+after 263 tasks over 139 pairs. **Step 3b** (first cut done 2026-09-07 night). The `quest` tool: one
+target per task, chosen at spawn from the task's start state by
+`QuestSweep::pick`; the task ends when its target is claimed. It runs beside
+`sync` (the chaining quest sweep) and `rare` under the shares, with a seat
+per kind; spawns are built outside the scheduler's lock. It wins Stigmergy
+(2 357 against 1 554) and loses part of Erlangen (1 866 against 2 458) and
+of ResIsolation's speed (12 s against 9): the coordinator does not yet learn
+to stop respawning a kind that pays less than its seat costs, and a
+per-target task pays a spawn per target where the chaining sweep pays none.
+Still to do: `ComponentStrategy`'s stage stack as spawn-and-wait of a child
+task with a budget transferred from the parent.
 Yardsticks: the four sweeps, plus the CAN gathering target and the Stigmergy
 single target, where reinjection of a progressing quest and eviction of dead
 states should show.

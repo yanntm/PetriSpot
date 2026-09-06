@@ -74,10 +74,6 @@ template<typename T>
       double yield = 0.0, seconds = 0.0; // decayed over armTau of the arm's own running time
       unsigned runs = 0;
     };
-    struct Record
-    {
-      unsigned countdown = 0; // slices left without progress before parking
-    };
 
     CoordinatorSpec spec;
     unsigned runners;
@@ -87,7 +83,6 @@ template<typename T>
     SharedPool<T> *pool;
     std::vector<KindShare> kinds;       // per tool
     std::map<std::pair<uint64_t, size_t>, Arm> arms; // (state id, tool)
-    std::vector<Record> records;        // per task index
     Scheduler *scheduler = nullptr;
     size_t nextTool = 0;                // round robin of the initial spawns
     uint64_t spawned = 0, parked = 0;
@@ -145,11 +140,32 @@ template<typename T>
       }
     }
 
-    /** The (state, tool) to spawn: untried pairs first (tools in turn, from the initial marking then the pool), then the best estimate. */
+    /**
+     * The (state, tool) to spawn: a kind with no live task first (every kind keeps a seat, as every kind
+     * keeps a share), then untried pairs (tools in turn, from the initial marking then the pool), then
+     * the best estimate.
+     */
     bool choose (uint64_t &stateId, size_t &tool, SparseArray<T> &start, bool &fromInitial)
     {
       std::vector<typename SharedPool<T>::Entry> states;
       if (pool) states = pool->snapshot ();
+      for (size_t tl = 0; tl < catalogue.size (); ++tl) {
+        if (kinds[tl].tasks > 0) continue;
+        // its seat: from the best pooled state not yet tried with it, else the initial marking
+        std::sort (states.begin (), states.end (), [] (const auto &a, const auto &b) { return a.heuristic < b.heuristic; });
+        for (const auto &e : states)
+          if (arms.find ({ e.id, tl }) == arms.end ()) {
+            stateId = e.id;
+            tool = tl;
+            start = e.marking;
+            fromInitial = false;
+            return true;
+          }
+        stateId = 0;
+        tool = tl;
+        fromInitial = true;
+        return true;
+      }
       // untried from the initial marking, tools in turn
       for (size_t k = 0; k < catalogue.size (); ++k) {
         size_t tl = (nextTool + k) % catalogue.size ();
@@ -210,14 +226,18 @@ template<typename T>
     {
       scheduler = &sched;
       sched.setHooks ([this] (size_t i, const SliceReport &r) { return onSlice (i, r); },
-                      spec.spawning ? Scheduler::Spawn ([this] { return spawnOne (); }) : Scheduler::Spawn ());
+                      spec.spawning ? Scheduler::Spawn ([this] { return plan (); }) : Scheduler::Spawn ());
       unsigned cap = std::max<unsigned> (1, spec.liveCap * runners);
       unsigned initial = spec.spawning ? std::min<unsigned> (cap, static_cast<unsigned> (catalogue.size ()) * runners)
                                        : std::max<unsigned> (1, 2 * runners);
       for (unsigned k = 0; k < initial; ++k) {
         size_t tool = k % catalogue.size ();
-        admit (factory (tool, 0, nullptr), tool, 0);
+        std::unique_ptr<WalkTask<T>> t = factory (tool, 0, nullptr);
+        book (tool, 0);
+        tag (*t, tool, 0);
+        scheduler->add (std::move (t));
       }
+      redistribute ();
     }
 
     Decision onSlice (size_t i, const SliceReport &r)
@@ -229,10 +249,10 @@ template<typename T>
         return Decision::Continue;
       }
       if (!spec.spawning) return Decision::Continue;
-      Record &rec = records[i];
-      if (progressed (r)) rec.countdown = spec.grant;
-      else if (rec.countdown > 0) --rec.countdown;
-      if (rec.countdown == 0 && scheduler->task (i).micros >= spec.minRunMicros) {
+      Task &t = scheduler->task (i);
+      if (progressed (r)) t.grantLeft = spec.grant;
+      else if (t.grantLeft > 0) --t.grantLeft;
+      if (t.grantLeft == 0 && t.micros >= spec.minRunMicros) {
         close (i, true);
         return Decision::Park;
       }
@@ -257,20 +277,25 @@ template<typename T>
     }
 
   private:
-    void admit (std::unique_ptr<WalkTask<T>> t, size_t tool, uint64_t stateId)
+    /** Under the lock: the shared books of a new task (its kind's count, the arm, the tally). */
+    void book (size_t tool, uint64_t stateId)
     {
-      t->tool = tool;
-      t->stateId = stateId;
-      t->kind = catalogue[tool];
       ++kinds[tool].tasks;
-      records.push_back (Record { spec.grant });
       ++spawned;
       if (!arms.count ({ stateId, tool })) arms[{ stateId, tool }] = Arm ();
-      scheduler->add (std::move (t));
-      redistribute ();
     }
 
-    std::unique_ptr<Task> spawnOne ()
+    /** The new task's own fields; touches nothing shared, so it may run outside the lock. */
+    void tag (Task &t, size_t tool, uint64_t stateId) const
+    {
+      t.tool = tool;
+      t.stateId = stateId;
+      t.kind = catalogue[tool];
+      t.grantLeft = spec.grant;
+    }
+
+    /** Under the lock: choose the (state, tool) and return the plan that builds it outside the lock. */
+    Scheduler::Plan plan ()
     {
       if (scheduler->liveCount () >= spec.liveCap * runners) return nullptr;
       if (more && !more ()) return nullptr;
@@ -278,15 +303,14 @@ template<typename T>
       size_t tool;
       bool fromInitial;
       if (!choose (stateId, tool, scratch, fromInitial)) return nullptr;
-      std::unique_ptr<WalkTask<T>> t = factory (tool, stateId, fromInitial ? nullptr : &scratch);
-      t->tool = tool;
-      t->stateId = stateId;
-      t->kind = catalogue[tool];
-      ++kinds[tool].tasks;
-      records.push_back (Record { spec.grant });
-      ++spawned;
-      if (!arms.count ({ stateId, tool })) arms[{ stateId, tool }] = Arm ();
-      return t;
+      // the shared books are written now, under the lock; the closure builds the task outside it
+      book (tool, stateId);
+      SparseArray<T> start = fromInitial ? SparseArray<T> () : scratch;
+      return [this, stateId, tool, fromInitial, start] () {
+        std::unique_ptr<WalkTask<T>> t = factory (tool, stateId, fromInitial ? nullptr : &start);
+        tag (*t, tool, stateId);
+        return std::unique_ptr<Task> (std::move (t));
+      };
     }
   };
 

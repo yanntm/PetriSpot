@@ -309,11 +309,29 @@ template<typename T>
     Scheduler scheduler (sched);
     unsigned spawnCounter = 0;
     // the factory: a task of tool `tool` (a spec of the pool) from a pooled state or the initial marking
+    std::mt19937_64 pickRng (seed);
     auto factory = [&] (size_t tool, uint64_t stateId, const SparseArray<T> *start) {
       unsigned i = spawnCounter++;
+      StrategySpec spec = specs[tool];
+      uint32_t taskFocus = focus;
+      const Target<T> *goal = focusTarget;
+      if (spec.name == "quest" && !focusTarget && components) {
+        // one quest as a task: the nearest open target from the start state, claimed or given up, the task ends
+        QuestSweep<T> chooser (net, *components, targets, i % 4, spec.epsilon, spec.sample, spec.stall);
+        Marking<T> from (start ? *start : net.initialMarking ());
+        uint32_t t;
+        if (chooser.pick (from, pickRng, t)) {
+          taskFocus = t;
+          goal = &targets.target (t);
+          spec.name = "sync";
+        } else {
+          spec.name = "rare"; // nothing to quest from here: a rarity walk instead
+        }
+      }
       // the bundle outlives the task: the strategy references the bundle's distance, the report reads its counters
       auto bundle = std::make_shared<StrategyBundle<T>> (
-          makeStrategy (specs[tool], net, focusTarget, components, &targets, i));
+          makeStrategy (spec, net, goal, components, &targets, i));
+      if (goal && goal != focusTarget) bundle->spec.name = "quest";
       if (bundle->relaxed && i == 0) bundle->relaxed->debugSteps = debugSteps;
       if (bundle->sweep && i == 0) bundle->sweep->debugSteps = debugSteps;
       if (bundle->sync && i == 0 && debugSteps > 0) {
@@ -321,8 +339,9 @@ template<typename T>
         bundle->sync->describe (std::cerr, Marking<T> (net.initialMarking ()));
       }
       std::string label = bundle->spec.label ();
+      if (goal && goal != focusTarget) label = "quest:" + targets.name (taskFocus);
       const RestartPolicy *policy = policies && !policies->empty () ? (*policies)[tool % policies->size ()] : restartPolicy;
-      auto task = std::make_unique<WalkTask<T>> (net, targets, focus, std::move (bundle->strategy), seed + 7919u * i,
+      auto task = std::make_unique<WalkTask<T>> (net, targets, taskFocus, std::move (bundle->strategy), seed + 7919u * i,
                                                  knowledge, policy, pool, bundle->spec.saturate, budget,
                                                  [bundle] (ThreadReport &rep) {
                                                    rep.minHeuristic = bundle->minHeuristic ();

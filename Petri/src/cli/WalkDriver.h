@@ -60,9 +60,9 @@ template<typename T>
                                                                const std::vector<petri::walk::StrategySpec> &specs,
                                                                size_t openTargets)
   {
-    bool wanted = o.sweepChoice == "sync"
+    bool wanted = o.sweepChoice.find ("sync") != std::string::npos || o.sweepChoice.find ("quest") != std::string::npos
         || (o.sweepChoice == "auto" && openTargets >= 2 && o.sweepTime > 0 && (o.totalTime <= 0 || o.totalTime >= 5));
-    for (const auto &s : specs) wanted = wanted || s.name == "sync";
+    for (const auto &s : specs) wanted = wanted || s.name == "sync" || s.name == "quest";
     if (!wanted) return nullptr;
     auto time = std::chrono::steady_clock::now ();
     MatrixCol<T> sumMatrix = MatrixCol<T>::sumProd (-1, pn.getFlowPT (), 1, pn.getFlowTP ());
@@ -105,7 +105,10 @@ template<typename T>
     // quests where a target can be quested; with threads to spare, half of them stay on rarity: the two
     // sweeps win on different nets (ResIsolation 1 000 targets: quests 1 000 against 125 in 20 s;
     // RERS17pb114-PT-1: rarity 30 000 against 4 000 in 10 s) and nothing tells which beforehand
-    std::string quests = o.threads >= 2 ? "sync,rare" : "sync";
+    // three kinds under the coordinator's shares: the quest sweep (sync) chains its quests from the marking
+    // where the last one ended and wins on ResIsolation and Erlangen; quest, one target per task chosen at
+    // spawn from the task's state, wins on Stigmergy (2 032 against 1 554); rarity wins on RERS
+    std::string quests = o.threads >= 2 ? "sync,quest,rare" : "sync";
     for (uint32_t i = 0; i < targets.size (); ++i) {
       const auto &tg = targets.target (i);
       if (tg.isDeadlock ()) continue;
@@ -383,7 +386,7 @@ template<typename T>
       pol->add (std::make_unique<petri::walk::NoveltyStall> (o.noveltyStall));
     }
     std::vector<const petri::walk::RestartPolicy*> sweepPolicies;
-    for (const auto &s : sweepSpecs) sweepPolicies.push_back (s.name == "sync" ? &syncPolicy : &sweepPolicy);
+    for (const auto &s : sweepSpecs) sweepPolicies.push_back (s.name == "sync" || s.name == "quest" ? &syncPolicy : &sweepPolicy);
     // a focused round keeps the step budget alone: a deep hunt must not be cut short by the clock
     roundPolicy.add (std::make_unique<petri::walk::StepBudget> (o.budget.runLength));
 

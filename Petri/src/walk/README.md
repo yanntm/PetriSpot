@@ -26,8 +26,9 @@ the data structures and the step.
 * `ComponentStrategy.h` — `sync`: one quest per goal atom, processes driven
   to their places and frozen there, stages through the barriers whose outcome
   brings the goal closest, a tabu on the barriers that did not help.
-* `QuestSweep.h` — the sweep as quests: each thread picks the open target of
-  its rank by component distance and runs `sync` toward it, again and again.
+* `QuestSweep.h` — the sweep as quests: each task picks the open target of
+  its rank by component distance and runs `sync` toward it, again and again;
+  `pick` gives the coordinator one target for a `quest` task.
 * `GoalDistance.h` — distance interface, `MarkingDistance` (expression distance).
 * `StructuralDistance.h` — hop-based refinement for `place >= k` atoms.
 * `DeadlockStrategy.h` — greedy descent of the enabled-transition count, the

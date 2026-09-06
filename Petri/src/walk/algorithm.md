@@ -339,9 +339,22 @@ spawned, the quests kept), Stigmergy 1 609, DLCflexbar 76 160, RERS 30 186 in
 10 s, ResIsolation 1 000 targets in 9.6 s; on the CAN gathering target 263
 tasks over 139 (state, tool) pairs in 30 s, none reaching it: the broad
 experiment the design asks for, and the case for the refinements of the LP
-hints. WALK_PLAN.md sections 10.11 and 10.12 have the design and the steps
-that follow: quests as spawn decisions and child tasks with a budget, LP
-tasks.
+hints.
+
+Three kinds run the auto sweep on a net with components: `sync`, the quest
+sweep that chains its quests from the marking where the last one ended;
+`quest`, one target per task, chosen at spawn by component distance from the
+task's start state (`QuestSweep::pick`), the task ending when the target is
+claimed; and `rare`. A spawn is built outside the scheduler's lock (a walker
+over 147 855 transitions is not a thing to build under a lock), and every
+kind keeps a seat: when a kind has no live task the next spawn is its, so the
+shares, not the accidents of who finished first, decide how much each runs.
+The two quest tools win on different nets: chaining on ResIsolation (1 000
+targets in 8.9 s alone, 12 s with the three) and Erlangen (2 458 alone,
+1 866 with the three), one target per task on Stigmergy (2 032 alone,
+2 357 with the three, 1 554 with chaining alone). WALK_PLAN.md sections 10.11
+and 10.12 have the design and what follows: child tasks with a budget for the
+quests' barriers, LP tasks.
 
 The driver (`cli/WalkDriver.h`) applies a policy on top: an optional sweep
 round (all threads random, no focus, all targets open) followed by rounds with
