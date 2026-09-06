@@ -4,6 +4,31 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-06, 18:51: the rerun is submitted
+
+Product `202609061624` ships the `petri64` of PetriSpot `0ae6e4c` (checksum
+`36f11995e952`, matched against `Inv-Linux` and inside the deploy tree), with
+the afternoon's walker work: `==` goals quested (7652b2e), the sweep restarts
+on hopeless markings and evicts condemned pool starts (5ade6af), the stage
+choice bounded and tabled (cda89d9), seeds fixed (929b720). Smoke through
+the harness on ResIsolation-PT-N10P4 QLA, 90 s: 50 702 QLIVE verdicts.
+Rsynced to the cluster at 18:50 while about 120 LTLF jobs were still
+waiting (the user accepted the risk to those runs). The submitter
+`~/MCC26/MCC-drivers/submit-2026-09-06c.sh`, detached on the cluster head,
+log `submit-2026-09-06c.log`, runs `QLA SMA UBA RD QL SM OS` in that order,
+1800 s / 4 cores / `tall`, one `run_oar.sh` after another; it moved the
+previous results aside as `*-2026-09-06a` (QLA, SMA, UBA, RD from this
+morning; QL, SM, OS from 2026-09-05), every one mirrored under
+`/data/ythierry/MCC26run/` (`2026-09-06/` and the 09-05 directories). L is
+not rerun. Collect into `/data/ythierry/MCC26run/2026-09-06c/` with the
+rsync recipe and point `ITS-Tools latest` at it in
+`~/git/MCC-analysis/campaign/example.json` (the 9-run warmup sets of the
+09-05 totals were deleted; `build.py` no longer lists a total examination
+twice). Yardsticks of the walker after today, 4 threads, local:
+ResIsolation 1 000 targets claimed in 6 to 8.5 s; Erlangen full
+QuasiLiveness 2 792 in 30 s (campaign 321); Stigmergy 1 496 (campaign 797).
+Open design: WALK_PLAN.md 10.10, subgoals under a budget.
+
 ## 2026-09-06, 17:30: the product carries master, one walker fix on top
 
 The CI chain ran once more: ITS-Tools product `202609061502` ships the
