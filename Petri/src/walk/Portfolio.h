@@ -125,7 +125,9 @@ template<typename T>
         return "stages " + std::to_string (sync->replans) + ", barriers fired " + std::to_string (sync->barriersFired)
             + ", stranded " + std::to_string (sync->hopeless) + ", revised " + std::to_string (sync->fallbacks)
             + ", refusals " + std::to_string (sync->refusals);
-      if (sweep) return "quests " + std::to_string (sweep->retargets) + ", own target claimed " + std::to_string (sweep->claimedOwn);
+      if (sweep)
+        return "quests " + std::to_string (sweep->retargets) + ", own target claimed " + std::to_string (sweep->claimedOwn)
+            + ", bound steps climbed " + std::to_string (sweep->stepsClimbed) + ", abandoned " + std::to_string (sweep->abandoned);
       return "";
     }
 
@@ -297,6 +299,7 @@ template<typename T>
     auto body = [&] (unsigned i) {
       StrategyBundle<T> bundle = makeStrategy (specs[i % specs.size ()], net, focusTarget, components, &targets, i);
       if (bundle.relaxed && i == 0) bundle.relaxed->debugSteps = debugSteps;
+      if (bundle.sweep && i == 0) bundle.sweep->debugSteps = debugSteps;
       if (bundle.sync && i == 0 && debugSteps > 0) {
         bundle.sync->debugSteps = debugSteps;
         bundle.sync->describe (std::cerr, Marking<T> (net.initialMarking ()));

@@ -192,6 +192,7 @@ template<typename T>
         needReplan = true;
         return stageBarrier;
       }
+      current = &ctx.marking;
       uint64_t total = measure (ctx.marking);
       if (total >= HOPELESS) {
         // a process sits where it can never reach its place: this run is over
@@ -277,6 +278,7 @@ template<typename T>
     {
       needReplan = false;
       ++replans;
+      current = &m;
       locate (m);
       // where the goal stands from here, per quest
       uint64_t goalNow = 0;
@@ -326,17 +328,43 @@ template<typename T>
       return true;
     }
 
-    /** Distance of quest q from m: 0 when satisfied, the process's distance to the place plus one otherwise. */
-    uint64_t distanceOf (const Marking<T> &m, const Quest &q) const
+    /**
+     * Distance of quest q from m: 0 when satisfied; otherwise the tokens still
+     * missing on the place must come from the components holding it, and the
+     * distance is the sum of the local paths of the nearest ones, a token per
+     * unit of marking, plus one each. Gathering k tokens is thus a
+     * synchronisation of those components with the place. `delta` is an
+     * effect applied virtually to m (the marking after a candidate firing).
+     */
+    uint64_t distanceOf (const Marking<T> &m, const Quest &q, const SparseArray<T> *delta = nullptr) const
     {
-      if (m.get (q.place) >= q.need) return 0;
+      auto at = [&] (size_t place) -> long long {
+        long long v = m.get (place);
+        if (delta) v += delta->get (place);
+        return v;
+      };
+      long long have = at (q.place);
+      if (have >= q.need) return 0;
       if (q.comp == NONE) return 1; // unguided: a move away, as far as we know
-      const auto &k = comps.component (q.comp);
-      uint64_t d = UNREACHED;
-      for (size_t j = 0; j < k.size (); ++j)
-        if (m.get (k.places[j]) > 0 && (*q.dist)[j] < d) d = (*q.dist)[j];
-      return d == UNREACHED ? HOPELESS : d + 1;
+      size_t missing = static_cast<size_t> (q.need - have);
+      // every token of every component holding the place, at its local distance
+      scratch.clear ();
+      for (uint32_t c : comps.componentsOf (q.place)) {
+        const auto &k = comps.component (c);
+        const std::vector<uint32_t> &dist = comps.questDistances (c, q.place);
+        for (size_t j = 0; j < k.size (); ++j) {
+          if (k.places[j] == q.place) continue;
+          long long v = at (k.places[j]);
+          for (long long u = 0; u < v && dist[j] != UNREACHED; ++u) scratch.push_back (dist[j]);
+        }
+      }
+      if (scratch.size () < missing) return HOPELESS;
+      std::nth_element (scratch.begin (), scratch.begin () + static_cast<long> (missing) - 1, scratch.end ());
+      uint64_t sum = 0;
+      for (size_t i = 0; i < missing; ++i) sum += scratch[i] + 1;
+      return sum;
     }
+    mutable std::vector<uint64_t> scratch;
 
     /**
      * Summed goal distance of the marking t produces from the located marking:
@@ -345,20 +373,12 @@ template<typename T>
      */
     uint64_t goalAfter (uint32_t t) const
     {
+      const SparseArray<T> &eff = net.effect (t);
       uint64_t s = 0;
       for (size_t i = 0; i < goalQuests.size (); ++i) {
         const Quest &q = goalQuests[i];
-        uint64_t after = UNREACHED;
-        bool moved = false;
-        if (q.comp != NONE) {
-          for (const auto &cl : comps.producedBy (t)) {
-            if (cl.first != q.comp) continue;
-            moved = true;
-            if ((*q.dist)[cl.second] < after) after = (*q.dist)[cl.second];
-          }
-        }
-        if (!moved) s += goalCur[i];
-        else s += after == UNREACHED ? HOPELESS : (after == 0 ? 0 : after + 1);
+        if (q.comp == NONE || !touches (eff, q)) s += goalCur[i];
+        else s += distanceOf (marking (), q, &eff);
       }
       return s;
     }
@@ -446,7 +466,8 @@ template<typename T>
       for (size_t i = 0; i < quests.size (); ++i) {
         const Quest &q = quests[i];
         cur[i] = distanceOf (m, q);
-        if (cur[i] == 0) {
+        // a token already on the place stays there, whether the quest is complete or gathering
+        if (m.get (q.place) > 0) {
           frozenPlace[q.place] = true;
           frozenList.push_back (q.place);
         }
@@ -465,7 +486,7 @@ template<typename T>
       return false;
     }
 
-    /** Distance after firing t: only the quests whose component t feeds change. */
+    /** Distance after firing t: recomputed on the virtual marking for the quests whose components t touches. */
     uint64_t score (uint32_t t, uint64_t total) const
     {
       const SparseArray<T> &eff = net.effect (t);
@@ -475,27 +496,33 @@ template<typename T>
         const Quest &q = quests[i];
         if (q.comp == NONE) {
           // unguided: a transition feeding the place is the only clue
-          if (net.effect (t).get (q.place) > 0) s -= 1;
+          if (eff.get (q.place) > 0) s -= 1;
           continue;
         }
-        const auto &k = comps.component (q.comp);
-        uint64_t after = UNREACHED;
-        bool feeds = false;
-        for (size_t j = 0; j < eff.size (); ++j) {
-          if (eff.valueAt (j) <= 0) continue;
-          int32_t li = k.indexOf (eff.keyAt (j));
-          if (li < 0) continue;
-          feeds = true;
-          if ((*q.dist)[li] < after) after = (*q.dist)[li];
-        }
-        if (!feeds) continue;               // t does not move this process
-        // a move to a place from which the target is unreachable strands the process
-        uint64_t nd = after == UNREACHED ? HOPELESS : after + 1;
-        if (k.value > 1 && cur[i] < nd) nd = cur[i]; // several tokens: the nearest still counts
-        s = s - cur[i] + nd;
+        if (!touches (eff, q)) continue;
+        s = s - cur[i] + distanceOf (marking (), q, &eff);
       }
       return s;
     }
+
+    /** Whether the effect changes a place of a component holding the quest's place, or the place itself. */
+    bool touches (const SparseArray<T> &eff, const Quest &q) const
+    {
+      for (size_t j = 0; j < eff.size (); ++j) {
+        size_t p = eff.keyAt (j);
+        if (p == q.place) return true;
+        for (uint32_t c : comps.componentsOf (p))
+          if (comps.component (c).indexOf (q.place) >= 0) return true;
+      }
+      return false;
+    }
+
+    /** The marking of the step being chosen, kept by choose for the scoring. */
+    const Marking<T>& marking () const
+    {
+      return *current;
+    }
+    const Marking<T> *current = nullptr;
   };
 
 } // namespace petri::walk

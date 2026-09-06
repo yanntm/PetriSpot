@@ -792,6 +792,17 @@ Directions to weigh, none decided:
   stalls after the invariants, the 313 runs of section 9) and PT-010 got one
   random bounds walk of 1600 s that raised nothing; the contest has nothing
   on PT-030 and above.
+* **Recursive staging (2026-09-06).** A stage is chosen among the barriers
+  whose pre-places every process can reach alone. On CANInsertWithFailure
+  the 310-place shared component moves only by synchronisations, so for a
+  gathering there no barrier qualifies and the quest cannot start: 17 000
+  quests per thread abandoned in 20 s, the 212 shared places stay at one
+  token. The answer is a stage for the stage, when and only when a stage
+  stalls: push the barrier that brings the stalled stage's quests closest,
+  by the same rule one level down, fire it, pop; a stack of stages bounded in
+  depth, with the tabu per level. PT-010's `Node*OKshare` bounds, 1 seen
+  against 9 reachable, are the yardstick; PT-005 is trivial for any sweep
+  (114 bounds in 7 ms).
 * **Effort share.** On the cluster this run got two walker calls totalling
   62 s of 1800; the rest was flattening and decision diagrams. Whatever the
   walker's speed, the portfolio starves it here (`PORTFOLIO.md`).

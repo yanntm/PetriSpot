@@ -8,7 +8,9 @@
  * ComponentStrategy toward it; when the target is claimed, the quest stalls
  * or the run restarts, it picks the next. Every target satisfied on the way
  * is claimed by the walker, so a quest that reaches a shared pre-set claims
- * every transition on it. See algorithm.md.
+ * every transition on it. A bound target on one place is a staircase: the
+ * quest is `place >= best + 1`, and while the value climbs the same target is
+ * quested again a step higher. See algorithm.md.
  */
 #ifndef PETRI_WALK_QUESTSWEEP_H_
 #define PETRI_WALK_QUESTSWEEP_H_
@@ -16,6 +18,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <iostream>
 #include <memory>
 #include <random>
 #include <vector>
@@ -45,13 +48,21 @@ template<typename T>
     std::unique_ptr<ComponentStrategy<T>> quest;
     RareStrategy<T> filler;     // the move when no target can be quested
     uint32_t current = NONE;
+    long long step = 0;         // bound targets: the value the current quest aims at
+    petri::expr::Expression stepGoal; // its goal, kept alive for the quest
+    std::vector<uint32_t> unquestable; // targets whose quest could not start this run
     std::vector<std::vector<uint32_t>> standing;
     std::vector<std::pair<uint64_t, uint32_t>> ranked;
 
   public:
+    /** Print the first debugSteps retargets on stderr. */
+    uint64_t debugSteps = 0;
+
     /** Instrumentation. */
     uint64_t retargets = 0;
     uint64_t claimedOwn = 0;    // quests whose own target was claimed while they ran
+    uint64_t stepsClimbed = 0;  // bound targets raised by a step
+    uint64_t abandoned = 0;     // quests that could not start or gave up
 
     QuestSweep (const WalkNet<T> &n, const Components<T> &c, const TargetSet<T> &tgs, unsigned threadRank,
                 unsigned epsilon, size_t sample, uint64_t stall)
@@ -65,6 +76,7 @@ template<typename T>
       // a restart may land near another target: choose again
       current = NONE;
       quest.reset ();
+      unquestable.clear ();
     }
 
     bool bestOfRun (SparseArray<T> &m, uint64_t &h) const override
@@ -78,13 +90,32 @@ template<typename T>
         ++claimedOwn;
         current = NONE;
       }
+      if (current != NONE && targets.target (current).isBound () && known (current, ctx.marking) >= step) {
+        // the bound climbed a step: aim at the next one from here
+        ++stepsClimbed;
+        if (!aimBound (current, ctx.marking)) {
+          unquestable.push_back (current);
+          current = NONE;
+        }
+      }
       if (current == NONE && !retarget (ctx.marking, ctx.rng)) return filler.choose (ctx);
       uint32_t t = quest->choose (ctx);
-      if (t == RESTART) current = NONE; // the quest gave up: the walker restarts, the next choose picks again
+      if (t == RESTART) {
+        // the quest cannot start or gave up from here: leave the target for this run, move on rarity
+        ++abandoned;
+        unquestable.push_back (current);
+        current = NONE;
+        return filler.choose (ctx);
+      }
       return t;
     }
 
   private:
+    bool isUnquestable (uint32_t id) const
+    {
+      return std::find (unquestable.begin (), unquestable.end (), id) != unquestable.end ();
+    }
+
     /** Where each process stands. */
     void locate (const Marking<T> &m)
     {
@@ -94,6 +125,52 @@ template<typename T>
         for (uint32_t j = 0; j < k.size (); ++j)
           if (m.get (k.places[j]) > 0) standing[c].push_back (j);
       }
+    }
+
+    /** The best value known of a single-place bound: the shared record or the marking itself, whichever is higher. */
+    long long known (uint32_t id, const Marking<T> &m) const
+    {
+      long long best = targets.bestValue (id);
+      if (best == std::numeric_limits<long long>::min ()) best = 0;
+      return std::max<long long> (best, m.get (targets.target (id).boundForm ().terms[0].first));
+    }
+
+    /** The next step of a single-place bound target as a goal, `place >= known + 1`; false for a sum or a reached limit. */
+    bool aimBound (uint32_t id, const Marking<T> &m)
+    {
+      const Target<T> &tg = targets.target (id);
+      const auto &form = tg.boundForm ();
+      if (form.terms.size () != 1 || form.terms[0].second <= 0) return false;
+      step = known (id, m) + 1;
+      if (tg.hasLimit () && step > tg.getLimit ()) return false;
+      petri::expr::LinearAtom a;
+      a.addTerm (form.terms[0].first, 1);
+      a.constant = step;
+      a.op = petri::expr::Cmp::GE;
+      stepGoal = petri::expr::Expression::makeAtom (std::move (a));
+      quest = std::make_unique<ComponentStrategy<T>> (net, comps, stepGoal, epsilonPercent, sampleSize, stallLimit);
+      return quest->supported ();
+    }
+
+    /** The goal of a target as an expression: its own for a reachability target, the next step of a single-place bound. */
+    bool goalOf (uint32_t id, petri::expr::Expression &out, const Marking<T> &m) const
+    {
+      const Target<T> &tg = targets.target (id);
+      if (tg.isDeadlock ()) return false;
+      if (!tg.isBound ()) {
+        out = tg.expression ();
+        return true;
+      }
+      const auto &form = tg.boundForm ();
+      if (form.terms.size () != 1 || form.terms[0].second <= 0) return false;
+      long long next = known (id, m) + 1;
+      if (tg.hasLimit () && next > tg.getLimit ()) return false;
+      petri::expr::LinearAtom a;
+      a.addTerm (form.terms[0].first, 1);
+      a.constant = next;
+      a.op = petri::expr::Cmp::GE;
+      out = petri::expr::Expression::makeAtom (std::move (a));
+      return true;
     }
 
     /** Summed component distance of the goal's atoms from the located marking; UNREACHED when an atom is not `place >= k`. */
@@ -115,14 +192,26 @@ template<typename T>
         if (a.terms.size () != 1 || a.terms[0].second <= 0 || a.op != petri::expr::Cmp::GE) return UNREACHED;
         size_t p = a.terms[0].first;
         long long need = (a.constant + a.terms[0].second - 1) / a.terms[0].second;
-        if (m.get (p) >= need) return 0;
+        long long have = m.get (p);
+        if (have >= need) return 0;
         const auto &cs = comps.componentsOf (p);
         if (cs.empty ()) return 1;
-        const std::vector<uint32_t> &dist = comps.questDistances (cs[0], p);
-        uint64_t d = UNREACHED;
-        for (uint32_t j : standing[cs[0]])
-          if (dist[j] < d) d = dist[j];
-        return d == UNREACHED ? 1000000 : d + 1;
+        // the missing tokens come from the components holding the place: the nearest ones
+        std::vector<uint64_t> ds;
+        for (uint32_t c : cs) {
+          const auto &k = comps.component (c);
+          const std::vector<uint32_t> &dist = comps.questDistances (c, p);
+          for (uint32_t j : standing[c]) {
+            if (k.places[j] == p || dist[j] == UNREACHED) continue;
+            for (long long u = 0, v = m.get (k.places[j]); u < v; ++u) ds.push_back (dist[j]);
+          }
+        }
+        size_t missing = static_cast<size_t> (need - have);
+        if (ds.size () < missing) return 1000000;
+        std::nth_element (ds.begin (), ds.begin () + static_cast<long> (missing) - 1, ds.end ());
+        uint64_t sum = 0;
+        for (size_t i = 0; i < missing; ++i) sum += ds[i] + 1;
+        return sum;
       }
       default:
         return UNREACHED;
@@ -142,20 +231,17 @@ template<typename T>
       // a sample of the open targets when there are many: the nearest of a few thousand is near enough
       size_t stride = n > RANK_SAMPLE ? n / RANK_SAMPLE : 1;
       uint32_t first = stride > 1 ? static_cast<uint32_t> (rng () % stride) : 0;
+      petri::expr::Expression goal;
       for (uint32_t id = first; id < n; id += static_cast<uint32_t> (stride)) {
-        if (targets.isSolved (id)) continue;
-        const Target<T> &tg = targets.target (id);
-        if (tg.isDeadlock () || tg.isBound ()) continue;
-        uint64_t d = distance (tg.expression (), m);
+        if (targets.isSolved (id) || isUnquestable (id) || !goalOf (id, goal, m)) continue;
+        uint64_t d = distance (goal, m);
         if (d != UNREACHED) ranked.emplace_back (d, id);
       }
       if (ranked.empty () && stride > 1) {
         // the sample held no open target: look at them all
         for (uint32_t id = 0; id < n; ++id) {
-          if (targets.isSolved (id)) continue;
-          const Target<T> &tg = targets.target (id);
-          if (tg.isDeadlock () || tg.isBound ()) continue;
-          uint64_t d = distance (tg.expression (), m);
+          if (targets.isSolved (id) || isUnquestable (id) || !goalOf (id, goal, m)) continue;
+          uint64_t d = distance (goal, m);
           if (d != UNREACHED) ranked.emplace_back (d, id);
         }
       }
@@ -163,6 +249,18 @@ template<typename T>
       size_t pick = std::min<size_t> (rank, ranked.size () - 1);
       std::nth_element (ranked.begin (), ranked.begin () + pick, ranked.end ());
       current = ranked[pick].second;
+      if (debugSteps > 0) {
+        --debugSteps;
+        std::cerr << "retarget: " << ranked.size () << " candidates, took " << targets.name (current) << " at distance "
+            << ranked[pick].first << (targets.target (current).isBound () ? " (bound, known " + std::to_string (known (current, m)) + ")" : "")
+            << std::endl;
+      }
+      if (targets.target (current).isBound ()) {
+        if (aimBound (current, m)) return true;
+        unquestable.push_back (current);
+        current = NONE;
+        return false;
+      }
       quest = std::make_unique<ComponentStrategy<T>> (net, comps, targets.target (current).expression (), epsilonPercent,
                                                        sampleSize, stallLimit);
       return true;

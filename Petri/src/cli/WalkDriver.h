@@ -94,7 +94,9 @@ template<typename T>
     if (!components || components->size () == 0 || components->barrierCount () == 0) return "rare";
     for (uint32_t i = 0; i < targets.size (); ++i) {
       const auto &tg = targets.target (i);
-      if (!tg.isDeadlock () && !tg.isBound () && tg.expression ().kind != petri::expr::Expression::Kind::Or) return "sync";
+      if (tg.isDeadlock ()) continue;
+      if (tg.isBound () && tg.boundForm ().terms.size () == 1) return "sync";
+      if (!tg.isBound () && tg.expression ().kind != petri::expr::Expression::Kind::Or) return "sync";
     }
     return "rare";
   }

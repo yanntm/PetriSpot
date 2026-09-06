@@ -409,3 +409,12 @@ barrier during a stage revises the stage at once. On 4 threads, 30 s, full
 QuasiLivenessAll sets: ResIsolation-PT-N10P4 51 029 of 147 855 (the
 campaign's 1800 s of every engine: 153), ErlangenMainframeV2-PT-bP10C08
 1 570 of 79 094 (321), StigmergyElection-PT-10b 3 704 of 120 600 (797).
+
+A quest `place >= k` gathers: the tokens still missing come from every
+component holding the place, the distance is the sum of the k nearest tokens'
+local paths (a token per unit of marking), and a token already on the place is
+frozen there. A bound target on one place is a staircase in `QuestSweep`: the
+quest is `place >= known + 1`, known being the shared record or the marking,
+re-quested a step higher while it climbs; a quest that cannot start marks its
+target unquestable for the run and the sweep moves on rarity, so the quest
+sweep is never slower than the rarity sweep where quests do not apply.
