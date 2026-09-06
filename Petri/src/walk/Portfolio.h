@@ -2,7 +2,9 @@
  * Portfolio.h
  *
  * Several walkers in parallel threads on one TargetSet, each with its own
- * strategy instance, seed and thread-local state. All aim at the same focus
+ * strategy instance, seed and thread-local state. A sweep over at least
+ * partitionMin targets is split between the threads, each checking the ids
+ * congruent to its rank; below that every thread checks every target. All aim at the same focus
  * (or none) and claim any target they reach; claims are published in order
  * through a callback, the focus claim stops the others, recorded traces are
  * verified before being reported. Strategies are named by specs
@@ -207,12 +209,22 @@ template<typename T>
  * given, is called under a lock as each claim is published; traces are only
  * verified after the threads join (Claim::hasTrace).
  */
+/**
+ * Default of partitionMin: 0, sweeps are never split. On ResIsolation-PT-N10P4
+ * (95 000 fireable targets) splitting between 4 threads divided the checks per
+ * step by four and doubled the step rate, and still claimed 30 % fewer targets
+ * in 20 s: a thread walks past the finds another owns. The knob stays for
+ * nets where the checks dominate the step.
+ */
+constexpr size_t PARTITION_MIN = 0;
+
 template<typename T>
   PortfolioResult<T> runPortfolio (const WalkNet<T> &net, TargetSet<T> &targets, uint32_t focus,
                                    const std::vector<StrategySpec> &specs, unsigned threads,
                                    WalkBudget budget, uint64_t seed, SharedPool<T> *pool,
                                    uint64_t debugSteps,
-                                   const std::function<void (const Claim<T>&)> &onClaim = {})
+                                   const std::function<void (const Claim<T>&)> &onClaim = {},
+                                   size_t partitionMin = PARTITION_MIN)
   {
     PortfolioResult<T> out;
     out.reports.resize (threads);
@@ -220,12 +232,17 @@ template<typename T>
     std::mutex mutex;
     budget.stop = &stop;
     const Target<T> *focusTarget = focus == NO_FOCUS ? nullptr : &targets.target (focus);
+    const bool partition = focus == NO_FOCUS && threads > 1 && partitionMin > 0 && targets.size () >= partitionMin;
 
     auto body = [&] (unsigned i) {
       StrategyBundle<T> bundle = makeStrategy (specs[i % specs.size ()], net, focusTarget);
       if (bundle.relaxed && i == 0) bundle.relaxed->debugSteps = debugSteps;
       std::string label = bundle.spec.label ();
-      Walker<T> walker (net, targets, focus, *bundle.strategy, seed + 7919u * i);
+      std::vector<uint32_t> subset;
+      if (partition) {
+        for (uint32_t id = i; id < targets.size (); id += threads) subset.push_back (id);
+      }
+      Walker<T> walker (net, targets, focus, *bundle.strategy, seed + 7919u * i, partition ? &subset : nullptr);
       walker.setPool (pool);
       walker.setSaturate (bundle.spec.saturate);
       walker.setOnClaim ([&, i, label] (uint32_t id, const Marking<T> &m, const std::vector<uint32_t> *trace) {

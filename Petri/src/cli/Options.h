@@ -78,6 +78,7 @@ struct Options
   bool escalate = false;   // raise the step budget rather than concede a round
   long roundTime = 1;
   long sweepTime = 1; // random multi-target round before the focused rounds (0: none)
+  size_t partition = 0; // sweeps over at least this many targets are split between threads (0: never)
 
   bool invariants () const
   {
@@ -193,6 +194,9 @@ inline void addOptions (CLI::App &app, Options &o)
   wk->add_option ("--sweepTime", o.sweepTime,
                   "With at least two open properties, a first round of random walks checking all of them at once, "
                   "seconds (default 1, 0 disables).");
+  wk->add_option ("--partition", o.partition,
+                  "Sweeps over at least this many properties are split between the threads, each checking its "
+                  "share: fewer checks per step, but a thread walks past the finds another owns (default 0, never).");
   wk->add_option ("--epsilon", o.epsilon, "Heuristic strategies: percentage of random moves (default 10).");
   wk->add_option ("--sample", o.sample, "bestfirst: candidates scored per step (default all).");
   wk->add_option ("--stall", o.stall, "Heuristic strategies: restart after n steps without improvement.");

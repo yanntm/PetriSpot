@@ -2,8 +2,9 @@
  * Walker.h
  *
  * One explicit walk over a TargetSet with an optional focus: restart loop,
- * step budget, wall clock, incremental target checks, claims, witness trace.
- * See algorithm.md.
+ * step budget, wall clock, incremental target checks over a thread-local
+ * index of the targets it owns (all of them, or a subset of a large set),
+ * claims, witness trace. See algorithm.md.
  */
 #ifndef PETRI_WALK_WALKER_H_
 #define PETRI_WALK_WALKER_H_
@@ -84,11 +85,48 @@ template<typename T>
     bool recordTrace = false;
     bool saturate = false;          // fire the chosen transition as many times as the marking allows
 
-    std::vector<size_t> touched;    // places changed by the last firing
+    std::vector<std::pair<size_t, bool>> touched; // places changed by the last firing, and whether they grew
     std::vector<long long> published; // per bound target: last value sent to the shared maximum
     std::vector<uint32_t> stamp;    // per target: epoch of its last candidacy
     std::vector<uint32_t> candidates;
     uint32_t epoch = 0;
+
+    // The targets this walker checks, and per place the ones an increase (up)
+    // or a decrease (down) of the place can make hold. Solved ids are dropped
+    // from these lists as they are met, so the lists shrink over the run.
+    std::vector<uint32_t> own;
+    std::vector<std::vector<uint32_t>> up, down;
+    std::vector<typename TargetSet<T>::Mention> mentionBuf;
+
+    /** Index the given targets; deadlock targets are checked apart and skipped here. */
+    void buildIndex (const std::vector<uint32_t> &ids)
+    {
+      own.clear ();
+      for (auto &l : up) l.clear ();
+      for (auto &l : down) l.clear ();
+      for (uint32_t id : ids) {
+        if (targets.target (id).isDeadlock () || targets.isSolved (id)) continue;
+        own.push_back (id);
+        targets.mentions (id, mentionBuf);
+        for (const auto &m : mentionBuf) {
+          if (m.direction >= 0) up[m.place].push_back (id);
+          if (m.direction <= 0) down[m.place].push_back (id);
+        }
+      }
+    }
+
+    /** A walker whose own targets are all solved takes over every open one. */
+    void refill ()
+    {
+      if (own.empty () && targets.openCount () > targets.deadlocks ().size ()) buildIndex (targets.openTargets ());
+    }
+
+    /** Drop list[i] as solved; the caller does not advance. */
+    static void dropAt (std::vector<uint32_t> &list, size_t i)
+    {
+      list[i] = list.back ();
+      list.pop_back ();
+    }
 
     SharedPool<T> *pool = nullptr;
     typename SharedPool<T>::Entry poolEntry; // origin of the current run when drawn
@@ -151,7 +189,7 @@ template<typename T>
       touched.clear ();
       marking.apply (net.effect (t), [this] (size_t p, T oldv, T newv) {
         enabled.onPlaceChanged (p, oldv, newv);
-        touched.push_back (p);
+        touched.push_back ({ p, newv > oldv });
       }, static_cast<long long> (times));
       if (recordTrace) trace.insert (trace.end (), times, t);
     }
@@ -177,19 +215,31 @@ template<typename T>
       if (onClaim) onClaim (id, marking, recordTrace && !fromPool ? &trace : nullptr);
     }
 
+    /** Every own open target, dropping the solved ones met on the way. */
     void checkAll (WalkResult &result)
     {
-      for (uint32_t id = 0; id < targets.size (); ++id)
-        if (!targets.target (id).isDeadlock ()) check (id, result);
+      for (size_t i = 0; i < own.size ();) {
+        if (targets.isSolved (own[i])) { dropAt (own, i); continue; }
+        check (own[i], result);
+        ++i;
+      }
     }
 
-    /** The open targets mentioning a place changed by the last firing. */
+    /**
+     * The own open targets a place changed by the last firing can have made
+     * hold: those waiting for an increase of a place that grew, for a decrease
+     * of one that shrank. Solved ids met on the way leave the lists.
+     */
     void checkTouched (WalkResult &result)
     {
       ++epoch;
       candidates.clear ();
-      for (size_t p : touched) {
-        for (uint32_t id : targets.targetsOf (p)) {
+      for (const auto &pc : touched) {
+        std::vector<uint32_t> &list = pc.second ? up[pc.first] : down[pc.first];
+        for (size_t i = 0; i < list.size ();) {
+          uint32_t id = list[i];
+          if (targets.isSolved (id)) { dropAt (list, i); continue; }
+          ++i;
           if (stamp[id] == epoch) continue;
           stamp[id] = epoch;
           candidates.push_back (id);
@@ -210,14 +260,28 @@ template<typename T>
     }
 
   public:
-    Walker (const WalkNet<T> &n, TargetSet<T> &tgs, uint32_t focusTarget, Strategy<T> &st, uint64_t seed)
+    /**
+     * A walker over all targets, or over `subset` when given (the sweep over a
+     * large set is split between threads; a walker whose subset is all solved
+     * takes over the open targets).
+     */
+    Walker (const WalkNet<T> &n, TargetSet<T> &tgs, uint32_t focusTarget, Strategy<T> &st, uint64_t seed,
+            const std::vector<uint32_t> *subset = nullptr)
         : net (n), targets (tgs), focus (focusTarget), strategy (st), rng (seed),
           initialMarking (n.initialMarking ()), initialEnabled (n),
           marking (n.initialMarking ()), enabled (n),
-          published (tgs.size (), std::numeric_limits<long long>::min ()), stamp (tgs.size (), 0)
+          published (tgs.size (), std::numeric_limits<long long>::min ()), stamp (tgs.size (), 0),
+          up (tgs.places ()), down (tgs.places ())
     {
       initialEnabled.initialize (initialMarking);
       enabled.assign (initialEnabled);
+      if (subset) {
+        buildIndex (*subset);
+      } else {
+        std::vector<uint32_t> all (tgs.size ());
+        for (uint32_t i = 0; i < all.size (); ++i) all[i] = i;
+        buildIndex (all);
+      }
     }
 
     void setOnClaim (OnClaim cb)
@@ -259,6 +323,7 @@ template<typename T>
           ++st.resets;
           runSteps = 0;
           reset (&st);
+          refill ();
           // back at the initial marking nothing has changed since the first check
           if (fromPool) checkAll (result);
           continue;
@@ -277,6 +342,7 @@ template<typename T>
           ++st.resets;
           runSteps = 0;
           reset (&st);
+          refill ();
           if (fromPool) checkAll (result);
           continue;
         }

@@ -132,7 +132,8 @@ template<typename T>
       printFormula (o, targets, c);
     };
     petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, targets, focus, specs, o.threads, budget,
-                                                                     o.seed, pool.get (), o.debugSteps, onClaim);
+                                                                     o.seed, pool.get (), o.debugSteps, onClaim,
+                                                                     o.partition);
     printReports (o, res);
     if (pool) {
       std::cout << "Shared pool: " << pool->publishedCount () << " published, " << pool->drawnCount ()

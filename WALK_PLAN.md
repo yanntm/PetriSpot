@@ -737,6 +737,25 @@ Directions to weigh, none decided:
   zero. This keeps state predicates, turns cost 2 into the same order as
   cost 1, and needs a fallback to full evaluation for targets whose normal
   form is not a conjunction of atoms or whose atoms carry several places.
+* **Done (2026-09-06): per-walker up/down index.** Each walker owns its
+  target lists, split per place by the direction of change that can make a
+  target hold, and drops solved ids as it meets them. On ResIsolation-PT-N10P4,
+  4 threads, 20 s random sweep:
+
+  | targets | index | steps/ms | checks/step | claimed in 20 s |
+  | ---: | --- | ---: | ---: | ---: |
+  | 95 000 | shared, by place | 0.4 | 42 000 | 129 |
+  | 95 000 | own, up/down | 0.9 | 21 000 | 129 |
+  | 95 000 | own, up/down, split in 4 | 1.5 to 3 | 5 100 | 92 |
+  | 10 000 | shared, by place | 7 | 3 500 | 124 |
+  | 10 000 | own, up/down | 9 to 15 | 1 600 | 125 |
+  | 10 000 | own, up/down, split in 4 | 17 to 21 | 450 | 88 |
+
+  The direction split halves the checks and doubles the step rate at equal
+  claims. Splitting the set between threads (`--partition`) divides the
+  checks again and buys steps, but a thread walks past the finds another
+  owns and the claims drop by 30 %: off by default, kept as a knob. The arc
+  visits, 65 000 per step, are untouched by either.
 * **Effort share.** On the cluster this run got two walker calls totalling
   62 s of 1800; the rest was flattening and decision diagrams. Whatever the
   walker's speed, the portfolio starves it here (`PORTFOLIO.md`).

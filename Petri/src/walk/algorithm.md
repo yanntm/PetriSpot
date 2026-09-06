@@ -63,18 +63,35 @@ walk answers many questions:
 * per target: name, MCC verdict word, the `Target`, and an atomic `solved`
   flag; `claim(i)` is a compare-and-swap, so exactly one thread wins a target
   and the count of open targets is exact;
-* `targetsOf(p)`: the targets whose goal mentions place `p`, built once
-  (sparse: only the places that appear in some atom have a non-empty list);
+* `mentions(i)`: the places target `i` mentions, each with the direction of
+  change that can make `i` hold: an increase for a place with a positive
+  coefficient in a `>=` atom (or a negative one in a `<=`), a decrease for the
+  reverse, either for `==`, `!=` or a place appearing both ways; a bound grows
+  like a `>=`. The index built from it is per walker (below);
 * `deadlocks()`: the deadlock targets, checked only when the enabled list is
   empty;
 * per bound target, an atomic running maximum: a walker publishes a value
   only when it beats the last one it published (a thread-local array), so
   the atomic is touched at improvements only; the driver prints it at exit.
 
-A walker re-evaluates a target only when the fired transition changed a place
-the goal mentions: the places touched by `Marking::apply` are collected, their
-target lists merged with an epoch stamp per target (no clearing), and each
+Each walker owns its index: `own`, the targets it checks, and per place the
+lists `up` and `down` of the own targets an increase or a decrease of the
+place can make hold. A walker re-evaluates a target only when the fired
+transition changed a place the goal mentions in the direction that matters:
+the places touched by `Marking::apply` are collected with the sign of their
+change, the `up` lists of the places that grew and the `down` lists of those
+that shrank are merged with an epoch stamp per target (no clearing), and each
 candidate still open is evaluated in full (goal expressions are small trees).
+A `fireable` target, all lower bounds, is thus never checked on the places a
+firing drains. Solved ids met while scanning a list are swapped out of it, so
+the lists shrink over the run without a compaction pass.
+
+With `--partition=N` a sweep over at least `N` targets is split between the
+threads, thread `k` owning the ids congruent to `k`: the checks per step
+divide by the thread count, at the price of the finds a thread walks past
+because another owns them. Off by default: on ResIsolation-PT-N10P4 the split
+doubled the step rate and claimed 30 % fewer targets in 20 s. A walker whose
+own targets are all solved takes over every open target (`refill`).
 The cost per step is proportional to the arcs touched and to the targets that
 depend on them, never to the number of targets. Every open target is evaluated
 in full once at the start of a run and after a reset to a pooled state; a
