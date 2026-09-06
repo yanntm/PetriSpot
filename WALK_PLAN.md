@@ -1036,3 +1036,54 @@ campaign, then the campaign itself through the `campaign/` pages.
 * The order of steps 4 to 6: components first if the yardsticks stall after
   step 3 on the synchronisation-bound models, siphons first if dead ends
   dominate the stalls.
+
+### 10.10 Subgoals under a budget (design, 2026-09-06 evening, to comment)
+
+What the day measured. The stage stack of `ComponentStrategy` is already a
+depth-first search: one sub-stage at a time, popped when its barrier fires or
+fails, tabu at the parent when it did not help. Its candidates are the
+barriers every process can align on *alone* (tier 1). On StigmergyElection
+PT-10b every quest is abandoned as unstageable: 119 123 of its transitions
+synchronise ten components, and a barrier's own pre-places lie behind other
+barriers, so tier 1 is empty from almost every marking. Letting every barrier
+compete at every push, ranked by outcome, then by alignment with the
+BARRIER_OFFSET penalty (the experiment reverted today), collapsed every
+yardstick: ResIsolation 1 000 targets 1 000 -> 283, Erlangen 2 792 -> 176,
+Stigmergy 1 496 -> 440. Two reasons: the outcome ranks before the alignment,
+so a far barrier with a good outcome beats a near one, and the scan passes
+every transition through fourteen distance evaluations. Width, at every push.
+
+The rule. Subgoals of depth two and beyond are introduced only on a stall,
+one at a time, under a budget:
+
+1. **Tiers.** A push takes tier 1 (alignable alone) when it is not empty.
+   Tier 2, barriers whose pre-places are behind one barrier of their own
+   (alignment in [OFFSET, 2 OFFSET)), opens only when tier 1 is empty or
+   exhausted by the tabu at that level. Never deeper by choice: depth grows
+   by pushing, which is the search.
+2. **Narrowing.** Tier 2 candidates are the barriers that move a token of a
+   component holding an open quest's place of the stalled stage
+   (`consumedBy` / `producedBy` on those components), not the transition
+   list: the processes that are stuck are the ones to unblock.
+3. **Budget.** Per quest at most `deepStages` tier-2 pushes (2 to start);
+   per run tier-2 pushes stay under a share `deepShare` of all pushes (a
+   quarter to start). Over budget, the quest is abandoned as today and the
+   sweep restarts by the rule of 5ade6af. Both are knobs of the sync
+   strategy spec, reported in the thread line (deep pushes, deep barriers
+   fired, deep stages that lowered their parent).
+4. **Commitment.** A tier-2 stage is a subgoal: its quests get tier 1
+   treatment (their own barriers are alignable by construction), the stage
+   is held until its barrier fires or its stall, and on failure its barrier
+   is tabu at the parent, as for any stage. Depth stays under MAX_DEPTH.
+
+Yardsticks, 4 threads, 30 s unless said: the 1 000-target sweep must stay at
+1 000 in under 10 s (today 5.9 to 8.5 s), Erlangen full QuasiLiveness at
+2 792 or above, Stigmergy full QuasiLiveness above 1 496, and the open one,
+CANInsertWithFailure-PT-010 `gather.sexpr` (`Node6OKshare >= 2`, 0 of 1
+today). The campaign (1 800 s, 4 cores, product 202609060003) answered
+Stigmergy 797, Erlangen 321, ResIsolation 153.
+
+The relaxed plan (`RelaxedPlan.h`, h_add) is the other candidate for the
+tier-2 choice: its plan already names the transitions behind the barriers,
+so the sub-barrier could be read from the plan instead of scanned. Worth a
+second experiment once the budgeted version has a number.
