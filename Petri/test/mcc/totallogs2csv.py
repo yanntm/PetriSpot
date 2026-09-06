@@ -30,6 +30,7 @@ COLUMNS = [
     "initial", "walk", "smt", "dd", "other",
     "t25(ms)", "t50(ms)", "t75(ms)", "t100(ms)",
     "petrispot", "walk calls", "walk asked", "walk solved", "walk ms",
+    "last",
 ]
 
 RE_HEADER = re.compile(r"^TOTAL (\w+) (\d+)")
@@ -66,6 +67,8 @@ def parse(path):
     petrispot = 0
     walk = [0, 0, 0, 0]
     failure = ""
+    last = ""        # the tool's last line before the harness trailer
+    trailer = False
 
     with open(path, errors="replace") as f:
         for line in f:
@@ -91,6 +94,10 @@ def parse(path):
                     open_bounds.discard(idx)
                     when.append(clock)
                 continue
+            if line.startswith("TIME LIMIT") or line.startswith("Actual read output values"):
+                trailer = True
+            if not trailer and line and not line.startswith("##teamcity") and not line.startswith(" Formula"):
+                last = line[:70]
             m = mcc.RE_TC.search(line)
             if m:
                 kind, name, duration = m.group(1), m.group(2), m.group(3)
@@ -147,7 +154,7 @@ def parse(path):
         "witnessed": witnessed, "proved": answered - witnessed if kw != "BOUND" else "",
         "open": len(open_bounds),
         "petrispot": petrispot, "walk calls": walk[0], "walk asked": walk[1],
-        "walk solved": walk[2], "walk ms": walk[3],
+        "walk solved": walk[2], "walk ms": walk[3], "last": last,
     })
     for q, col in ((0.25, "t25(ms)"), (0.5, "t50(ms)"), (0.75, "t75(ms)"), (1.0, "t100(ms)")):
         need = int(atoms * q + 0.999999) if atoms else 0
