@@ -767,8 +767,11 @@ The number behind this section: on ResIsolation-PT-N10P4 with 1 000
 distinct transitions in about 550 000 steps, out of 147 855; the union claims
 about 125 targets whatever the size of the target set. The walk is not slow
 at exploring, it is not exploring: uniform choice among the enabled
-transitions keeps it cycling in a region of ninety transitions. The runs also
-report 0 resets: with `runLength` at a million steps and 27 steps/ms, a thread
+transitions keeps it cycling in a region of ninety transitions. The net says
+why: one token in one of its 445 places initially, one transition enabled;
+399 transitions have a single input place and 147 456 have fourteen, so the
+uniform walk lives among the cheap ones and almost never assembles the
+fourteen-place conjunction a big one needs. The runs also report 0 resets: with `runLength` at a million steps and 27 steps/ms, a thread
 never restarts inside the 30 to 60 s the cluster gives a call, so the shared
 pool never receives or serves a state there. Whatever the target cost, this
 is where the twenty minutes of a long run would go.
