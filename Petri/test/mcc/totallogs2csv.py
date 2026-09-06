@@ -156,28 +156,34 @@ def parse(path):
     return run, atoms, verdict
 
 
+def write_oracle_to(f, run, atoms, verdict):
+    """The answers as a vector oracle, wrapped at 80 columns, on an open file."""
+    exam = run["Examination"]
+    f.write(f"{run['Model']} {exam}\n{KEYWORD[exam]}\n")
+    if exam == "UpperBoundsAll":
+        toks = [verdict[i][0] if i in verdict else "?" for i in range(atoms)]
+        line = ""
+        for t in toks:
+            if len(line) + len(t) + 1 > 80:
+                f.write(line + "\n")
+                line = t
+            else:
+                line = t if not line else line + " " + t
+        f.write(line + "\n")
+    else:
+        chars = "".join(verdict[i][0][0] if i in verdict else "?" for i in range(atoms))
+        for i in range(0, atoms, 80):
+            f.write(chars[i:i + 80] + "\n")
+
+
 def write_oracle(outdir, run, atoms, verdict):
-    """The answers as a vector oracle, wrapped at 80 columns."""
+    """The vector oracle as <model>-<QLA|SMA|UBA>.out in outdir."""
     exam = run["Examination"]
     if exam not in SUFFIX or not atoms:
         return
     path = os.path.join(outdir, f"{run['Model']}-{SUFFIX[exam]}.out")
     with open(path, "w") as f:
-        f.write(f"{run['Model']} {exam}\n{KEYWORD[exam]}\n")
-        if exam == "UpperBoundsAll":
-            toks = [verdict[i][0] if i in verdict else "?" for i in range(atoms)]
-            line = ""
-            for t in toks:
-                if len(line) + len(t) + 1 > 80:
-                    f.write(line + "\n")
-                    line = t
-                else:
-                    line = t if not line else line + " " + t
-            f.write(line + "\n")
-        else:
-            chars = "".join(verdict[i][0][0] if i in verdict else "?" for i in range(atoms))
-            for i in range(0, atoms, 80):
-                f.write(chars[i:i + 80] + "\n")
+        write_oracle_to(f, run, atoms, verdict)
 
 
 def main():

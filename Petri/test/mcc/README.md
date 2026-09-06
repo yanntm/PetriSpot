@@ -13,6 +13,9 @@ those logs into tables we can analyse.
   witnessed/proved split, the engine that closed them and the time at which a
   quarter, half, three quarters and all were closed; `--oracles DIR` also
   writes the answers as vector oracles in the `pnmcc-models-2026` format.
+* `log2oracle.py` — one harness log of a total examination into its oracle
+  file, the run's answers as the vector and `?` where it said nothing; the
+  same writer as the collector's `--oracles`, for a single run.
 * `toolsupport.py` — joins a `verdicts.csv` with the contest's
   `raw-result-analysis.csv` (in `pnmcc-models-20xx/website/`) and writes
   `support.csv`: for every value, which tools produced the oracle verdict
