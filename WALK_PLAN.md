@@ -763,6 +763,16 @@ Directions to weigh, none decided:
   bursts from pool states; and a restart state published whenever an epsilon
   move is taken, so the diversion is remembered as a branching point rather
   than suffered.
+* **Thread roles (2026-09-06).** Restarts now come in two kinds: the wall
+  clock keeps the marking (the strategy forgets, the walk goes on), the step
+  budget and the novelty stall leave it. The next shape of the portfolio is
+  roles rather than strategies: a few threads with long runs and a long
+  memory (depth), more threads with small step budgets that draw their start
+  from the pool and focus on one target (width), the same choice strategy on
+  all. Counters of what each role yields, claims and new transitions per
+  second, steer the mix during the run: the depth against width balance found
+  by measurement, not fixed. `runPortfolio` then takes a policy per thread
+  instead of one for all.
 * **The deadlock dual.** A deadlock is every process parked in a local state
   with no self-move and whose synchronisations lack their partners. The quest
   per component is "reach the nearest local sink" then freeze; barriers are

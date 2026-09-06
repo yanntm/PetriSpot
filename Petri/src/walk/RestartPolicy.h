@@ -30,7 +30,17 @@ class RestartPolicy
 public:
   virtual ~RestartPolicy () = default;
   virtual bool shouldRestart (const RunView &v) const = 0;
-  /** How often this policy ended a run; for the report. */
+  /**
+   * Whether the restart this policy asks for keeps the marking: the strategy
+   * forgets (counters, tabu, current target), the walk goes on from where it
+   * stands, a reachable state and, for a quest sweep, all of its progress.
+   * False restores the initial marking or a pooled state.
+   */
+  virtual bool keepsMarking () const
+  {
+    return false;
+  }
+  /** What this policy is; for the report. */
   virtual std::string describe () const = 0;
 };
 
@@ -68,9 +78,14 @@ public:
   {
     return millis != 0 && v.runMillis >= millis;
   }
+  /** The clock says the strategy has had its turn, not that the state is bad. */
+  bool keepsMarking () const override
+  {
+    return true;
+  }
   std::string describe () const override
   {
-    return "wall " + std::to_string (millis) + " ms";
+    return "wall " + std::to_string (millis) + " ms, in place";
   }
 };
 
@@ -108,6 +123,18 @@ public:
   {
     for (const auto &p : policies)
       if (p->shouldRestart (v)) return true;
+    return false;
+  }
+  /** As the first policy that asks for the restart says. */
+  bool keepsMarking () const override
+  {
+    return false;
+  }
+  /** The verdict of the first policy asking for a restart on this view. */
+  bool keepsMarking (const RunView &v) const
+  {
+    for (const auto &p : policies)
+      if (p->shouldRestart (v)) return p->keepsMarking ();
     return false;
   }
   std::string describe () const override

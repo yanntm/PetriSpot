@@ -46,6 +46,7 @@ struct WalkStats
   uint64_t targetChecks = 0; // goal evaluations
   uint64_t saturations = 0;  // updates that fired a transition more than once
   uint64_t policyResets = 0; // runs ended by the restart policy (the others: dead ends, stalls)
+  uint64_t inPlaceResets = 0; // of which the marking was kept, the strategy alone restarting
   uint64_t distinctFired = 0; // transitions fired at least once, a coverage measure of the walk
   uint64_t rareEvents = 0;   // first firings, by anyone, of a transition
 };
@@ -163,6 +164,17 @@ template<typename T>
         // when traces are off (a pooled restart then yields no witness trace)
         pool->publish (scratchMarking, h, std::vector<uint32_t> ());
       }
+    }
+
+    /** The strategy forgets, the walk goes on from the current marking. */
+    void resetInPlace ()
+    {
+      publishRun ();
+      if (tracker) {
+        tracker->merge ();
+        tracker->resetNovelty ();
+      }
+      strategy.onReset ();
     }
 
     void reset (WalkStats *st = nullptr)
@@ -343,6 +355,7 @@ template<typename T>
       WalkContext<T> ctx { net, marking, enabled, rng, knowledge, tracker ? &tracker->localCounts () : nullptr };
       StepBudget fallback (budget.runLength);
       const RestartPolicy &policy = restartPolicy ? *restartPolicy : fallback;
+      const AnyOf *composite = dynamic_cast<const AnyOf*> (&policy);
       uint64_t runSteps = 0;
       uint64_t iterations = 0;
       uint64_t ms = 0, runStartMs = 0; // wall clock, refreshed every 1024 iterations
@@ -365,6 +378,13 @@ template<typename T>
           if (policyEnd) ++st.policyResets;
           runSteps = 0;
           runStartMs = ms;
+          bool inPlace = policyEnd && (composite ? composite->keepsMarking (view) : policy.keepsMarking ());
+          if (inPlace) {
+            ++st.inPlaceResets;
+            resetInPlace ();
+            refill ();
+            continue;
+          }
           reset (&st);
           refill ();
           // back at the initial marking nothing has changed since the first check

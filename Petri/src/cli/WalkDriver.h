@@ -139,6 +139,7 @@ template<typename T>
           << (st.steps ? st.targetChecks / st.steps : 0) << " checks/step, "
           << st.distinctFired << " distinct transitions fired, " << st.rareEvents << " rare events"
           << (st.policyResets ? ", " + std::to_string (st.policyResets) + " runs ended by the policy" : "")
+          << (st.inPlaceResets ? " (" + std::to_string (st.inPlaceResets) + " in place)" : "")
           << (st.saturations ? ", " + std::to_string (st.saturations) + " saturated" : "") << ")";
       if (rep.strategy != "random") std::cout << ", best heuristic " << rep.minHeuristic;
       if (!rep.notes.empty ()) std::cout << ", " << rep.notes;
