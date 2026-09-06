@@ -336,3 +336,46 @@ restarts went from 0 to 19 per thread and the distinct transitions fired from
 about 90 to 153 per thread, with the rare and the uniform choice alike. 153 is
 where every 147 000-transition instance of the family stops, on the cluster as
 here: a gate of the model (WALK_PLAN.md section 10), not of the choice.
+
+## Components and quests
+
+`Components` reads the net as sequential processes from its P-flows (computed
+in-process by the invariant engine when a strategy asks, `--strategy=sync`):
+a flow with non-negative coefficients is a component, its places the local
+states, its value at the initial marking the tokens it carries. A transition
+that takes from a component and gives back to it is a local move of that
+process; one touching several components synchronises them (its *sync
+degree*). Each component has a local graph, and `questDistances(c, p)` gives
+every place of `c` its shortest path to `p` by the process's own moves, or,
+where only synchronisations lead there, the distance over every move plus a
+large offset: a process that can walk alone is driven first, one behind a
+barrier still knows which way to lean. A degree profile signature groups
+components that look alike.
+
+`ComponentStrategy` (`sync`) walks toward a goal that is a conjunction of
+`place >= k` atoms, one quest per atom: the process holding the place is
+driven to it. The distance of a marking is the sum over the unsatisfied quests
+of the process's distance to its place; the choice is greedy on the distance
+after firing among a few sampled enabled transitions (`--sample`, 16), with
+an epsilon share of random moves that never undo a satisfied quest. A
+satisfied quest *freezes* its process: a transition taking tokens from the
+place is refused, so the processes arrive one by one and wait, and a product
+of arrival chances becomes a sum.
+
+When the goal places lie behind barriers, the strategy works in *stages*.
+Among the barriers whose pre-places every process can reach alone from where
+it stands, it picks the one whose outcome, the marking it produces, brings the
+goal closest by the summed component distance, the cheapest to align among
+equals; its pre-places become the quests, it is fired the moment it is
+enabled, and the next stage is chosen. A barrier whose crossing did not lower
+the goal distance is not chosen again in the run (a tabu list, cleared at the
+reset), and a process standing where its place is unreachable ends the run.
+The relaxed plan was tried for the stage choice and rejected: the delete
+relaxation lets a process be in two places at once, so it never sees that a
+barrier moves processes away and it cycles between two barriers.
+
+Measured on ResIsolation-PT-N10P4 (147 855 transitions, 14 processes behind
+a chain of 13 forks, 147 456 fourteen-way barriers): three barriers that
+random, best-first and relaxed-plan walks never fired, nor 1800 s of every
+engine on the cluster, fire in 93 to 108 steps, 8 to 14 s on 4 threads. A
+step costs about 50 ms there: the stage choice scans every barrier.

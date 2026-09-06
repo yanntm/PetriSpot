@@ -20,6 +20,12 @@ the data structures and the step.
   coverage, steps since a new transition, the marking of the last rare event.
 * `RestartPolicy.h` — when a run ends: step budget, wall clock, novelty stall,
   any of them; injected into the walker.
+* `Components.h` — the net as processes, from its P-flows: local graphs,
+  local distances to a place, synchronisation degree of transitions, a
+  signature for look-alike components.
+* `ComponentStrategy.h` — `sync`: one quest per goal atom, processes driven
+  to their places and frozen there, stages through the barriers whose outcome
+  brings the goal closest, a tabu on the barriers that did not help.
 * `GoalDistance.h` — distance interface, `MarkingDistance` (expression distance).
 * `StructuralDistance.h` — hop-based refinement for `place >= k` atoms.
 * `DeadlockStrategy.h` — greedy descent of the enabled-transition count, the

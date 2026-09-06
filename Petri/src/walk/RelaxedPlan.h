@@ -257,6 +257,11 @@ template<typename T>
     {
       return helpful;
     }
+    /** Relaxed cost of marking p from the last computed marking; INF when unreachable. */
+    uint32_t placeCost (size_t p) const
+    {
+      return placeStamp[p] == epoch ? cost[p] : INF;
+    }
     const std::vector<uint32_t>& plan () const
     {
       return planTransitions;

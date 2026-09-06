@@ -941,9 +941,16 @@ campaign, then the campaign itself through the `campaign/` pages.
 3. **One strategy.** Activity scores, relaxed-plan bumping on stalls, the mix
    of age, rarity and activity as the single strategy on every thread; retire
    `--strategies` when it is beaten on the yardsticks.
-4. **Components.** Unit semiflows from the engine at walk start (time-boxed,
-   `--useCompression`), the component-local distance as a `GoalDistance`,
-   freezing. First on ResIsolation and Erlangen.
+4. **Components** (first cut done 2026-09-06: `Components.h`,
+   `ComponentStrategy.h`, `--strategy=sync`, P-flows from the engine at walk
+   start). Quests with freezing and stages through barriers chosen by the
+   goal distance of their outcome, with a tabu on barriers that did not help.
+   On ResIsolation-PT-N10P4 three fourteen-way joins never reached by any
+   other means fire in about 95 steps, 8 to 14 s on 4 threads. Open: the
+   50 ms step (the stage choice scans every barrier; group barriers by
+   pre-set), the sweep integration (a quest that reaches a pre-set claims
+   every join sharing it, but the round budget must let a quest finish),
+   semiflows with compression where flows are too many, Erlangen.
 5. **Projections.** Local state graphs, ordered guides, structural
    impossibility as a dropped target and as a hint line to the Java side
    (INTEROP.md gains a keyword).

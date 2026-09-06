@@ -34,6 +34,8 @@
 #include "walk/SharedPool.h"
 #include "walk/Strategy.h"
 #include "walk/StructuralDistance.h"
+#include "walk/Components.h"
+#include "walk/ComponentStrategy.h"
 #include "walk/Knowledge.h"
 #include "walk/NoveltyTracker.h"
 #include "walk/RareStrategy.h"
@@ -46,7 +48,7 @@ namespace petri::walk
 
 struct StrategySpec
 {
-  std::string name;      // random | bestfirst | structural | relaxed | parikh
+  std::string name;      // random | rare | bestfirst | structural | relaxed | parikh | sync
   bool saturate = false; // "+sat": fire the chosen transition as many times as possible
   unsigned epsilon = 10; // percent of random moves (heuristic strategies)
   uint64_t stall = 0;    // restart after this many steps without improvement
@@ -112,10 +114,21 @@ template<typename T>
     BestFirstStrategy<T> *bestFirst = nullptr;
     RelaxedPlanStrategy<T> *relaxed = nullptr;
     DeadlockStrategy<T> *deadlock = nullptr;
+    ComponentStrategy<T> *sync = nullptr;
+
+    /** Strategy specific counters for the report; empty when there are none. */
+    std::string notes () const
+    {
+      if (sync)
+        return "stages " + std::to_string (sync->replans) + ", barriers fired " + std::to_string (sync->barriersFired)
+            + ", stranded " + std::to_string (sync->hopeless) + ", refusals " + std::to_string (sync->refusals);
+      return "";
+    }
 
     /** Best heuristic value seen (instrumentation), or 0 for random. */
     uint64_t minHeuristic () const
     {
+      if (sync) return sync->minDistance == std::numeric_limits<uint64_t>::max () ? 0 : sync->minDistance;
       if (bestFirst) return bestFirst->minDistance;
       if (relaxed) return relaxed->minHeuristic;
       if (deadlock) return deadlock->minEnabled == std::numeric_limits<uint64_t>::max () ? 0 : deadlock->minEnabled;
@@ -131,11 +144,31 @@ template<typename T>
  * a known limit becomes best-first on the value of the form (BoundDistance).
  */
 template<typename T>
-  StrategyBundle<T> makeStrategy (const StrategySpec &spec, const WalkNet<T> &net, const Target<T> *focus)
+  StrategyBundle<T> makeStrategy (const StrategySpec &spec, const WalkNet<T> &net, const Target<T> *focus,
+                                  const Components<T> *components = nullptr)
   {
     StrategyBundle<T> b;
     b.spec = spec;
     const std::string &n = spec.name;
+    if (n == "sync" && focus && !focus->isDeadlock () && !focus->isBound () && components) {
+      // one process per atom, driven to its place and held there
+      auto s = std::make_unique<ComponentStrategy<T>> (net, *components, focus->expression (), spec.epsilon,
+                                                        spec.sample, spec.stall);
+      if (s->supported ()) {
+        b.sync = s.get ();
+        b.strategy = std::move (s);
+        return b;
+      }
+      // not a conjunction of place >= k atoms: fall back to the marking distance
+      StrategySpec fallback = spec;
+      fallback.name = "bestfirst";
+      return makeStrategy (fallback, net, focus, components);
+    }
+    if (n == "sync") {
+      StrategySpec fallback = spec;
+      fallback.name = focus ? "bestfirst" : "rare";
+      return makeStrategy (fallback, net, focus, components);
+    }
     if (n == "parikh") {
       if (focus && focus->hasHint ()) {
         b.strategy = std::make_unique<ParikhStrategy<T>> (net, focus->getHint ());
@@ -188,6 +221,7 @@ template<typename T>
 struct ThreadReport
 {
   std::string strategy;
+  std::string notes;
   WalkStats stats;
   uint64_t minHeuristic = 0;
   bool found = false;   // claimed the focus
@@ -237,7 +271,8 @@ template<typename T>
                                    uint64_t debugSteps,
                                    const std::function<void (const Claim<T>&)> &onClaim = {},
                                    size_t partitionMin = PARTITION_MIN, Knowledge *knowledge = nullptr,
-                                   const RestartPolicy *restartPolicy = nullptr)
+                                   const RestartPolicy *restartPolicy = nullptr,
+                                   const Components<T> *components = nullptr)
   {
     PortfolioResult<T> out;
     out.reports.resize (threads);
@@ -248,8 +283,12 @@ template<typename T>
     const bool partition = focus == NO_FOCUS && threads > 1 && partitionMin > 0 && targets.size () >= partitionMin;
 
     auto body = [&] (unsigned i) {
-      StrategyBundle<T> bundle = makeStrategy (specs[i % specs.size ()], net, focusTarget);
+      StrategyBundle<T> bundle = makeStrategy (specs[i % specs.size ()], net, focusTarget, components);
       if (bundle.relaxed && i == 0) bundle.relaxed->debugSteps = debugSteps;
+      if (bundle.sync && i == 0 && debugSteps > 0) {
+        bundle.sync->debugSteps = debugSteps;
+        bundle.sync->describe (std::cerr, Marking<T> (net.initialMarking ()));
+      }
       std::string label = bundle.spec.label ();
       std::vector<uint32_t> subset;
       if (partition) {
@@ -287,6 +326,7 @@ template<typename T>
       rep.strategy = label;
       rep.stats = res.stats;
       rep.minHeuristic = bundle.minHeuristic ();
+      rep.notes = bundle.notes ();
       rep.found = res.found;
       rep.claims = res.claims;
     };

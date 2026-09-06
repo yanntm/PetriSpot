@@ -23,6 +23,8 @@
 #include "expr/SexprPrinter.h"
 #include "parse/PropertyFile.h"
 #include "parse/sexpr/HintReader.h"
+#include "invariants/InvariantMiddle.h"
+#include "walk/Components.h"
 #include "walk/Knowledge.h"
 #include "walk/Portfolio.h"
 #include "walk/RestartPolicy.h"
@@ -43,6 +45,29 @@ template<typename T>
       os << pnames[m.keyAt (i)];
       if (m.valueAt (i) != 1) os << "=" << m.valueAt (i);
     }
+  }
+
+/**
+ * The processes of the net from its P-flows, when a strategy of the pool
+ * wants them ("sync"): the invariant engine runs in-process, time-boxed, and
+ * the decomposition is printed. Null otherwise.
+ */
+template<typename T>
+  std::unique_ptr<petri::walk::Components<T>> buildComponents (const Options &o, const SparsePetriNet<T> &pn,
+                                                               const petri::walk::WalkNet<T> &wnet,
+                                                               const std::vector<petri::walk::StrategySpec> &specs)
+  {
+    bool wanted = false;
+    for (const auto &s : specs) wanted = wanted || s.name == "sync";
+    if (!wanted) return nullptr;
+    auto time = std::chrono::steady_clock::now ();
+    MatrixCol<T> sumMatrix = MatrixCol<T>::sumProd (-1, pn.getFlowPT (), 1, pn.getFlowTP ());
+    auto [mat, perms] = InvariantMiddle<T>::computePInvariants (sumMatrix, false, std::min<long> (o.timeout, 60),
+                                                                o.heuristic (false));
+    auto comps = std::make_unique<petri::walk::Components<T>> (wnet, mat);
+    std::cout << "Flows: " << mat.getColumnCount () << " P-flows in " << millisSince (time) << " ms. ";
+    comps->printStats (std::cout);
+    return comps;
   }
 
 /** The strategy pool of the options: --strategies, else --strategy, else the default pool. */
@@ -87,6 +112,7 @@ template<typename T>
           << (st.policyResets ? ", " + std::to_string (st.policyResets) + " runs ended by the policy" : "")
           << (st.saturations ? ", " + std::to_string (st.saturations) + " saturated" : "") << ")";
       if (rep.strategy != "random") std::cout << ", best heuristic " << rep.minHeuristic;
+      if (!rep.notes.empty ()) std::cout << ", " << rep.notes;
       if (rep.claims > 1 || (rep.claims == 1 && !rep.found)) std::cout << ", " << rep.claims << " targets claimed";
       std::cout << "." << std::endl;
     }
@@ -129,7 +155,7 @@ template<typename T>
   petri::walk::PortfolioResult<T> runWalk (const Options &o, const petri::walk::WalkNet<T> &wnet, petri::walk::TargetSet<T> &targets,
                 uint32_t focus, const petri::walk::WalkBudget &budget,
                 const std::vector<petri::walk::StrategySpec> &specs, petri::walk::Knowledge *knowledge,
-                const petri::walk::RestartPolicy *policy)
+                const petri::walk::RestartPolicy *policy, const petri::walk::Components<T> *components = nullptr)
   {
     std::unique_ptr<petri::walk::SharedPool<T>> pool;
     if (o.share > 0) pool = std::make_unique<petri::walk::SharedPool<T>> (o.share, o.shareProb);
@@ -138,7 +164,7 @@ template<typename T>
     };
     petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, targets, focus, specs, o.threads, budget,
                                                                      o.seed, pool.get (), o.debugSteps, onClaim,
-                                                                     o.partition, knowledge, policy);
+                                                                     o.partition, knowledge, policy, components);
     printReports (o, res);
     if (pool) {
       std::cout << "Shared pool: " << pool->publishedCount () << " published, " << pool->drawnCount ()
@@ -266,6 +292,7 @@ template<typename T>
     std::vector<petri::walk::StrategySpec> hintSpecs = petri::walk::parseStrategySpecs (o.hintStrategies, o.epsilon,
                                                                                          o.stall, o.sample);
     std::vector<petri::walk::StrategySpec> sweepSpecs = petri::walk::parseStrategySpecs (o.sweepChoice, 0, 0, o.sample);
+    std::unique_ptr<petri::walk::Components<T>> components = buildComponents (o, pn, wnet, specs);
     // one memory for the whole file: the sweep and every round add to it
     petri::walk::Knowledge knowledge (wnet.transitionCount ());
     petri::walk::AnyOf sweepPolicy, roundPolicy;
@@ -324,7 +351,7 @@ template<typename T>
         if (targets.isSolved (k)) continue; // claimed on the way to another focus
         petri::walk::PortfolioResult<T> res = runWalk (o, wnet, targets, k, budget,
                                                        targets.target (k).hasHint () ? hintSpecs : specs,
-                                                       &knowledge, &roundPolicy);
+                                                       &knowledge, &roundPolicy, components.get ());
         printBounds (false);
         if (!stepBound (res, budget)) allStepBound = false;
         if (totalMs > 0 && elapsedMs () >= totalMs) break;
