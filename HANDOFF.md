@@ -49,10 +49,12 @@ this for where everything lives and what is in flight.
   51 %, SMA 89 %, UBA 54 % filled. Cross-checks against the consensus:
   `totalcheck.csv` 1484 QLA + 1603 SMA confirmed, `ubacheck.csv` 22 933
   bounds confirmed, 0 contradictions either way.
-* **Web report.** The user wants an interactive page rather than markdown or
-  pdf; `Petri/test/mcc/WEBREPORT.md` is the design (DataTables + Plotly +
-  Jinja2 as MCC-analysis does, one self-contained page per campaign folder),
-  awaiting the user's comments before code.
+* **Web report.** Prototype in `~/git/MCC-analysis/campaign/` (pushed):
+  `build.py example.json` builds one page per examination into
+  `/data/ythierry/MCC26run/pages/` from result sets (our log directories,
+  contest tools), `serve.py` serves them and the logs on 127.0.0.1:8080 for
+  an SSH tunnel. Next: the total examinations, more sets (flag variants),
+  whatever the user asks after a first look.
 * **Findings to act on** (details in the two READMEs): UBA has 313 wall runs
   that never reach a walk, stalled after the invariants; QLA's residue is
   seven families where one SMT call on 79 k atoms eats 687 s for nothing;
