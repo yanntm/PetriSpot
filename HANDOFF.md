@@ -36,13 +36,13 @@ master after product `202609061624`:
    492 694 of 508 489 (45 444).
 
 **The rerun in progress (SMA, UBA, RD, QL, SM, OS) started on product
-`202609061624`, which carries both problems.** At 21:50 the `petri64` inside
+`202609061624`, which carries both problems.** At 21:25 the `petri64` inside
 the deployed product was replaced, without an ITS-Tools rebuild, by the
 CI-built static binary of master `6a5d288` taken from `Inv-Linux` (checksum
 `c90125eb9772`; the 1624 binary kept as
 `/data/ythierry/MCC26deploy/product-check/petri64-1624`), and the tree rsynced
 to the cluster: jobs starting after that, and running jobs at their next
-walker call, use the fixed walker; QLA and the SMA/UBA runs before 21:50 do
+walker call, use the fixed walker; QLA and the SMA/UBA runs before 21:25 do
 not. A log's binary is told by its `Version` line only for the Java side;
 the walker's thread report line says `condemned` from `5ade6af` on and the
 `Components: N of M semiflows` line from `6a5d288` on. Local models for the cases: `/data/ythierry/rers/`
