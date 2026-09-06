@@ -4,6 +4,34 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-06, 17:30: the product carries master, one walker fix on top
+
+The CI chain ran once more: ITS-Tools product `202609061502` ships the
+`petri64` of PetriSpot `42ad9cc` (checksum matched against `Inv-Linux`), with
+both Java fixes; it is installed in `/data/ythierry/MCC26deploy/MCC-drivers/
+itstools/` (install log `/data/ythierry/MCC26deploy/install-2026-09-06c.log`),
+not yet rsynced to the cluster. LTLF was still draining (845 waiting at
+17:00, about 450 jobs an hour); CTLC and CTLF were deleted, their directories
+are empty.
+
+**Found while smoking the product on ResIsolation-PT-N10P4 QLA** (harness,
+90 s): 148 QLIVE verdicts, the campaign's level, while the same binary claims
+50 000 targets standalone in 30 s. The Java hands the walker the atoms as
+`(and (== p 1) ...)` over the pre-places (fireability on a safe net, 95 602
+distinct pre-sets for 147 855 transitions), and `QuestSweep::distance` ranked
+only `>=` atoms: every goal was UNREACHED, the threads walked on the rarity
+filler. Fixed in PetriSpot `7652b2e` (`ComponentStrategy::questNeed` shared by
+the quests and the ranking): 50 319 verdicts in the same 90 s. The captured
+inputs are in `/data/ythierry/resiso/javahand/` (the `.pnet` and `.sexpr` the
+Java wrote); logs `Petri/test/logs/yardstick-javahand-*.log`,
+`/data/ythierry/MCC26deploy/smoke-resiso-QLA-*.log`. **The chain must run
+again for `7652b2e`** (PetriSpot push, `Inv-Linux`, an empty commit on
+ITS-Tools master, reinstall) before the rsync and the QLA rerun.
+
+Also measured: the 1 000-target yardstick at `42ad9cc` claims 668 in 20 s
+where the `a1b1732` binary claims 1 000 in 4.3 s (`Petri/test/logs/
+yardstick-1000-*.log`); the regression is in `9d8cf28`..`42ad9cc`, untouched.
+
 ## State at the end of 2026-09-06 (about 16:45)
 
 **Code.** PetriSpot master carries, beyond what the morning shipped: quests
