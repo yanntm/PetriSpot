@@ -199,7 +199,7 @@ inline void addOptions (CLI::App &app, Options &o)
                   "seconds (default 1, 0 disables).");
   wk->add_option ("--sweepChoice", o.sweepChoice,
                   "Transition choice of the sweep: rare (the least fired of a few sampled, the oldest enabled "
-                  "among equals) or random (default rare).");
+                  "among equals), random, or sync (quests toward the nearest open targets, one per thread) (default rare).");
   wk->add_option ("--runTime", o.runTime, "Wall clock budget of one run before a restart, ms (default 1000, 0 none).");
   wk->add_option ("--noveltyStall", o.noveltyStall,
                   "Sweep: restart after this many steps without firing a new transition (default 100000, 0 never).");

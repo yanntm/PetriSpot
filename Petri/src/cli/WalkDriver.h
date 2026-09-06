@@ -57,7 +57,7 @@ template<typename T>
                                                                const petri::walk::WalkNet<T> &wnet,
                                                                const std::vector<petri::walk::StrategySpec> &specs)
   {
-    bool wanted = false;
+    bool wanted = o.sweepChoice == "sync";
     for (const auto &s : specs) wanted = wanted || s.name == "sync";
     if (!wanted) return nullptr;
     auto time = std::chrono::steady_clock::now ();
@@ -327,7 +327,7 @@ template<typename T>
       std::cout << "Sweep: " << targets.openCount () << " open properties, " << ms << " ms of " << o.sweepChoice
           << " walks, restarts on " << sweepPolicy.describe () << "." << std::endl;
       budget.timeoutMillis = static_cast<uint64_t> (ms);
-      runWalk (o, wnet, targets, NO_FOCUS, budget, sweepSpecs, &knowledge, &sweepPolicy);
+      runWalk (o, wnet, targets, NO_FOCUS, budget, sweepSpecs, &knowledge, &sweepPolicy, components.get ());
       if (!o.quiet)
         std::cout << "Sweep done: " << knowledge.distinctFired () << " distinct transitions fired by all threads." << std::endl;
       printBounds (false);

@@ -386,3 +386,14 @@ nor 1800 s of every engine on the cluster, fire in about 95 steps, 2.7 to
 7.5 s including the parse; ErlangenMainframeV2-PT-bP10C08 (79 094
 transitions, 28 processes, 78 737 barriers of degree 12 or 13), three
 transitions the campaign left open fire in 4.7 to 11.3 s.
+
+`QuestSweep` (`--sweepChoice=sync`) is the sweep as a sequence of quests:
+with no focus given, it ranks the open targets by the summed component
+distance of their atoms from where the processes stand, takes the target of
+its thread's rank so that four threads chase four targets, and runs a
+`ComponentStrategy` toward it; when the target is claimed, the quest gives up
+or the run restarts, it picks again. Every target satisfied on the way is
+claimed by the walker, so a quest that reaches a shared pre-set claims every
+transition on it. On ResIsolation-PT-N10P4, 4 threads: 1 000 `fireable`
+targets all claimed in 7 s, 31 172 of 95 000 in 30 s, where the uniform and
+the rarity sweeps claimed about 129 whatever the budget.

@@ -949,11 +949,14 @@ campaign, then the campaign itself through the `campaign/` pages.
    On ResIsolation-PT-N10P4 three fourteen-way joins never reached by any
    other means fire in about 95 steps, 2.7 to 7.5 s on 4 threads; on
    ErlangenMainframeV2-PT-bP10C08 three transitions the campaign left open
-   fire in 4.7 to 11.3 s. Open: the sweep integration (a quest that reaches a
-   pre-set claims every join sharing it, but the round budget must let a
-   quest finish: a quest sweep picking open targets in turn), compression
-   where semiflows are too many, the other families of section 9, `sync` as
-   one arm of the guided portfolio rather than a whole-run choice.
+   fire in 4.7 to 11.3 s. `QuestSweep.h` (`--sweepChoice=sync`) picks open
+   targets in turn, nearest first, one per thread: the 1 000-target yardstick
+   is claimed in full in 7 s and 31 172 of 95 000 targets in 30 s, against
+   129 before. Open: compression where semiflows are too many, the other
+   families of section 9, `sync` as one arm of the guided portfolio, and the
+   self-configuration of section 10 (which sweep, which strategies, from the
+   goals, the net, the wall time and the cores) so that the Java side need
+   not choose.
 5. **Projections.** Local state graphs, ordered guides, structural
    impossibility as a dropped target and as a hint line to the Java side
    (INTEROP.md gains a keyword).

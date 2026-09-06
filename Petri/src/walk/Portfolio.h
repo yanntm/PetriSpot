@@ -38,6 +38,7 @@
 #include "walk/ComponentStrategy.h"
 #include "walk/Knowledge.h"
 #include "walk/NoveltyTracker.h"
+#include "walk/QuestSweep.h"
 #include "walk/RareStrategy.h"
 #include "walk/RestartPolicy.h"
 #include "walk/TargetSet.h"
@@ -115,6 +116,7 @@ template<typename T>
     RelaxedPlanStrategy<T> *relaxed = nullptr;
     DeadlockStrategy<T> *deadlock = nullptr;
     ComponentStrategy<T> *sync = nullptr;
+    QuestSweep<T> *sweep = nullptr;
 
     /** Strategy specific counters for the report; empty when there are none. */
     std::string notes () const
@@ -122,6 +124,7 @@ template<typename T>
       if (sync)
         return "stages " + std::to_string (sync->replans) + ", barriers fired " + std::to_string (sync->barriersFired)
             + ", stranded " + std::to_string (sync->hopeless) + ", refusals " + std::to_string (sync->refusals);
+      if (sweep) return "quests " + std::to_string (sweep->retargets) + ", own target claimed " + std::to_string (sweep->claimedOwn);
       return "";
     }
 
@@ -145,11 +148,19 @@ template<typename T>
  */
 template<typename T>
   StrategyBundle<T> makeStrategy (const StrategySpec &spec, const WalkNet<T> &net, const Target<T> *focus,
-                                  const Components<T> *components = nullptr)
+                                  const Components<T> *components = nullptr, const TargetSet<T> *targets = nullptr,
+                                  unsigned rank = 0)
   {
     StrategyBundle<T> b;
     b.spec = spec;
     const std::string &n = spec.name;
+    if (n == "sync" && !focus && components && targets) {
+      // the sweep as quests: the strategy picks its targets itself
+      auto s = std::make_unique<QuestSweep<T>> (net, *components, *targets, rank, spec.epsilon, spec.sample, spec.stall);
+      b.sweep = s.get ();
+      b.strategy = std::move (s);
+      return b;
+    }
     if (n == "sync" && focus && !focus->isDeadlock () && !focus->isBound () && components) {
       // one process per atom, driven to its place and held there
       auto s = std::make_unique<ComponentStrategy<T>> (net, *components, focus->expression (), spec.epsilon,
@@ -283,7 +294,7 @@ template<typename T>
     const bool partition = focus == NO_FOCUS && threads > 1 && partitionMin > 0 && targets.size () >= partitionMin;
 
     auto body = [&] (unsigned i) {
-      StrategyBundle<T> bundle = makeStrategy (specs[i % specs.size ()], net, focusTarget, components);
+      StrategyBundle<T> bundle = makeStrategy (specs[i % specs.size ()], net, focusTarget, components, &targets, i);
       if (bundle.relaxed && i == 0) bundle.relaxed->debugSteps = debugSteps;
       if (bundle.sync && i == 0 && debugSteps > 0) {
         bundle.sync->debugSteps = debugSteps;
