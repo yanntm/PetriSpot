@@ -4,6 +4,52 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-06, 21:30: the QLA rerun read, and what it taught
+
+**QLA rerun collected** into `/data/ythierry/MCC26run/2026-09-06c/QLA`
+(1 681 logs, 54 still running at 20:40; tables in
+`Petri/test/mcc/csv/2026-09-06c/`, pages rebuilt with the set
+`ITS-Tools latest` on `2026-09-06c/*` and the morning as
+`ITS-Tools 2026-09-06`). On finished runs: 113 models better, 93 worse,
+answered atoms 7.96 M -> 7.14 M. Gains where the quests shine
+(ResIsolation 153 -> 49 754 per instance, ErlangenMainframe V0 to V2,
+RERS17pb113); losses of two kinds, both reproduced locally and fixed on
+master after product `202609061624`:
+
+1. **The quest sweep loses where rarity won.** RERS17pb114-PT-1: 43 251
+   atoms in 9 s this morning (the `==` goals were unquestable, the threads
+   ran on rarity), 508 in the rerun (locally, 10 s: quests 4 088, rarity
+   30 121). Fix 78160aa: `auto` spreads sync and rare over the threads with
+   a restart policy per strategy (RERS 24 852; ResIsolation 1 000 targets in
+   13.5 s instead of 6 to 8; Erlangen full QLA 1 564 instead of 2 792). A
+   hedge: the design that replaces it is WALK_PLAN.md 10.11 (time sharing of
+   many workers over few cores, shares that follow results), to comment.
+2. **Calls of 100 to 340 s that solved nothing** (FamilyReunion, DLCflexbar,
+   DLCshifumi, MultiCrashLeafsetExtension, ServersAndClients). The
+   components built before the sweep: DLCflexbar-PT-8b's 3 040 semiflows
+   share hub places and the edge tables took 41 s and 32 GB (the cluster's
+   16 GB); FamilyReunion's phase 1 gives 113 229 flows and phase 2 never
+   ends, phase 1 having no deadline. Fix 6a5d288: a covering of the smallest
+   semiflows, refusal over `MAX_WORK`, phase 1 stops at the deadline with no
+   basis, the sweep gets the total minus the components' time. Locally:
+   DLCflexbar 76 160 of 76 160 in 35 s (8 979 in the rerun), FamilyReunion
+   492 694 of 508 489 (45 444).
+
+**The rerun in progress (SMA, UBA, RD, QL, SM, OS) runs product
+`202609061624`, which carries both problems.** Its results on those families
+are not the walker's fault to read; the chain (push done, `Inv-Linux`,
+ITS-Tools rebuild, reinstall, rsync) must run again for master `6a5d288`
+before the next campaign. Local models for the cases: `/data/ythierry/rers/`
+(RERS17pb114-PT-1), `/data/ythierry/dlc/` (DLCflexbar-PT-8b),
+`/data/ythierry/family/` (props for the example net), `/data/ythierry/dbmutex/`
+and `/data/ythierry/philo/` (deadlock tests of the LP).
+
+**LP engine** (`Petri/src/lp/`, commits 22b1d3c to a2e8ee9): sparse
+product-form basis, rows as a `MatrixCol`, branches as row overlays,
+`DeadlockRefiner`; DatabaseWithMutex PT-02 and PT-04 proved deadlock-free,
+Philosophers up to 100 give the deadlock's Parikh vector, 1 000 and beyond
+wait for the dual warm start. `--lpDebug` checks the rebuilt inverse.
+
 ## 2026-09-06, 20:00: the in-house LP engine, first prototype
 
 `Petri/src/lp/` (design in its `algorithm.md`, map in `README.md`; commit
