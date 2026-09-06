@@ -210,8 +210,9 @@ inline void addOptions (CLI::App &app, Options &o)
                   "seconds (default 1, 0 disables).");
   wk->add_option ("--sweepChoice", o.sweepChoice,
                   "Transition choice of the sweep: sync (quests toward the nearest open targets, one per thread), "
-                  "rare (the least fired of a few sampled, the oldest enabled among equals), random, or auto: sync "
-                  "when the net has processes with barriers between them, rare otherwise (default auto).");
+                  "rare (the least fired of a few sampled, the oldest enabled among equals), random, a comma list spread "
+                  "over the threads, or auto: sync,rare (sync alone on one thread) when the net has processes with "
+                  "barriers between them, rare otherwise (default auto).");
   wk->add_option ("--runTime", o.runTime, "Sweeps: wall clock budget of one sweep run before a restart, ms (default 1000, 0 none); focused rounds keep the step budget.");
   wk->add_option ("--noveltyStall", o.noveltyStall,
                   "Sweep: restart after this many steps without firing a new transition (default 100000, 0 never).");

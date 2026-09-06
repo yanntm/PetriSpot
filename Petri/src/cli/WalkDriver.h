@@ -92,11 +92,15 @@ template<typename T>
   {
     if (o.sweepChoice != "auto") return o.sweepChoice;
     if (!components || components->size () == 0 || components->barrierCount () == 0) return "rare";
+    // quests where a target can be quested; with threads to spare, half of them stay on rarity: the two
+    // sweeps win on different nets (ResIsolation 1 000 targets: quests 1 000 against 125 in 20 s;
+    // RERS17pb114-PT-1: rarity 30 000 against 4 000 in 10 s) and nothing tells which beforehand
+    std::string quests = o.threads >= 2 ? "sync,rare" : "sync";
     for (uint32_t i = 0; i < targets.size (); ++i) {
       const auto &tg = targets.target (i);
       if (tg.isDeadlock ()) continue;
-      if (tg.isBound () && tg.boundForm ().terms.size () == 1) return "sync";
-      if (!tg.isBound () && tg.expression ().kind != petri::expr::Expression::Kind::Or) return "sync";
+      if (tg.isBound () && tg.boundForm ().terms.size () == 1) return quests;
+      if (!tg.isBound () && tg.expression ().kind != petri::expr::Expression::Kind::Or) return quests;
     }
     return "rare";
   }
@@ -187,7 +191,8 @@ template<typename T>
   petri::walk::PortfolioResult<T> runWalk (const Options &o, const petri::walk::WalkNet<T> &wnet, petri::walk::TargetSet<T> &targets,
                 uint32_t focus, const petri::walk::WalkBudget &budget,
                 const std::vector<petri::walk::StrategySpec> &specs, petri::walk::Knowledge *knowledge,
-                const petri::walk::RestartPolicy *policy, const petri::walk::Components<T> *components = nullptr)
+                const petri::walk::RestartPolicy *policy, const petri::walk::Components<T> *components = nullptr,
+                const std::vector<const petri::walk::RestartPolicy*> *policies = nullptr)
   {
     std::unique_ptr<petri::walk::SharedPool<T>> pool;
     if (o.share > 0) pool = std::make_unique<petri::walk::SharedPool<T>> (o.share, o.shareProb);
@@ -199,7 +204,7 @@ template<typename T>
     };
     petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, targets, focus, specs, o.threads, budget,
                                                                      seed, pool.get (), o.debugSteps, onClaim,
-                                                                     o.partition, knowledge, policy, components);
+                                                                     o.partition, knowledge, policy, components, policies);
     printReports (o, res);
     if (pool) {
       std::cout << "Shared pool: " << pool->publishedCount () << " published, " << pool->drawnCount ()
@@ -331,11 +336,16 @@ template<typename T>
     std::vector<petri::walk::StrategySpec> sweepSpecs = petri::walk::parseStrategySpecs (sweepChoice, 0, 0, o.sample);
     // one memory for the whole file: the sweep and every round add to it
     petri::walk::Knowledge knowledge (wnet.transitionCount ());
-    petri::walk::AnyOf sweepPolicy, roundPolicy;
-    sweepPolicy.add (std::make_unique<petri::walk::StepBudget> (o.budget.runLength));
-    // a quest sweep carries its progress in the marking (the processes forked and placed): restart it rarely
-    sweepPolicy.add (std::make_unique<petri::walk::WallTime> (sweepChoice == "sync" ? o.runTime * 10 : o.runTime));
-    sweepPolicy.add (std::make_unique<petri::walk::NoveltyStall> (o.noveltyStall));
+    petri::walk::AnyOf sweepPolicy, syncPolicy, roundPolicy;
+    // a quest sweep carries its progress in the marking (the processes forked and placed): restart it rarely;
+    // the mixed sweep gives each thread the policy of its own strategy
+    for (petri::walk::AnyOf *pol : { &sweepPolicy, &syncPolicy }) {
+      pol->add (std::make_unique<petri::walk::StepBudget> (o.budget.runLength));
+      pol->add (std::make_unique<petri::walk::WallTime> (pol == &syncPolicy ? o.runTime * 10 : o.runTime));
+      pol->add (std::make_unique<petri::walk::NoveltyStall> (o.noveltyStall));
+    }
+    std::vector<const petri::walk::RestartPolicy*> sweepPolicies;
+    for (const auto &s : sweepSpecs) sweepPolicies.push_back (s.name == "sync" ? &syncPolicy : &sweepPolicy);
     // a focused round keeps the step budget alone: a deep hunt must not be cut short by the clock
     roundPolicy.add (std::make_unique<petri::walk::StepBudget> (o.budget.runLength));
 
@@ -364,7 +374,7 @@ template<typename T>
           << " walks" << (o.sweepChoice == "auto" ? " (chosen)" : "") << ", restarts on " << sweepPolicy.describe () << "."
           << std::endl;
       budget.timeoutMillis = static_cast<uint64_t> (ms);
-      runWalk (o, wnet, targets, NO_FOCUS, budget, sweepSpecs, &knowledge, &sweepPolicy, components.get ());
+      runWalk (o, wnet, targets, NO_FOCUS, budget, sweepSpecs, &knowledge, &sweepPolicy, components.get (), &sweepPolicies);
       if (!o.quiet)
         std::cout << "Sweep done: " << knowledge.distinctFired () << " distinct transitions fired by all threads." << std::endl;
       printBounds (false);

@@ -289,8 +289,10 @@ template<typename T>
                                    const std::function<void (const Claim<T>&)> &onClaim = {},
                                    size_t partitionMin = PARTITION_MIN, Knowledge *knowledge = nullptr,
                                    const RestartPolicy *restartPolicy = nullptr,
-                                   const Components<T> *components = nullptr)
+                                   const Components<T> *components = nullptr,
+                                   const std::vector<const RestartPolicy*> *policies = nullptr)
   {
+    // a policy per strategy of the pool when given (aligned with specs), else the one policy for every thread
     PortfolioResult<T> out;
     out.reports.resize (threads);
     std::atomic<bool> stop (false);
@@ -316,7 +318,7 @@ template<typename T>
       NoveltyTracker<T> tracker (net.transitionCount (), knowledge);
       walker.setTracker (&tracker);
       walker.setKnowledge (knowledge);
-      walker.setRestartPolicy (restartPolicy);
+      walker.setRestartPolicy (policies && !policies->empty () ? (*policies)[i % policies->size ()] : restartPolicy);
       walker.setPool (pool);
       walker.setSaturate (bundle.spec.saturate);
       walker.setOnClaim ([&, i, label] (uint32_t id, const Marking<T> &m, const std::vector<uint32_t> *trace) {
