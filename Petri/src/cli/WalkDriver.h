@@ -48,16 +48,20 @@ template<typename T>
   }
 
 /**
- * The processes of the net from its P-flows, when a strategy of the pool
- * wants them ("sync"): the invariant engine runs in-process, time-boxed, and
- * the decomposition is printed. Null otherwise.
+ * The processes of the net from its P-semiflows, when a strategy of the pool
+ * wants them ("sync"), when the sweep asks for them, or when the sweep is
+ * left to decide ("auto") with a few seconds of budget: the invariant engine
+ * runs in-process, time-boxed, and the decomposition is printed. Null
+ * otherwise.
  */
 template<typename T>
   std::unique_ptr<petri::walk::Components<T>> buildComponents (const Options &o, const SparsePetriNet<T> &pn,
                                                                const petri::walk::WalkNet<T> &wnet,
-                                                               const std::vector<petri::walk::StrategySpec> &specs)
+                                                               const std::vector<petri::walk::StrategySpec> &specs,
+                                                               size_t openTargets)
   {
-    bool wanted = o.sweepChoice == "sync";
+    bool wanted = o.sweepChoice == "sync"
+        || (o.sweepChoice == "auto" && openTargets >= 2 && o.sweepTime > 0 && (o.totalTime <= 0 || o.totalTime >= 5));
     for (const auto &s : specs) wanted = wanted || s.name == "sync";
     if (!wanted) return nullptr;
     auto time = std::chrono::steady_clock::now ();
@@ -69,6 +73,24 @@ template<typename T>
     std::cout << "Flows: " << mat.getColumnCount () << " P-semiflows in " << millisSince (time) << " ms. ";
     comps->printStats (std::cout);
     return comps;
+  }
+
+/**
+ * The sweep's choice when the options leave it to us: quests when the net has
+ * processes with barriers between them and the targets are conjunctions of
+ * place atoms (a fireable is one), rarity otherwise.
+ */
+template<typename T>
+  std::string chooseSweep (const Options &o, const petri::walk::Components<T> *components,
+                           const petri::walk::TargetSet<T> &targets)
+  {
+    if (o.sweepChoice != "auto") return o.sweepChoice;
+    if (!components || components->size () == 0 || components->barrierCount () == 0) return "rare";
+    for (uint32_t i = 0; i < targets.size (); ++i) {
+      const auto &tg = targets.target (i);
+      if (!tg.isDeadlock () && !tg.isBound () && tg.expression ().kind != petri::expr::Expression::Kind::Or) return "sync";
+    }
+    return "rare";
   }
 
 /** The strategy pool of the options: --strategies, else --strategy, else the default pool. */
@@ -292,8 +314,9 @@ template<typename T>
     std::vector<petri::walk::StrategySpec> specs = strategyPool (o);
     std::vector<petri::walk::StrategySpec> hintSpecs = petri::walk::parseStrategySpecs (o.hintStrategies, o.epsilon,
                                                                                          o.stall, o.sample);
-    std::vector<petri::walk::StrategySpec> sweepSpecs = petri::walk::parseStrategySpecs (o.sweepChoice, 0, 0, o.sample);
-    std::unique_ptr<petri::walk::Components<T>> components = buildComponents (o, pn, wnet, specs);
+    std::unique_ptr<petri::walk::Components<T>> components = buildComponents (o, pn, wnet, specs, targets.openCount ());
+    std::string sweepChoice = chooseSweep (o, components.get (), targets);
+    std::vector<petri::walk::StrategySpec> sweepSpecs = petri::walk::parseStrategySpecs (sweepChoice, 0, 0, o.sample);
     // one memory for the whole file: the sweep and every round add to it
     petri::walk::Knowledge knowledge (wnet.transitionCount ());
     petri::walk::AnyOf sweepPolicy, roundPolicy;
@@ -324,8 +347,9 @@ template<typename T>
     if (o.sweepTime > 0 && targets.openCount () >= 2) {
       long ms = o.sweepTime * 1000;
       if (totalMs > 0) ms = std::min (ms, totalMs);
-      std::cout << "Sweep: " << targets.openCount () << " open properties, " << ms << " ms of " << o.sweepChoice
-          << " walks, restarts on " << sweepPolicy.describe () << "." << std::endl;
+      std::cout << "Sweep: " << targets.openCount () << " open properties, " << ms << " ms of " << sweepChoice
+          << " walks" << (o.sweepChoice == "auto" ? " (chosen)" : "") << ", restarts on " << sweepPolicy.describe () << "."
+          << std::endl;
       budget.timeoutMillis = static_cast<uint64_t> (ms);
       runWalk (o, wnet, targets, NO_FOCUS, budget, sweepSpecs, &knowledge, &sweepPolicy, components.get ());
       if (!o.quiet)
@@ -427,7 +451,7 @@ template<typename T>
     petri::walk::AnyOf policy;
     policy.add (std::make_unique<petri::walk::StepBudget> (o.budget.runLength));
     policy.add (std::make_unique<petri::walk::WallTime> (o.runTime));
-    runWalk (o, wnet, targets, 0, budget, specs, &knowledge, &policy);
+    runWalk (o, wnet, targets, 0, budget, specs, &knowledge, &policy, buildComponents (o, pn, wnet, specs, 0).get ());
   }
 
 } // namespace petri::cli

@@ -78,7 +78,8 @@ template<typename T>
         const SparseArray<T> &col = flows.getColumn (c);
         bool positive = true;
         for (size_t i = 0; i < col.size (); ++i) positive = positive && col.valueAt (i) > 0;
-        if (!positive || col.size () == 0) continue;
+        // a single place is a constant, not a process
+        if (!positive || col.size () < 2) continue;
         Component k;
         for (size_t i = 0; i < col.size (); ++i) {
           k.places.push_back (col.keyAt (i));
@@ -179,6 +180,14 @@ template<typename T>
     }
 
   public:
+
+    /** Transitions synchronising at least two components: the barriers a quest must stage through. */
+    size_t barrierCount () const
+    {
+      size_t n = 0;
+      for (uint32_t d : syncDegree) n += d > 1;
+      return n;
+    }
 
     /** A few numbers on the decomposition: components, sizes, isomorphism classes, synchronisation degrees. */
     void printStats (std::ostream &os) const
