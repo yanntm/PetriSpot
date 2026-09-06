@@ -1,0 +1,10 @@
+Examination,tool,answered,correct,wrong,bonus
+ReachabilityDeadlock,BVT-2026,1893,1893,0,0
+ReachabilityDeadlock,us,1895,1884,0,11
+ReachabilityDeadlock,2025-gold,1862,1862,0,0
+ReachabilityDeadlock,ITS-Tools,1862,1862,0,0
+ReachabilityDeadlock,Tapaal,1688,1688,0,0
+ReachabilityDeadlock,petrivet,356,352,4,0
+ReachabilityDeadlock,TY,90,89,1,0
+ReachabilityDeadlock,smpt,0,0,0,0
+ReachabilityDeadlock,tedd,0,0,0,0

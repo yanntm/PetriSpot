@@ -1,0 +1,53 @@
+eclipse log,session,exception,message,Model,Examination,offset
+1788653608462.log,2026-09-06 02:13:28,java.io.FileNotFoundException,/home/ythierry/MCC26/MCC-drivers/itstools/itstools/configuration/org.eclipse.core.runtime/.mainData.,,,
+1788653608598.log,2026-09-06 02:13:28,java.io.FileNotFoundException,/home/ythierry/MCC26/MCC-drivers/itstools/itstools/configuration/org.eclipse.core.runtime/.mainData.,,,
+1788654824338.log,2026-09-06 02:33:44,java.lang.OutOfMemoryError,Java heap space,SharedMemory-COL-010000,ReachabilityDeadlock,0s after start
+1788654824676.log,2026-09-06 02:33:44,java.lang.OutOfMemoryError,Java heap space,SharedMemory-COL-010000,ReachabilityDeadlock,0s after start
+1788654824940.log,2026-09-06 02:33:44,java.lang.OutOfMemoryError,Java heap space,SharedMemory-COL-010000,ReachabilityDeadlock,0s after start
+1788654825117.log,2026-09-06 02:33:44,java.lang.OutOfMemoryError,Java heap space,SharedMemory-COL-010000,ReachabilityDeadlock,0s after start
+1788654978008.log,2026-09-06 02:36:17,java.lang.OutOfMemoryError,Java heap space,SharedMemory-COL-005000,ReachabilityDeadlock,152s after start
+1788660491468.log,2026-09-06 04:08:11,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,5513s after start
+1788660501438.log,2026-09-06 04:08:21,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,5523s after start
+1788660502942.log,2026-09-06 04:08:22,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,5524s after start
+1788660503027.log,2026-09-06 04:08:22,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,5524s after start
+1788660523042.log,2026-09-06 04:08:42,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,5544s after start
+1788660542352.log,2026-09-06 04:09:02,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,5564s after start
+1788664344967.log,2026-09-06 05:12:24,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,9366s after start
+1788664345197.log,2026-09-06 05:12:24,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,9366s after start
+1788664363691.log,2026-09-06 05:12:43,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,9385s after start
+1788664380601.log,2026-09-06 05:13:00,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,9402s after start
+1788664398476.log,2026-09-06 05:13:18,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,9420s after start
+1788664398494.log,2026-09-06 05:13:18,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,9420s after start
+1788675750469.log,2026-09-06 08:22:30,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,20772s after start
+1788675750688.log,2026-09-06 08:22:30,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityDeadlock,20772s after start
+1788675760175.log,2026-09-06 08:22:39,java.lang.OutOfMemoryError,Java heap space,FamilyReunion-COL-L03000M0300G150P150G075,ReachabilityCardinality,8s after start
+1788675760377.log,2026-09-06 08:22:40,java.lang.OutOfMemoryError,Java heap space,FamilyReunion-COL-L12000M1200C600P600G300,ReachabilityCardinality,0s after start
+1788676927248.log,2026-09-06 08:42:07,java.lang.OutOfMemoryError,Java heap space,Philosophers-COL-005000,ReachabilityCardinality,0s after start
+1788676957156.log,2026-09-06 08:42:36,java.lang.OutOfMemoryError,Java heap space,Philosophers-COL-005000,ReachabilityCardinality,29s after start
+1788677798867.log,2026-09-06 08:56:38,java.lang.OutOfMemoryError,Java heap space,PhilosophersDyn-COL-80,ReachabilityCardinality,841s after start
+1788677798873.log,2026-09-06 08:56:38,java.lang.OutOfMemoryError,Java heap space,PhilosophersDyn-COL-80,ReachabilityCardinality,841s after start
+1788677807921.log,2026-09-06 08:56:47,java.lang.OutOfMemoryError,Java heap space,RingSingleMessageInMbox-PT-d2m005,ReachabilityCardinality,8s after start
+1788677817941.log,2026-09-06 08:56:57,java.lang.OutOfMemoryError,Java heap space,RingSingleMessageInMbox-PT-d2m020,ReachabilityCardinality,9s after start
+1788677829152.log,2026-09-06 08:57:08,java.lang.OutOfMemoryError,Java heap space,RingSingleMessageInMbox-PT-d2m040,ReachabilityCardinality,10s after start
+1788677829175.log,2026-09-06 08:57:08,java.lang.OutOfMemoryError,Java heap space,RingSingleMessageInMbox-PT-d2m040,ReachabilityCardinality,10s after start
+1788678277206.log,2026-09-06 09:04:36,java.lang.OutOfMemoryError,Java heap space,RingSingleMessageInMbox-PT-d2m080,ReachabilityCardinality,447s after start
+1788678277287.log,2026-09-06 09:04:37,java.lang.OutOfMemoryError,Java heap space,SharedMemory-COL-005000,ReachabilityCardinality,0s after start
+1788678277434.log,2026-09-06 09:04:37,java.lang.OutOfMemoryError,Java heap space,SharedMemory-COL-005000,ReachabilityCardinality,0s after start
+1788678312494.log,2026-09-06 09:05:12,java.lang.OutOfMemoryError,Java heap space,SharedMemory-COL-010000,ReachabilityCardinality,34s after start
+1788679197981.log,2026-09-06 09:19:57,java.lang.OutOfMemoryError,Java heap space,SharedMemory-COL-100000,ReachabilityCardinality,884s after start
+1788681221468.log,2026-09-06 09:53:41,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,2023s after start
+1788681222119.log,2026-09-06 09:53:41,java.lang.OutOfMemoryError,Java heap space: failed reallocation of scalar replaced objects,TokenRing-COL-500,ReachabilityCardinality,2023s after start
+1788681222141.log,2026-09-06 09:53:41,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,2023s after start
+1788682452437.log,2026-09-06 10:14:12,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,3254s after start
+1788683570238.log,2026-09-06 10:32:50,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,4372s after start
+1788683570475.log,2026-09-06 10:32:50,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,4372s after start
+1788683584677.log,2026-09-06 10:33:04,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,4386s after start
+1788683595737.log,2026-09-06 10:33:15,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,4397s after start
+1788683609859.log,2026-09-06 10:33:29,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,4411s after start
+1788683609934.log,2026-09-06 10:33:29,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,4411s after start
+1788683962970.log,2026-09-06 10:39:22,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,4764s after start
+1788683963018.log,2026-09-06 10:39:22,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,4764s after start
+1788683963292.log,2026-09-06 10:39:23,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,4765s after start
+1788683963695.log,2026-09-06 10:39:23,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,4765s after start
+1788684795223.log,2026-09-06 10:53:15,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,5597s after start
+1788684795512.log,2026-09-06 10:53:15,java.lang.OutOfMemoryError,Java heap space,TokenRing-COL-500,ReachabilityCardinality,5597s after start

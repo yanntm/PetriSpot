@@ -1,0 +1,10 @@
+Examination,tool,answered,correct,wrong,bonus
+ReachabilityCardinality,Tapaal,30500,30500,0,0
+ReachabilityCardinality,2025-gold,30494,30494,0,0
+ReachabilityCardinality,us,30562,30427,2,133
+ReachabilityCardinality,ITS-Tools,30041,30039,2,0
+ReachabilityCardinality,BVT-2026,29600,29227,300,73
+ReachabilityCardinality,smpt,28803,28803,0,0
+ReachabilityCardinality,TY,4070,4015,55,0
+ReachabilityCardinality,petrivet,0,0,0,0
+ReachabilityCardinality,tedd,0,0,0,0
