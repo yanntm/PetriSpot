@@ -1087,3 +1087,70 @@ The relaxed plan (`RelaxedPlan.h`, h_add) is the other candidate for the
 tier-2 choice: its plan already names the transitions behind the barriers,
 so the sub-barrier could be read from the plan instead of scanned. Worth a
 second experiment once the budgeted version has a number.
+
+### 10.11 Time sharing: many workers, few cores, shares that follow results (design, 2026-09-06 night, to comment)
+
+What the day showed. Two sweeps, two families: the quest sweep claims
+ResIsolation's 1 000 targets where rarity claims 125, rarity claims 30 000
+RERS17pb114 atoms where quests claim 4 000. Splitting the four threads two
+and two (78160aa) caps the loss at half and the gain at half. And a strategy
+in a bad loop (a retarget per step, an abandon per step, a stage choice of
+40 ms repeated) burns its core to the end of the call: nothing above it sees
+that the core produces nothing.
+
+The idea. Decouple the strategies from the cores. The process is given `N`
+cores (pinned, or just `N` OS threads); it runs many *workers*, each a
+strategy instance with its own walker state (marking, enabled set, RNG,
+novelty tracker, restart policy), far more than `N`; a scheduler hands them
+time slices. Each worker holds a *share*; the scheduler is weighted fair
+(a CFS-like virtual clock: the next worker is the one with the smallest
+virtual time, which advances by `slice / share`), so a worker with twice the
+share gets twice the slices. Shares follow results: at the end of a slice the
+worker reports what it produced (claims, bound steps, novelty, quest
+progress), and shares move multiplicatively toward the productive workers
+with a floor so that no strategy starves entirely and can come back when the
+others stall, and a decay so that old success fades. The less efficient
+strategies on this model get less time as time goes by, without anyone
+deciding which strategy the model wants beforehand.
+
+Slices in steps, capped in time. A slice is a number of steps (a thousand)
+with a wall-clock cap (a few ms), because a step costs microseconds on one
+net and milliseconds on another: the cap is what stops a worker whose single
+step became a stage choice over 147 000 transitions. A worker that hits the
+cap repeatedly is reported, and its share falls by itself since it produced
+nothing in its slice: the monitoring and the remedy are the same mechanism.
+
+Subquests as workers. A quest that stalls behind a barrier does not push a
+stage in its own stack; it *spawns* a worker for the sub-barrier with an
+allocation taken from its own share (a fraction, bounded by 10.10's budget),
+a parent, and the marking to start from. The child runs under the same
+scheduler, reports to the parent when its barrier fires (the parent resumes
+from there) or when its allocation is spent (the barrier is tabu at the
+parent). Depth and width are bounded by the allocations, not by a constant;
+the DFS-like search of 10.10 is the case where a parent gives one child most
+of its share at a time. Freezing, tabu, and the distance tables stay as they
+are; `ComponentStrategy`'s stack becomes the parent-child tree of workers.
+
+Monitoring. Per worker: steps, slices, wall time, claims, novelty, resets,
+spawned children and their outcomes, the largest step time seen. The thread
+report becomes a worker report, sorted by share, and a line per strategy
+kind sums its workers: the numbers that today need a run per sweep choice
+come out of one run. Determinism improves: slices are counted in steps and
+seeds are fixed, so two runs differ only through the shared claims and the
+wall-clock caps.
+
+Shape of the code (a design, no code yet): `walk/Scheduler.h` (the workers,
+the virtual clock, the shares and their update rule, the OS threads that pop
+workers), `Worker` = the present `Walker` plus its strategy, stats and share;
+`Portfolio.h` becomes the construction of the initial workers from the
+specs; `QuestSweep`'s thread rank becomes a worker rank; spawning goes
+through the scheduler with an allocation. The shared `TargetSet`, pool and
+`Knowledge` are unchanged. Knobs: cores, initial shares per strategy kind,
+the floor, the decay, the slice size and cap, the spawn fraction.
+
+Yardsticks: the four nets above in one run each (RERS17pb114-PT-1 full QLA
+in 10 s must approach rarity's 30 000; ResIsolation 1 000 targets must
+approach the all-quest 6 to 8 s; Erlangen full QLA 2 792 in 30 s;
+Stigmergy 1 496), then the QLA rerun's losing families (FamilyReunion,
+DLCflexbar, DLCshifumi, MultiCrashLeafsetExtension, ServersAndClients),
+where the first question is the overrun of the 30 s call, not the choice.
