@@ -79,7 +79,7 @@ struct Options
   long roundTime = 1;
   long sweepTime = 1; // multi-target round before the focused rounds (0: none)
   std::string sweepChoice = "auto"; // transition choice of the sweep: auto, sync (quests), rare (rarity and age), random
-  uint64_t runTime = 1000;   // wall clock budget of one run before a restart, ms (0: none)
+  uint64_t runTime = 1000;   // sweeps: wall clock budget of one run before a restart, ms (0: none)
   uint64_t noveltyStall = 100000; // sweep: restart after this many steps without a new transition (0: never)
   size_t partition = 0; // sweeps over at least this many targets are split between threads (0: never)
 
@@ -201,7 +201,7 @@ inline void addOptions (CLI::App &app, Options &o)
                   "Transition choice of the sweep: sync (quests toward the nearest open targets, one per thread), "
                   "rare (the least fired of a few sampled, the oldest enabled among equals), random, or auto: sync "
                   "when the net has processes with barriers between them, rare otherwise (default auto).");
-  wk->add_option ("--runTime", o.runTime, "Wall clock budget of one run before a restart, ms (default 1000, 0 none).");
+  wk->add_option ("--runTime", o.runTime, "Sweeps: wall clock budget of one sweep run before a restart, ms (default 1000, 0 none); focused rounds keep the step budget.");
   wk->add_option ("--noveltyStall", o.noveltyStall,
                   "Sweep: restart after this many steps without firing a new transition (default 100000, 0 never).");
   wk->add_option ("--partition", o.partition,

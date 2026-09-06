@@ -330,8 +330,8 @@ template<typename T>
     // a quest sweep carries its progress in the marking (the processes forked and placed): restart it rarely
     sweepPolicy.add (std::make_unique<petri::walk::WallTime> (sweepChoice == "sync" ? o.runTime * 10 : o.runTime));
     sweepPolicy.add (std::make_unique<petri::walk::NoveltyStall> (o.noveltyStall));
+    // a focused round keeps the step budget alone: a deep hunt must not be cut short by the clock
     roundPolicy.add (std::make_unique<petri::walk::StepBudget> (o.budget.runLength));
-    roundPolicy.add (std::make_unique<petri::walk::WallTime> (o.runTime));
 
     auto walkStart = std::chrono::steady_clock::now ();
     auto elapsedMs = [&] () { return millisSince (walkStart); };
@@ -457,7 +457,6 @@ template<typename T>
     petri::walk::Knowledge knowledge (wnet.transitionCount ());
     petri::walk::AnyOf policy;
     policy.add (std::make_unique<petri::walk::StepBudget> (o.budget.runLength));
-    policy.add (std::make_unique<petri::walk::WallTime> (o.runTime));
     runWalk (o, wnet, targets, 0, budget, specs, &knowledge, &policy, buildComponents (o, pn, wnet, specs, 0).get ());
   }
 

@@ -327,8 +327,9 @@ rare conjunction exponentially rare; this fires it the moment it is enabled.
 `RestartPolicy` decides when a run ends, asked at every step with the run's
 steps, wall clock and steps since novelty: a step budget, a wall clock budget,
 a novelty stall, or any of them. A sweep restarts on all three (`--runLength`,
-`--runTime`, `--noveltyStall`), a focused round on the first two; a strategy
-may still answer `RESTART` on its own. The marking of the last rare event goes
+`--runTime`, `--noveltyStall`); a focused round keeps the step budget alone, a
+deep hunt must not be cut by the clock; a strategy may still answer `RESTART`
+on its own. The marking of the last rare event goes
 to the shared pool at the reset, so other threads restart from new ground.
 
 Measured on ResIsolation-PT-N10P4, 1 000 `fireable` targets, 4 threads, 20 s:
