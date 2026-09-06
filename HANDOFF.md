@@ -53,8 +53,17 @@ this for where everything lives and what is in flight.
   `build.py example.json` builds one page per examination into
   `/data/ythierry/MCC26run/pages/` from result sets (our log directories,
   contest tools), `serve.py` serves them and the logs on 127.0.0.1:8080 for
-  an SSH tunnel. Next: the total examinations, more sets (flag variants),
-  whatever the user asks after a first look.
+  an SSH tunnel. The consensus, formula names and backing tools come from the
+  oracle archive published by pnmcc-models-2026 (gh-pages, fetched to
+  `/data/ythierry/MCC26run/oracle-2026/oracle`); the set `ITS-Tools latest`
+  is a glob on `/data/ythierry/MCC26run/2026-09-06/*`, so an rsync plus
+  `build.py example.json` shows the newest data. RF (1953) is in; LTLC was
+  at 804 and LTLF, CTLC, CTLF not started at 12:20. Next: the total
+  examinations in the pages, flag variants as sets.
+* **RF: one wrong value shared with the contest.** `LastZero-COL-N20`
+  ReachabilityFireability formula 13: ITS-Tools says FALSE in the contest and
+  in our run, smpt, Tapaal and 2025-gold say TRUE. Deterministic on the
+  ITS-Tools side, not the walker; to look at (`2026-09-06/RF/OAR.1336369`).
 * **Findings to act on** (details in the two READMEs): UBA has 313 wall runs
   that never reach a walk, stalled after the invariants; QLA's residue is
   seven families where one SMT call on 79 k atoms eats 687 s for nothing;
