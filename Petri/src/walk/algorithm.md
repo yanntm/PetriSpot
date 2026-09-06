@@ -369,17 +369,24 @@ satisfied quest *freezes* its process: a transition taking tokens from the
 place is refused, so the processes arrive one by one and wait, and a product
 of arrival chances becomes a sum.
 
-When the goal places lie behind barriers, the strategy works in *stages*.
-Among the barriers whose pre-places every process can reach alone from where
-it stands, it picks the one whose outcome, the marking it produces, brings the
-goal closest by the summed component distance, the cheapest to align among
-equals; its pre-places become the quests, it is fired the moment it is
-enabled, and the next stage is chosen. A barrier whose crossing did not lower
-the goal distance is not chosen again in the run (a tabu list, cleared at the
-reset), and a process standing where its place is unreachable ends the run.
-The relaxed plan was tried for the stage choice and rejected: the delete
-relaxation lets a process be in two places at once, so it never sees that a
-barrier moves processes away and it cycles between two barriers.
+When the goal places lie behind barriers, the strategy works in *stages*,
+recursively: a stack whose root is the goal's quests. A stage whose every
+open quest is behind a barrier has no move of its own left and pushes a
+sub-stage at once; a stage with some quests still able to walk waits for a
+stall, fifty steps in which no quest crossed its barrier (the far side of the
+distance fluctuates with every local move and cannot be read for progress).
+The sub-stage is the barrier every process can reach alone (a pre-place
+already holding its tokens costs nothing whatever its component can do) whose
+outcome brings the stalled stage's quests closest, the cheapest to align among
+equals; its pre-places are the new quests; it is fired the moment it is
+enabled, whatever it consumes, and its stage popped. A barrier whose crossing
+did not lower its parent's distance is tabu at that level for the run; a stage
+that cannot be staged further pops with its barrier tabu at the parent; the
+root failing, or a quest whose tokens cannot reach its place, ends the run.
+Depth is bounded. The relaxed plan was tried for the stage choice and
+rejected: the delete relaxation lets a process be in two places at once, so it
+never sees that a barrier moves processes away and it cycles between two
+barriers.
 
 The stage choice scans every barrier with per transition tables of the
 (component, local place) pairs it consumes and produces and per component

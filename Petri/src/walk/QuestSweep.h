@@ -63,6 +63,8 @@ template<typename T>
     uint64_t claimedOwn = 0;    // quests whose own target was claimed while they ran
     uint64_t stepsClimbed = 0;  // bound targets raised by a step
     uint64_t abandoned = 0;     // quests that could not start or gave up
+    uint64_t hopelessQuests = 0;    // of which: a quest's tokens could not reach its place
+    uint64_t unstageableQuests = 0; // of which: behind barriers with no barrier to stage
 
     QuestSweep (const WalkNet<T> &n, const Components<T> &c, const TargetSet<T> &tgs, unsigned threadRank,
                 unsigned epsilon, size_t sample, uint64_t stall)
@@ -73,10 +75,9 @@ template<typename T>
 
     void onReset () override
     {
-      // a restart may land near another target: choose again
+      // a restart may land near another target: choose again; what could not be quested stays so
       current = NONE;
       quest.reset ();
-      unquestable.clear ();
     }
 
     bool bestOfRun (SparseArray<T> &m, uint64_t &h) const override
@@ -101,8 +102,15 @@ template<typename T>
       if (current == NONE && !retarget (ctx.marking, ctx.rng)) return filler.choose (ctx);
       uint32_t t = quest->choose (ctx);
       if (t == RESTART) {
-        // the quest cannot start or gave up from here: leave the target for this run, move on rarity
         ++abandoned;
+        hopelessQuests += quest->hopeless;
+        unstageableQuests += quest->unstageable;
+        if (quest->hopeless > 0) {
+          // a process stands where nothing can reach its place: the marking is what is wrong, restart the walk
+          current = NONE;
+          return RESTART;
+        }
+        // behind barriers with none to stage from here: leave the target for this run, move on rarity
         unquestable.push_back (current);
         current = NONE;
         return filler.choose (ctx);
@@ -195,7 +203,7 @@ template<typename T>
         long long have = m.get (p);
         if (have >= need) return 0;
         const auto &cs = comps.componentsOf (p);
-        if (cs.empty ()) return 1;
+        if (cs.empty ()) return UNGUIDED; // nothing to steer by: after every guided target
         // the missing tokens come from the components holding the place: the nearest ones
         std::vector<uint64_t> ds;
         for (uint32_t c : cs) {
@@ -207,7 +215,7 @@ template<typename T>
           }
         }
         size_t missing = static_cast<size_t> (need - have);
-        if (ds.size () < missing) return 1000000;
+        if (ds.size () < missing) return HOPELESS;
         std::nth_element (ds.begin (), ds.begin () + static_cast<long> (missing) - 1, ds.end ());
         uint64_t sum = 0;
         for (size_t i = 0; i < missing; ++i) sum += ds[i] + 1;
@@ -220,6 +228,10 @@ template<typename T>
 
     /** Open targets to rank at a retarget: all of them below this, a random sample above. */
     static constexpr size_t RANK_SAMPLE = 4096;
+    /** The rank distance of a target on a place no component holds: below a barrier, above any walk. */
+    static constexpr uint64_t UNGUIDED = 900;
+    /** The distance of a target whose tokens cannot reach it from the current marking. */
+    static constexpr uint64_t HOPELESS = 1000000;
 
     /** Rank the open targets by distance and take the one of this thread's rank; false when none can be quested. */
     bool retarget (const Marking<T> &m, std::mt19937_64 &rng)
@@ -235,15 +247,21 @@ template<typename T>
       for (uint32_t id = first; id < n; id += static_cast<uint32_t> (stride)) {
         if (targets.isSolved (id) || isUnquestable (id) || !goalOf (id, goal, m)) continue;
         uint64_t d = distance (goal, m);
-        if (d != UNREACHED) ranked.emplace_back (d, id);
+        // a target no token can reach from here is not a quest from here
+        if (d != UNREACHED && d < HOPELESS) ranked.emplace_back (d, id);
       }
       if (ranked.empty () && stride > 1) {
         // the sample held no open target: look at them all
         for (uint32_t id = 0; id < n; ++id) {
           if (targets.isSolved (id) || isUnquestable (id) || !goalOf (id, goal, m)) continue;
           uint64_t d = distance (goal, m);
-          if (d != UNREACHED) ranked.emplace_back (d, id);
+          if (d != UNREACHED && d < HOPELESS) ranked.emplace_back (d, id);
         }
+      }
+      if (ranked.empty () && !unquestable.empty ()) {
+        // everything left was given up on once: give it all another chance
+        unquestable.clear ();
+        return retarget (m, rng);
       }
       if (ranked.empty ()) return false;
       size_t pick = std::min<size_t> (rank, ranked.size () - 1);

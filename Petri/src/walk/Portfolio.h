@@ -123,11 +123,12 @@ template<typename T>
     {
       if (sync)
         return "stages " + std::to_string (sync->replans) + ", barriers fired " + std::to_string (sync->barriersFired)
-            + ", stranded " + std::to_string (sync->hopeless) + ", revised " + std::to_string (sync->fallbacks)
-            + ", refusals " + std::to_string (sync->refusals);
+            + ", depth " + std::to_string (sync->maxDepth) + ", stranded " + std::to_string (sync->hopeless)
+            + ", popped " + std::to_string (sync->fallbacks) + ", refusals " + std::to_string (sync->refusals);
       if (sweep)
         return "quests " + std::to_string (sweep->retargets) + ", own target claimed " + std::to_string (sweep->claimedOwn)
-            + ", bound steps climbed " + std::to_string (sweep->stepsClimbed) + ", abandoned " + std::to_string (sweep->abandoned);
+            + ", bound steps climbed " + std::to_string (sweep->stepsClimbed) + ", abandoned " + std::to_string (sweep->abandoned)
+            + " (hopeless " + std::to_string (sweep->hopelessQuests) + ", unstageable " + std::to_string (sweep->unstageableQuests) + ")";
       return "";
     }
 

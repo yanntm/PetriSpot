@@ -1,28 +1,26 @@
 /*
  * ComponentStrategy.h
  *
- * A quest per atom, in stages. The goal, a conjunction of `place >= k` atoms,
- * is read as one process per atom to drive to a place. When the places lie
- * behind barriers (transitions synchronising several processes), a stage is
- * set: the barrier every process can reach alone whose crossing brings the
- * goal closest, its pre-places the quests; when it becomes enabled it is
- * fired and the next stage is chosen, and a barrier that did not help is not
- * chosen again in the run. Within a stage the distance
- * of the marking is the sum over the unsatisfied quests of the local shortest
- * path of the quest's process to its place, the choice is greedy on that
- * distance among a few sampled enabled transitions, with an epsilon share of
- * uniform moves, and a satisfied quest freezes its process: a transition that
- * would take the tokens away is refused, so the processes arrive one by one
- * and wait, which turns the product of their arrival chances into a sum.
- * See algorithm.md.
+ * Quests in stages, recursively. The goal, a conjunction of `place >= k`
+ * atoms, is one quest per atom: the processes holding the place are driven to
+ * put k tokens on it, and a token already there is frozen. Within a stage the
+ * distance of the marking is the sum of the quests' distances, the choice is
+ * greedy on the distance after firing among a few sampled enabled
+ * transitions, with an epsilon share of sideways moves. When a stage stalls,
+ * some quest behind a barrier and no progress for a while, a sub-stage is
+ * pushed: the barrier every process can reach alone whose outcome brings the
+ * stalled stage's quests closest, its pre-places the new quests; it is fired
+ * the moment it is enabled and its stage popped; a stage that cannot be
+ * staged further pops with its barrier tabu at the parent level; the root
+ * failing ends the run. See algorithm.md.
  */
 #ifndef PETRI_WALK_COMPONENTSTRATEGY_H_
 #define PETRI_WALK_COMPONENTSTRATEGY_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <iostream>
 #include <limits>
-#include <memory>
 #include <ostream>
 #include <string>
 #include <tuple>
@@ -38,139 +36,96 @@ namespace petri::walk
 template<typename T>
   class ComponentStrategy : public Strategy<T>
   {
+    static constexpr uint32_t NONE = std::numeric_limits<uint32_t>::max ();
+    static constexpr uint64_t HOPELESS = 1000000;  // distance of a quest whose tokens cannot reach the place
+    static constexpr uint64_t STALL_STEPS = 50;    // steps without a quest crossing its barrier before a stage is staged further
+    static constexpr size_t MAX_DEPTH = 8;         // stages stacked at most
+
     struct Quest
     {
       size_t place;
       long long need;                     // tokens required on place
       uint32_t comp;                      // the most specific component holding place, NONE when no component does
-      const std::vector<uint32_t> *dist;  // quest distances to place by local index, null without a component
     };
 
-    static constexpr uint32_t NONE = std::numeric_limits<uint32_t>::max ();
+    /** One level: a barrier to enable (NONE at the root, the goal) through its quests. */
+    struct Stage
+    {
+      uint32_t barrier;
+      std::vector<Quest> quests;
+      std::vector<uint64_t> cur;          // distance per quest at the last measure
+      uint64_t best = std::numeric_limits<uint64_t>::max ();
+      size_t bestBehind = std::numeric_limits<size_t>::max (); // fewest quests behind a barrier seen
+      uint64_t sinceImprovement = 0;      // steps since bestBehind fell (or best, when none is behind)
+      uint64_t parentBefore = 0;          // the parent's distance when this stage was pushed
+      std::vector<uint32_t> tabu;         // sub-barriers that did not help this stage, this run
+    };
 
     const WalkNet<T> &net;
     const Components<T> &comps;
-    std::vector<Quest> goalQuests;        // the atoms of the goal
-    std::vector<Quest> quests;            // the current stage: the goal's atoms, or a barrier's pre-places
-    uint32_t stageBarrier = NONE;         // the barrier the stage prepares, NONE when the stage is the goal
-    bool needReplan = true;
-    uint64_t hBefore = 0;                 // goal distance when the current barrier was chosen
-    bool stageBehind = false;             // the stage was set with a process already behind a barrier
-    std::vector<uint32_t> tabu;           // barriers whose crossing did not lower the goal distance, this run
+    std::vector<Quest> goalQuests;
+    std::vector<Stage> stack;
+    bool pendingPop = false;              // the top barrier was returned to fire: pop at the next choice
+    uint32_t justFired = NONE;            // the barrier popped, to judge whether it helped its parent
+    uint64_t parentBefore = 0;
     unsigned epsilonPercent;
     size_t sampleSize;
     uint64_t stallLimit;
-    uint64_t sinceImprovement = 0;
+    uint64_t sinceImprovement = 0;        // of the root, for the global stall
 
     // per step scratch
-    std::vector<uint64_t> cur;            // current distance per quest, 0 when satisfied
-    std::vector<bool> frozenPlace;        // per place: a satisfied quest holds it
+    std::vector<long long> frozenNeed;    // per place: tokens a quest wants kept there, 0 when none
     std::vector<size_t> frozenList;
+    std::vector<std::vector<uint32_t>> standing; // per component: the marked local places, at a stage choice
+    mutable std::vector<uint64_t> scratch;
+    const Marking<T> *current = nullptr;
+    bool ok = true;
 
   public:
-    /** Print the quests and their distances from the initial marking on stderr. */
-    void describe (std::ostream &os, const Marking<T> &m0) const
-    {
-      os << "sync: " << goalQuests.size () << " quests" << std::endl;
-      for (const Quest &q : goalQuests) {
-        if (q.comp == NONE) {
-          os << "  place " << q.place << " >= " << q.need << " in no component" << std::endl;
-          continue;
-        }
-        const auto &k = comps.component (q.comp);
-        uint64_t d = UNREACHED;
-        for (size_t j = 0; j < k.size (); ++j)
-          if (m0.get (k.places[j]) > 0 && (*q.dist)[j] < d) d = (*q.dist)[j];
-        os << "  place " << q.place << " >= " << q.need << " component " << q.comp << " (" << k.size ()
-            << " places, " << k.value << " tokens) distance from the initial marking "
-            << (d == UNREACHED ? std::string ("unreached") : std::to_string (d)) << std::endl;
-      }
-    }
-
-    /** Print the stage on stderr at the onset of the first debugSteps stalls. */
+    /** Print the stage sequence and the stuck states on stderr, this many times. */
     uint64_t debugSteps = 0;
-
-    /** The stage as it stands: the barrier, each quest with its distance and the marked places of its process. */
-    void describeState (std::ostream &os, const Marking<T> &m, const EnabledSet<T> &enabled) const
-    {
-      os << "sync stage: barrier " << (stageBarrier == NONE ? std::string ("goal") : std::to_string (stageBarrier))
-          << ", " << enabled.size () << " enabled, refusals " << refusals << std::endl;
-      for (size_t i = 0; i < quests.size (); ++i) {
-        const Quest &q = quests[i];
-        if (q.comp == NONE) {
-          os << "  place " << q.place << " >= " << q.need << " in no component, cur " << cur[i] << std::endl;
-          continue;
-        }
-        const auto &k = comps.component (q.comp);
-        os << "  place " << q.place << " >= " << q.need << " component " << q.comp << " cur " << cur[i] << " marked:";
-        for (size_t j = 0; j < k.size (); ++j)
-          if (m.get (k.places[j]) > 0) os << " p" << k.places[j] << "(d" << (*q.dist)[j] << ")";
-        os << std::endl;
-        if (cur[i] == 0) continue;
-        // why the process does not move: the consumers of its marked places
-        for (size_t j = 0; j < k.size (); ++j) {
-          if (m.get (k.places[j]) == 0) continue;
-          const auto &cs = net.consumersOf (k.places[j]);
-          os << "    consumers of p" << k.places[j] << " (" << cs.size () << "):";
-          size_t shown = 0;
-          for (const auto &c : cs) {
-            if (shown++ >= 6) { os << " ..."; break; }
-            uint32_t t = c.transition;
-            const SparseArray<T> &eff = net.effect (t);
-            uint64_t after = UNREACHED;
-            for (size_t e = 0; e < eff.size (); ++e) {
-              if (eff.valueAt (e) <= 0) continue;
-              int32_t li = k.indexOf (eff.keyAt (e));
-              if (li >= 0 && (*q.dist)[li] < after) after = (*q.dist)[li];
-            }
-            os << " t" << t << "[pre " << net.pre (t).size () << ", sync " << comps.syncDegreeOf (t)
-                << (enabled.isEnabled (t) ? ", enabled" : ", unsat " + std::to_string (enabled.unsatOf (t)))
-                << (breaksFrozen (t) ? ", refused" : "") << ", to d" << (after == UNREACHED ? std::string ("-") : std::to_string (after)) << "]";
-          }
-          os << std::endl;
-        }
-      }
-    }
 
     /** Instrumentation. */
     uint64_t minDistance = std::numeric_limits<uint64_t>::max ();
     uint64_t minDistanceThisRun = std::numeric_limits<uint64_t>::max ();
-    uint64_t refusals = 0;                // candidates refused for breaking a frozen process
-    uint64_t replans = 0;                 // stages set up
+    uint64_t refusals = 0;                // candidates refused for breaking a frozen place
+    uint64_t replans = 0;                 // stages pushed
     uint64_t barriersFired = 0;           // stage barriers fired
-    uint64_t hopeless = 0;                // runs abandoned with a process where its place is unreachable
-    uint64_t fallbacks = 0;               // stages revised because a process fell behind a barrier
+    uint64_t hopeless = 0;                // runs abandoned with a quest that cannot be met
+    uint64_t unstageable = 0;             // runs abandoned with the root behind barriers and no barrier to stage
+    uint64_t fallbacks = 0;               // stages popped for want of a sub-barrier
+    uint64_t maxDepth = 0;                // deepest stack seen
     SparseArray<T> bestMarkingThisRun;
 
-    /**
-     * Reads the goal; supported() says whether every atom was a `place >= k`
-     * with a component. The caller falls back to another strategy otherwise.
-     */
     ComponentStrategy (const WalkNet<T> &n, const Components<T> &c, const petri::expr::Expression &goal,
                        unsigned epsilon, size_t sample, uint64_t stall)
-        : net (n), comps (c), epsilonPercent (epsilon), sampleSize (sample == 0 ? 16 : sample),
-          stallLimit (stall), frozenPlace (n.placeCount (), false)
+        : net (n), comps (c), epsilonPercent (epsilon), sampleSize (sample == 0 ? 16 : sample), stallLimit (stall),
+          frozenNeed (n.placeCount (), 0)
     {
-      ok = collect (goal);
-      goalQuests = quests;
-      cur.assign (quests.size (), 0);
+      ok = collect (goal, goalQuests);
+      stack.push_back (Stage { NONE, goalQuests, {} });
     }
 
     bool supported () const
     {
-      return ok && !quests.empty ();
+      return ok && !goalQuests.empty ();
     }
     size_t questCount () const
     {
-      return quests.size ();
+      return goalQuests.size ();
     }
 
     void onReset () override
     {
       minDistanceThisRun = std::numeric_limits<uint64_t>::max ();
       sinceImprovement = 0;
-      needReplan = true;
-      tabu.clear ();
+      stack.resize (1);
+      stack[0].best = std::numeric_limits<uint64_t>::max ();
+      stack[0].bestBehind = std::numeric_limits<size_t>::max ();
+      stack[0].sinceImprovement = 0;
+      stack[0].tabu.clear ();
+      pendingPop = false;
+      justFired = NONE;
     }
 
     bool bestOfRun (SparseArray<T> &m, uint64_t &h) const override
@@ -185,49 +140,97 @@ template<typename T>
     {
       size_t n = ctx.enabled.size ();
       if (stallLimit && sinceImprovement >= stallLimit) return RESTART;
-      if (needReplan && !replan (ctx.marking)) return RESTART; // no barrier and no goal within the processes' reach
-      if (stageBarrier != NONE && ctx.enabled.isEnabled (stageBarrier)) {
-        // the processes are aligned: cross the barrier, then plan the next stage
-        ++barriersFired;
-        needReplan = true;
-        return stageBarrier;
-      }
       current = &ctx.marking;
-      uint64_t total = measure (ctx.marking);
-      if (total >= HOPELESS) {
-        // a process sits where it can never reach its place: this run is over
-        ++hopeless;
-        return RESTART;
+      if (pendingPop) {
+        // the barrier fired (or could not): back to the stage it served
+        pendingPop = false;
+        if (stack.size () > 1) {
+          justFired = stack.back ().barrier;
+          parentBefore = stack.back ().parentBefore;
+          stack.pop_back ();
+        }
       }
-      if (total >= Components<T>::BARRIER_OFFSET && !stageBehind) {
-        // a process of this stage fell behind a barrier: stage again, a barrier may bring it back
+      // the top barrier is ready: cross it
+      if (stack.back ().barrier != NONE && ctx.enabled.isEnabled (stack.back ().barrier)) {
+        ++barriersFired;
+        pendingPop = true;
+        return stack.back ().barrier;
+      }
+      // settle the stage to work on: measure, and stage further when stalled
+      uint64_t total;
+      for (;;) {
+        Stage &top = stack.back ();
+        total = measure (ctx.marking, top);
+        if (total >= HOPELESS) {
+          ++hopeless;
+          return RESTART;
+        }
+        size_t open = 0, behind = 0;
+        for (uint64_t d : top.cur) {
+          open += d > 0;
+          behind += d >= Components<T>::BARRIER_OFFSET;
+        }
+        if (justFired != NONE) {
+          // the sub-barrier crossed: did it bring this stage closer? never choose it again here otherwise
+          if (total >= parentBefore) top.tabu.push_back (justFired);
+          justFired = NONE;
+          top.sinceImprovement = 0;
+        }
+        // progress is a quest crossing its barrier; below that, the distance itself. The far side
+        // fluctuates with every local move and would never let a stall be seen.
+        if (behind < top.bestBehind || (behind == 0 && total < top.best)) {
+          top.bestBehind = behind;
+          top.best = std::min (top.best, total);
+          top.sinceImprovement = 0;
+        } else {
+          ++top.sinceImprovement;
+        }
+        if (stack.size () == 1) {
+          if (total < minDistanceThisRun) {
+            minDistanceThisRun = total;
+            sinceImprovement = 0;
+            bestMarkingThisRun = ctx.marking.sparse ();
+            if (total < minDistance) minDistance = total;
+          } else {
+            ++sinceImprovement;
+          }
+        }
+        // a quest behind a barrier cannot be helped by this stage's own moves: when every open
+        // quest is, staging is the only move left; when some can still walk, wait for a stall
+        if (behind == 0 || (behind < open && top.sinceImprovement < STALL_STEPS)) break;
+        // a stage for this stage, or give this stage up
+        if (stack.size () < MAX_DEPTH && push (ctx.marking)) continue;
+        if (stack.size () == 1) {
+          ++unstageable;
+          return RESTART;
+        }
         ++fallbacks;
-        needReplan = true;
-        if (!replan (ctx.marking)) return RESTART;
-        total = measure (ctx.marking);
+        uint32_t failed = top.barrier;
+        stack.pop_back ();
+        stack.back ().tabu.push_back (failed);
+        stack.back ().sinceImprovement = 0;
       }
-      if (total < minDistanceThisRun) {
-        minDistanceThisRun = total;
-        sinceImprovement = 0;
-        bestMarkingThisRun = ctx.marking.sparse ();
-        if (total < minDistance) minDistance = total;
-      } else {
-        ++sinceImprovement;
+      Stage &top = stack.back ();
+      // a stage pushed just now may already be ready: its barrier is what we want, whatever it consumes
+      if (top.barrier != NONE && ctx.enabled.isEnabled (top.barrier)) {
+        ++barriersFired;
+        pendingPop = true;
+        return top.barrier;
       }
-      bool trace = debugSteps > 0 && (total <= 2 || (n <= 2 && stageBarrier == NONE));
+
+      size_t k = sampleSize >= n ? n : sampleSize;
+      bool trace = debugSteps > 0 && (total <= 2 || (n <= 2 && stack.size () == 1));
       if (trace) {
         --debugSteps;
         describeState (std::cerr, ctx.marking, ctx.enabled);
       }
-      size_t k = sampleSize >= n ? n : sampleSize;
       if (n == 1 || (epsilonPercent > 0 && ctx.rng () % 100 < epsilonPercent)) {
-        // a sideways move: random among those that neither undo a process in place nor push one away
+        // a sideways move: random among those that neither undo a frozen place nor push a process away
         for (size_t i = 0; i < k; ++i) {
           uint32_t t = ctx.enabled.at (ctx.rng () % n);
-          if (!breaksFrozen (t) && score (t, total) <= total + 1) return t;
+          if (!breaksFrozen (t) && score (t, top, total) <= total + 1) return t;
         }
       }
-
       uint32_t best = RESTART;
       uint64_t bestScore = std::numeric_limits<uint64_t>::max ();
       uint32_t ties = 0;
@@ -237,7 +240,7 @@ template<typename T>
           ++refusals;
           continue;
         }
-        uint64_t s = score (t, total);
+        uint64_t s = score (t, top, total);
         if (s < bestScore) {
           bestScore = s;
           best = t;
@@ -248,93 +251,102 @@ template<typename T>
       }
       if (trace) {
         std::cerr << "  chose " << (best == RESTART ? std::string ("fallback") : "t" + std::to_string (best))
-            << " score " << bestScore << " of " << k << " sampled; enabled:";
-        for (size_t i = 0; i < std::min<size_t> (n, 12); ++i) {
-          uint32_t t = ctx.enabled.at (i);
-          std::cerr << " t" << t << (breaksFrozen (t) ? "(refused)" : "") << "=" << score (t, total);
-        }
-        std::cerr << std::endl;
+            << " score " << bestScore << " of " << k << " sampled" << std::endl;
       }
-      // every candidate would undo a process that has arrived: move anyway rather than stand still
+      // every candidate would undo a frozen place: move anyway rather than stand still
       if (best == RESTART) return ctx.enabled.at (ctx.rng () % n);
       return best;
     }
 
-  private:
-    bool ok = true;
-    static constexpr uint64_t HOPELESS = 1000000; // distance of a quest whose process cannot reach its place
-
-    /**
-     * Set the stage from m. The goal's own atoms when every process can reach
-     * its place alone. Otherwise the barrier (a transition synchronising
-     * several processes) that every process can reach alone and whose firing
-     * brings the goal closest: the summed component distance of the marking it
-     * produces to the goal places, with the offset for a process still behind
-     * another barrier; the cheapest to align among equals. A barrier whose
-     * crossing did not lower that sum is not chosen again this run. False when
-     * no barrier can be reached and the goal cannot either.
-     */
-    bool replan (const Marking<T> &m)
+    /** The goal's quests and their distances from a marking, on stderr. */
+    void describe (std::ostream &os, const Marking<T> &m0) const
     {
-      needReplan = false;
-      ++replans;
-      current = &m;
-      locate (m);
-      // where the goal stands from here, per quest
-      uint64_t goalNow = 0;
-      bool goalLocal = true;
-      goalCur.resize (goalQuests.size ());
-      for (size_t i = 0; i < goalQuests.size (); ++i) {
-        goalCur[i] = distanceOf (m, goalQuests[i]);
-        if (goalCur[i] >= Components<T>::BARRIER_OFFSET) goalLocal = false;
-        goalNow += goalCur[i];
+      os << "sync: " << goalQuests.size () << " quests" << std::endl;
+      for (const Quest &q : goalQuests) {
+        if (q.comp == NONE) {
+          os << "  place " << q.place << " >= " << q.need << " in no component" << std::endl;
+          continue;
+        }
+        const auto &k = comps.component (q.comp);
+        uint64_t d = distanceOf (m0, q);
+        os << "  place " << q.place << " >= " << q.need << " component " << q.comp << " (" << k.size ()
+            << " places, " << k.value << " tokens) distance from the initial marking "
+            << (d >= HOPELESS ? std::string ("unreached") : std::to_string (d)) << std::endl;
       }
-      if (stageBarrier != NONE && goalNow >= hBefore) tabu.push_back (stageBarrier);
-      hBefore = goalNow;
-      uint32_t best = NONE;
-      uint64_t bestAfter = std::numeric_limits<uint64_t>::max ();
-      uint64_t bestAlign = std::numeric_limits<uint64_t>::max ();
-      if (!goalLocal) {
-        for (uint32_t t = 0; t < net.transitionCount (); ++t) {
-          if (comps.syncDegreeOf (t) <= 1) continue;
-          if (std::find (tabu.begin (), tabu.end (), t) != tabu.end ()) continue;
-          uint64_t align = alignCost (t);
-          if (align == UNREACHED) continue;
-          uint64_t after = goalAfter (t);
-          if (std::tie (after, align) < std::tie (bestAfter, bestAlign)) {
-            bestAfter = after;
-            bestAlign = align;
-            best = t;
+    }
+
+    /** The stack of stages as it stands, the top's quests with the marked places of their processes. */
+    void describeState (std::ostream &os, const Marking<T> &m, const EnabledSet<T> &enabled) const
+    {
+      os << "sync stack:";
+      for (const Stage &s : stack) os << " " << (s.barrier == NONE ? std::string ("goal") : "t" + std::to_string (s.barrier));
+      os << ", " << enabled.size () << " enabled, refusals " << refusals << ", frozen:";
+      for (size_t p : frozenList) os << " p" << p << "(keep " << frozenNeed[p] << " of " << m.get (p) << ")";
+      os << std::endl;
+      const Stage &tp = stack.back ();
+      if (tp.barrier != NONE) {
+        const SparseArray<T> &pre = net.pre (tp.barrier);
+        os << "  barrier t" << tp.barrier << (enabled.isEnabled (tp.barrier) ? " enabled" : " unsat " + std::to_string (enabled.unsatOf (tp.barrier))) << ", pre:";
+        for (size_t i = 0; i < pre.size (); ++i) os << " p" << pre.keyAt (i) << ">=" << pre.valueAt (i) << "(" << m.get (pre.keyAt (i)) << ")";
+        os << std::endl;
+      }
+      const Stage &top = stack.back ();
+      for (size_t i = 0; i < top.quests.size (); ++i) {
+        const Quest &q = top.quests[i];
+        os << "  place " << q.place << " >= " << q.need << " cur " << top.cur[i];
+        if (q.comp != NONE) {
+          os << " marked:";
+          for (uint32_t c : comps.componentsOf (q.place)) {
+            const auto &k = comps.component (c);
+            const std::vector<uint32_t> &dist = comps.questDistances (c, q.place);
+            for (size_t j = 0; j < k.size (); ++j)
+              if (m.get (k.places[j]) > 0) os << " p" << k.places[j] << "(d" << dist[j] << ")";
           }
         }
-        if (best == NONE) return false;
+        os << std::endl;
       }
-      stageBarrier = best;
-      if (debugSteps > 0)
-        std::cerr << "replan goal " << goalNow << (goalLocal ? " local" : "") << ", stage "
-            << (best == NONE ? std::string ("goal") : "t" + std::to_string (best)) << " after " << bestAfter
-            << " align " << bestAlign << " tabu " << tabu.size () << std::endl;
-      quests.clear ();
-      if (best == NONE) {
-        quests = goalQuests;
-      } else {
-        const SparseArray<T> &pre = net.pre (best);
-        for (size_t i = 0; i < pre.size (); ++i) addQuest (pre.keyAt (i), pre.valueAt (i));
+    }
+
+  private:
+    /** Every atom of a conjunction as a quest; anything else is unsupported. */
+    bool collect (const petri::expr::Expression &e, std::vector<Quest> &out)
+    {
+      using petri::expr::Expression;
+      using petri::expr::Cmp;
+      switch (e.kind) {
+      case Expression::Kind::And:
+        for (const auto &c : e.children)
+          if (!collect (c, out)) return false;
+        return true;
+      case Expression::Kind::Atom: {
+        const auto &a = e.atom;
+        if (a.terms.size () != 1 || a.terms[0].second <= 0) return false;
+        long long need;
+        if (a.op == Cmp::GE) need = (a.constant + a.terms[0].second - 1) / a.terms[0].second;
+        else if (a.op == Cmp::GT) need = a.constant / a.terms[0].second + 1;
+        else if (a.op == Cmp::EQ) need = a.constant / a.terms[0].second;
+        else return false;
+        addQuest (a.terms[0].first, need, out);
+        return true;
       }
-      cur.assign (quests.size (), 0);
-      stageBehind = false;
-      for (const Quest &q : quests)
-        if (distanceOf (m, q) >= Components<T>::BARRIER_OFFSET) stageBehind = true;
-      return true;
+      default:
+        return false;
+      }
+    }
+
+    /** A quest on place >= need; without a component to guide it the quest only says satisfied or not. */
+    void addQuest (size_t p, long long need, std::vector<Quest> &out) const
+    {
+      const auto &cs = comps.componentsOf (p);
+      out.push_back ({ p, need, cs.empty () ? NONE : cs[0] });
     }
 
     /**
-     * Distance of quest q from m: 0 when satisfied; otherwise the tokens still
-     * missing on the place must come from the components holding it, and the
-     * distance is the sum of the local paths of the nearest ones, a token per
-     * unit of marking, plus one each. Gathering k tokens is thus a
-     * synchronisation of those components with the place. `delta` is an
-     * effect applied virtually to m (the marking after a candidate firing).
+     * Distance of quest q from m (plus a virtual effect): 0 when satisfied;
+     * otherwise the tokens still missing come from the components holding the
+     * place, and the distance is the sum of the local paths of the nearest
+     * ones, a token per unit of marking, plus one each. Gathering k tokens is
+     * a synchronisation of those components with the place.
      */
     uint64_t distanceOf (const Marking<T> &m, const Quest &q, const SparseArray<T> *delta = nullptr) const
     {
@@ -347,15 +359,14 @@ template<typename T>
       if (have >= q.need) return 0;
       if (q.comp == NONE) return 1; // unguided: a move away, as far as we know
       size_t missing = static_cast<size_t> (q.need - have);
-      // every token of every component holding the place, at its local distance
       scratch.clear ();
       for (uint32_t c : comps.componentsOf (q.place)) {
         const auto &k = comps.component (c);
         const std::vector<uint32_t> &dist = comps.questDistances (c, q.place);
         for (size_t j = 0; j < k.size (); ++j) {
-          if (k.places[j] == q.place) continue;
+          if (k.places[j] == q.place || dist[j] == UNREACHED) continue;
           long long v = at (k.places[j]);
-          for (long long u = 0; u < v && dist[j] != UNREACHED; ++u) scratch.push_back (dist[j]);
+          for (long long u = 0; u < v; ++u) scratch.push_back (dist[j]);
         }
       }
       if (scratch.size () < missing) return HOPELESS;
@@ -364,30 +375,68 @@ template<typename T>
       for (size_t i = 0; i < missing; ++i) sum += scratch[i] + 1;
       return sum;
     }
-    mutable std::vector<uint64_t> scratch;
 
-    /**
-     * Summed goal distance of the marking t produces from the located marking:
-     * a process t moves stands at t's post place in its component, the others
-     * where they are (goalNow holds their distances, computed by replan).
-     */
-    uint64_t goalAfter (uint32_t t) const
+    /** Sum of the stage's quest distances; refreshes cur and the frozen places. */
+    uint64_t measure (const Marking<T> &m, Stage &stage)
+    {
+      for (size_t p : frozenList) frozenNeed[p] = 0;
+      frozenList.clear ();
+      stage.cur.resize (stage.quests.size ());
+      uint64_t total = 0;
+      for (size_t i = 0; i < stage.quests.size (); ++i) {
+        const Quest &q = stage.quests[i];
+        stage.cur[i] = distanceOf (m, q);
+        // the tokens already on the place, up to what the quest needs, stay there
+        if (m.get (q.place) > 0) {
+          if (frozenNeed[q.place] == 0) frozenList.push_back (q.place);
+          frozenNeed[q.place] = std::max<long long> (frozenNeed[q.place], std::min<long long> (q.need, m.get (q.place)));
+        }
+        total += stage.cur[i];
+      }
+      return total;
+    }
+
+    /** Would t drop a frozen place below the tokens a quest keeps there. */
+    bool breaksFrozen (uint32_t t) const
+    {
+      if (frozenList.empty ()) return false;
+      const SparseArray<T> &eff = net.effect (t);
+      for (size_t i = 0; i < eff.size (); ++i) {
+        size_t p = eff.keyAt (i);
+        if (eff.valueAt (i) < 0 && frozenNeed[p] > 0 && current->get (p) + eff.valueAt (i) < frozenNeed[p]) return true;
+      }
+      return false;
+    }
+
+    /** Whether t moves a token of a component holding the quest's place (the tables of Components say so). */
+    bool touches (uint32_t t, const Quest &q) const
+    {
+      for (const auto &cl : comps.consumedBy (t))
+        if (comps.component (cl.first).indexOf (q.place) >= 0) return true;
+      for (const auto &cl : comps.producedBy (t))
+        if (comps.component (cl.first).indexOf (q.place) >= 0) return true;
+      return false;
+    }
+
+    /** The stage's distance after firing t, recomputed for the quests t touches. */
+    uint64_t score (uint32_t t, const Stage &stage, uint64_t total) const
     {
       const SparseArray<T> &eff = net.effect (t);
-      uint64_t s = 0;
-      for (size_t i = 0; i < goalQuests.size (); ++i) {
-        const Quest &q = goalQuests[i];
-        if (q.comp == NONE || !touches (eff, q)) s += goalCur[i];
-        else s += distanceOf (marking (), q, &eff);
+      uint64_t s = total;
+      for (size_t i = 0; i < stage.quests.size (); ++i) {
+        if (stage.cur[i] == 0) continue;
+        const Quest &q = stage.quests[i];
+        if (q.comp == NONE) {
+          if (eff.get (q.place) > 0 && s > 0) s -= 1; // unguided: a transition feeding the place is the only clue
+          continue;
+        }
+        if (!touches (t, q)) continue;
+        s = s - stage.cur[i] + distanceOf (*current, q, &eff);
       }
       return s;
     }
 
-    // Where each process stands, refreshed once per stage choice: the marked
-    // local places of every component, so that a distance is one table lookup.
-    std::vector<std::vector<uint32_t>> standing;
-    std::vector<uint64_t> goalCur;         // the goal quests' distances at the stage choice
-
+    /** Where each process stands, for the alignment costs of a stage choice. */
     void locate (const Marking<T> &m)
     {
       standing.assign (comps.size (), {});
@@ -398,131 +447,82 @@ template<typename T>
       }
     }
 
-    /** Distance of the process holding p to p from where it stands (after locate); UNREACHED when no component holds p. */
-    uint64_t localDistance (size_t p) const
-    {
-      const auto &cs = comps.componentsOf (p);
-      if (cs.empty ()) return UNREACHED;
-      const std::vector<uint32_t> &dist = comps.questDistances (cs[0], p);
-      uint64_t d = UNREACHED;
-      for (uint32_t j : standing[cs[0]])
-        if (dist[j] < d) d = dist[j];
-      return d;
-    }
-
-    /** The cost of aligning every process on the pre-places of t, UNREACHED when one cannot get there alone. */
+    /**
+     * The cost of aligning every process on the pre-places of t by their own
+     * moves; a pre-place already holding its tokens costs nothing whatever its
+     * component can do, UNREACHED when a process cannot get to its place alone.
+     */
     uint64_t alignCost (uint32_t t) const
     {
       const SparseArray<T> &pre = net.pre (t);
       uint64_t align = 0;
       for (size_t i = 0; i < pre.size (); ++i) {
-        uint64_t d = localDistance (pre.keyAt (i));
+        size_t p = pre.keyAt (i);
+        if (current->get (p) >= pre.valueAt (i)) continue;
+        const auto &cs = comps.componentsOf (p);
+        if (cs.empty ()) return UNREACHED;
+        const std::vector<uint32_t> &dist = comps.questDistances (cs[0], p);
+        uint64_t d = UNREACHED;
+        for (uint32_t j : standing[cs[0]])
+          if (dist[j] < d) d = dist[j];
         if (d >= Components<T>::BARRIER_OFFSET) return UNREACHED;
         align += d;
       }
       return align;
     }
 
-    /** A quest on place >= need; without a component to guide it the quest only says satisfied or not. */
-    void addQuest (size_t p, long long need)
-    {
-      const auto &cs = comps.componentsOf (p);
-      if (cs.empty ()) quests.push_back ({ p, need, NONE, nullptr });
-      else quests.push_back ({ p, need, cs[0], &comps.questDistances (cs[0], p) });
-    }
-
-    /** Every atom of a conjunction as a quest; anything else is unsupported. */
-    bool collect (const petri::expr::Expression &e)
-    {
-      using petri::expr::Expression;
-      using petri::expr::Cmp;
-      switch (e.kind) {
-      case Expression::Kind::And:
-        for (const auto &c : e.children)
-          if (!collect (c)) return false;
-        return true;
-      case Expression::Kind::Atom: {
-        const auto &a = e.atom;
-        if (a.terms.size () != 1 || a.terms[0].second <= 0) return false;
-        long long need;
-        if (a.op == Cmp::GE) need = (a.constant + a.terms[0].second - 1) / a.terms[0].second;
-        else if (a.op == Cmp::GT) need = a.constant / a.terms[0].second + 1;
-        else if (a.op == Cmp::EQ) need = a.constant / a.terms[0].second;
-        else return false;
-        addQuest (a.terms[0].first, need);
-        return true;
-      }
-      default:
-        return false;
-      }
-    }
-
-    /** Sum of the local distances of the unsatisfied quests; refreshes cur and the frozen places. */
-    uint64_t measure (const Marking<T> &m)
-    {
-      for (size_t p : frozenList) frozenPlace[p] = false;
-      frozenList.clear ();
-      uint64_t total = 0;
-      for (size_t i = 0; i < quests.size (); ++i) {
-        const Quest &q = quests[i];
-        cur[i] = distanceOf (m, q);
-        // a token already on the place stays there, whether the quest is complete or gathering
-        if (m.get (q.place) > 0) {
-          frozenPlace[q.place] = true;
-          frozenList.push_back (q.place);
-        }
-        total += cur[i];
-      }
-      return total;
-    }
-
-    /** Would t take tokens from a place a satisfied quest holds. */
-    bool breaksFrozen (uint32_t t) const
-    {
-      if (frozenList.empty ()) return false;
-      const SparseArray<T> &eff = net.effect (t);
-      for (size_t i = 0; i < eff.size (); ++i)
-        if (eff.valueAt (i) < 0 && frozenPlace[eff.keyAt (i)]) return true;
-      return false;
-    }
-
-    /** Distance after firing t: recomputed on the virtual marking for the quests whose components t touches. */
-    uint64_t score (uint32_t t, uint64_t total) const
+    /** The stage's distance after t, from the located marking. */
+    uint64_t stageAfter (const Stage &stage, uint32_t t) const
     {
       const SparseArray<T> &eff = net.effect (t);
-      uint64_t s = total;
-      for (size_t i = 0; i < quests.size (); ++i) {
-        if (cur[i] == 0) continue;
-        const Quest &q = quests[i];
-        if (q.comp == NONE) {
-          // unguided: a transition feeding the place is the only clue
-          if (eff.get (q.place) > 0) s -= 1;
-          continue;
-        }
-        if (!touches (eff, q)) continue;
-        s = s - cur[i] + distanceOf (marking (), q, &eff);
+      uint64_t s = 0;
+      for (size_t i = 0; i < stage.quests.size (); ++i) {
+        const Quest &q = stage.quests[i];
+        if (q.comp == NONE || !touches (t, q)) s += stage.cur[i];
+        else s += distanceOf (*current, q, &eff);
       }
       return s;
     }
 
-    /** Whether the effect changes a place of a component holding the quest's place, or the place itself. */
-    bool touches (const SparseArray<T> &eff, const Quest &q) const
+    /**
+     * Push a stage for the top: the barrier every process can reach alone,
+     * not tabu at this level, whose outcome brings the top's quests closest
+     * (the cheapest to align among equals). False when there is none.
+     */
+    bool push (const Marking<T> &m)
     {
-      for (size_t j = 0; j < eff.size (); ++j) {
-        size_t p = eff.keyAt (j);
-        if (p == q.place) return true;
-        for (uint32_t c : comps.componentsOf (p))
-          if (comps.component (c).indexOf (q.place) >= 0) return true;
+      Stage &top = stack.back ();
+      locate (m);
+      uint32_t best = NONE;
+      uint64_t bestAfter = std::numeric_limits<uint64_t>::max ();
+      uint64_t bestAlign = std::numeric_limits<uint64_t>::max ();
+      for (uint32_t t = 0; t < net.transitionCount (); ++t) {
+        if (comps.syncDegreeOf (t) <= 1) continue;
+        if (std::find (top.tabu.begin (), top.tabu.end (), t) != top.tabu.end ()) continue;
+        uint64_t align = alignCost (t);
+        if (align == UNREACHED) continue;
+        uint64_t after = stageAfter (top, t);
+        if (std::tie (after, align) < std::tie (bestAfter, bestAlign)) {
+          bestAfter = after;
+          bestAlign = align;
+          best = t;
+        }
       }
-      return false;
+      if (best == NONE) return false;
+      ++replans;
+      if (debugSteps > 0)
+        std::cerr << "stage " << stack.size () << ": " << (top.barrier == NONE ? std::string ("goal") : "t" + std::to_string (top.barrier))
+            << " at " << top.best << " stalled, pushing t" << best << " after " << bestAfter << " align " << bestAlign
+            << " tabu " << top.tabu.size () << std::endl;
+      Stage sub { best, {}, {} };
+      sub.parentBefore = 0;
+      for (uint64_t d : top.cur) sub.parentBefore += d;
+      const SparseArray<T> &pre = net.pre (best);
+      for (size_t i = 0; i < pre.size (); ++i) addQuest (pre.keyAt (i), pre.valueAt (i), sub.quests);
+      stack.push_back (std::move (sub));
+      maxDepth = std::max<uint64_t> (maxDepth, stack.size ());
+      return true;
     }
-
-    /** The marking of the step being chosen, kept by choose for the scoring. */
-    const Marking<T>& marking () const
-    {
-      return *current;
-    }
-    const Marking<T> *current = nullptr;
   };
 
 } // namespace petri::walk

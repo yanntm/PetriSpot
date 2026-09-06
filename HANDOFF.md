@@ -4,6 +4,32 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## State at the end of 2026-09-06 (about 16:45)
+
+**Code.** PetriSpot master carries, beyond what the morning shipped: quests
+that gather (k nearest tokens over the components holding the place), bounds
+as a staircase in the quest sweep (`QuestSweep.h`, a bound quested at
+known + 1), recursive staging (`ComponentStrategy.h` is a stack of stages,
+see `Petri/src/walk/algorithm.md` and WALK_PLAN.md section 10), the pool never
+offered a dead marking, hopeless targets left out of the sweep's ranking.
+Controls pass (three ResIsolation joins 2.8 s, three Erlangen targets under
+2 s, Stigmergy 1.7 s, Airplane); the 1 000-target sweep regressed from 1 000
+in 7 s to about 800 in 30 s and is the first thing to recover (the flat
+version is commit `3a379ec`'s `ComponentStrategy.h`); CANInsertWithFailure
+PT-010's gathering is the open yardstick (`/data/ythierry/can/`, files
+`ub-open.sexpr`, `gather.sexpr`; PT-005 is trivial). All of it is pushed.
+
+**Cluster.** The CTL baseline jobs are deleted (3 906); about 1 000 LTLF jobs
+remain queued. The rerun script `~/MCC26/MCC-drivers/submit-2026-09-06c.sh`
+is staged, not run. The ITS-Tools product to deploy must ship a `petri64`
+built from this master (the CI chain: PetriSpot push, `Inv-Linux` deploy,
+an empty commit on ITS-Tools master, the product on lip6.github.io; check the
+binary inside the zip for the `--runTime` help text before deploying). Then
+`install_itstools.sh`, the rsync of `itstools/`, a warmup on a handful of
+AirplaneLD jobs watched to the end, then the examinations one `run_oar.sh`
+at a time. The user's rules: small batches first, never `xargs` a thousand
+ids at `oardel`, watch before committing hundreds of CPU hours.
+
 ## Rerun in preparation (2026-09-06, 16:00)
 
 The walker gained components and the quest sweep (PetriSpot up to `c514d28`),

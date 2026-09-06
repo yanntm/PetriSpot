@@ -792,17 +792,27 @@ Directions to weigh, none decided:
   stalls after the invariants, the 313 runs of section 9) and PT-010 got one
   random bounds walk of 1600 s that raised nothing; the contest has nothing
   on PT-030 and above.
-* **Recursive staging (2026-09-06).** A stage is chosen among the barriers
-  whose pre-places every process can reach alone. On CANInsertWithFailure
-  the 310-place shared component moves only by synchronisations, so for a
-  gathering there no barrier qualifies and the quest cannot start: 17 000
-  quests per thread abandoned in 20 s, the 212 shared places stay at one
-  token. The answer is a stage for the stage, when and only when a stage
-  stalls: push the barrier that brings the stalled stage's quests closest,
-  by the same rule one level down, fire it, pop; a stack of stages bounded in
-  depth, with the tabu per level. PT-010's `Node*OKshare` bounds, 1 seen
-  against 9 reachable, are the yardstick; PT-005 is trivial for any sweep
-  (114 bounds in 7 ms).
+* **Recursive staging (done 2026-09-06 evening, `ComponentStrategy.h` as a
+  stack of stages).** Controls: the three ResIsolation joins 2.8 s each, the
+  three Erlangen targets 1.4 to 1.8 s (faster than flat), Stigmergy 1.7 s,
+  Airplane whole. Regressed: the 1 000-target sweep, 1 000 in 7 s flat, about
+  800 in 30 s stacked, the step being heavier (`distanceOf` recomputed per
+  candidate and quest) and the sweep having lost the pool's help: pooled
+  states good for one target strand another; hopeless targets are now left
+  out of the ranking and a hopeless quest restarts the walk. Not yet
+  achieved: the CAN gathering (`Node*OKshare >= 2`): the stage pushes, its
+  barrier fires once enabled, then the next stage; the trace tool
+  (`--debugSteps`, `sync stack:` lines with frozen places and the barrier's
+  pre-places) is what to read next. Lessons written into the code: freezing
+  keeps a place at its need, not untouched; the stage barrier is exempt from
+  freezing; unsigned scores must not underflow; a dead marking is never a
+  rare event for the pool.
+* **Ideas from the same evening.** Learned aversions rather than a tabu:
+  facts "never from here" as an antichain over markings, the CDCL clause of
+  section 10.6, so that what a run learns about a barrier and a region
+  survives the run. Restart statistics that evolve instead of accreting:
+  decay, so that what a pool entry or a counter says reflects the recent
+  runs. Dead or stranded pool entries purged when a draw finds them so.
 * **Effort share.** On the cluster this run got two walker calls totalling
   62 s of 1800; the rest was flattening and decision diagrams. Whatever the
   walker's speed, the portfolio starves it here (`PORTFOLIO.md`).
