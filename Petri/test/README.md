@@ -10,7 +10,9 @@
 * `probes/` — one-off analysis scripts kept for reference (place projection
   and the BridgeAndVehicles bound finding; `perprop_payoff.py`,
   `reduction_resistance.py` and `dd_tail.py` measure the campaign claims of
-  `PORTFOLIO.md` against a directory of MCC logs).
+  `PORTFOLIO.md` against a directory of MCC logs; `qla_props.py` writes the
+  QuasiLivenessAll target set of a PNML as `(reach pI (fireable tI))` lines,
+  the walker's yardstick on a large target set).
 * `pnet_roundtrip.sh` — PNML versus PNET input on the given model folders:
   same invariant counts, same verdicts and step counts (step-bound walks).
 
