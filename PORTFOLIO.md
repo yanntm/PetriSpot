@@ -441,6 +441,51 @@ contract.
   paid) is what "fewer, bigger calls" protects, and the per-kind report is
   how the loop above could one day be told what worked, if it asks.
 
+## Three contracts for a walker call
+
+The `--escalate` flag of 2026-09-06 said "try hard"; that is a property of
+the question, not of the walker, and applied to every call it cost the LTL
+examinations minutes per instance (AirplaneLD-PT-0010 LTLCardinality: 215 s
+against 15 s in the contest, two walker calls of 135 s and 70 s gleaning the
+atoms while one of them was unreachable). The loop's own shape is the right
+one: walk a bit, ask SMT whether the rest is impossible, reduce, try the
+other engines, come back with more. Escalation belongs to the loop's
+iterations, not inside one call. Three contracts, to be stated in INTEROP.md
+and chosen per call site:
+
+* **Glean.** Best effort under a hard time bound: a small `--totalTime`, no
+  escalation, the sweep returns when a round solves nothing, and everything
+  inside the call is boxed by the total. The `AtomicReducer`s, the knowledge
+  loop's first turns, the LTL and CTL atom checks. Rule: the walker never gets
+  more time than the property class it serves has had.
+* **Commit.** Try hard until told to stop: `--escalate` with the budget the
+  loop is willing to spend now. The questions where the walker is the engine
+  that can move (deadlock and reachability on the wide nets), once the cheap
+  engines have had their turn; a question graduates from glean to commit
+  with the iterations, as `steps` already grows from 10 000 to a million.
+* **Companion.** A walker running continuously beside the loop on every open
+  goal, on the cores SMT and the diagrams leave idle, with the loop's
+  remaining wall time as its budget: `ParallelWalk` generalised to the whole
+  loop. A goal closed elsewhere reaches it through a minimal control channel
+  on its stdin (`DROP prop3`, `STOP`), read between rounds, so its memory
+  (pool, counters, shares) survives; a model change by reduction restarts it
+  on the new model, the streamed verdicts surviving as they do today. Far
+  short of the command language rejected above.
+
+With a companion the loop's sequential walker calls disappear, except before
+it starts, and "how much time does the walker get" has one answer: the idle
+cores for the whole run under the loop's overall timeout, instead of a
+formula per call site. Cores: the harness gives four; Z3 takes one, a
+diagram engine one, the companion the rest, its scheduler taking the count
+at start.
+
+Java call sites and their contract: `ReachabilitySolver.randomCheckReachability`
+(glean under LTL, SI_LTL and CTL reductions; commit growing with the
+iteration under the reachability ones), `AtomicReducer` and `AtomicReducerSR`
+(glean), `DeadlockSolver.runDeadlock` and `UpperBoundsSolver` (commit, the
+budget growing per call rather than a walk that refuses to return),
+`ParallelWalk` (the companion's seed). Not coded yet.
+
 ## Goals, in order
 
 **G1 — A record of effort, in `DoneProperties`.** Not more tracing: the same
