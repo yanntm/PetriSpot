@@ -3,7 +3,7 @@
 Read this first, then the design file of the thread you pick up. This file is
 rewritten, never appended to: what is done leaves it (result in the README or
 the design file, history in git and `docs/HISTORY.md`). State as of
-2026-09-07, 21:00.
+2026-09-07, 21:30.
 
 ## Orientation
 
@@ -64,6 +64,39 @@ holds `itstools/`).
 launchers (Eclipse, flat, native image), queued behind the campaign.
 
 ## Next actions, by thread
+
+### First: the CTL examinations on the cluster, once campaign 2026-09-07 has drained
+
+The explicit CTL checker (`CTL_PLAN.md`) is built, plugged into ITS-Tools
+beside `its-ctl` and published by both CIs; it has never run at scale. The
+campaign holds `itstools/` on the cluster, so wait for `cluster_status.sh` to
+show LTLF complete and the queue empty, collect and archive (`docs/CLUSTER.md`
+sections 4 and 5), then:
+
+1. Deploy the published product (`docs/CLUSTER.md` section 1): fresh
+   `install_itstools.sh` in the deploy tree, check that the product's bundled
+   `petri64 -h` lists `--ctlSteps` and that its stamp is `202609071619` or
+   later (`docs/CI.md`), rsync the `itstools/` subtree.
+2. Warm up on `oracle/AirplaneLD-PT-0010-*.out`; in the CTLC and CTLF logs
+   look for `CTL check beside the decision diagrams` and verdicts tagged
+   `CTL_WALK` (locally: CTLF 11 of 16, CTLC 5 of 16 by the checker, all 32
+   right, `Petri/test/logs/its-airplane-ctl{c,f}.log`).
+3. Submit CTLC and CTLF, 1800 s, 4 cores, `tall%`, one after the other
+   (`submit-<date>.sh` pattern, `Petri/test/mcc/submit-2026-09-07.sh`), and
+   Liveness after them if time allows: it takes the same path
+   (`GlobalPropertySolver` states it as `AG EF fireable` per transition) and
+   the campaign of 09-05 had it at 48 % of its wall time in the diagram tail.
+4. Collect with `collect.sh <date> CTLC CTLF`; there is no complete CTL
+   baseline of ours (the 09-06 CTL runs were deleted), so read the report
+   against the field (`report.py --raw` for the tool board, the pages against
+   `ITS-Tools 2026`, `Tapaal 2026`): the questions are how many formulas the
+   checker answers (`grep -c CTL_WALK` over the logs, and how many of them
+   only the checker had before the diagrams), any wrong verdict (a soundness
+   bug; the oracle script found two locally, none remain), and whether the
+   companion costs anything on the instances the diagrams solved alone.
+5. Optionally, the stand-alone measurement: the `petrispot` tool of
+   MCC-drivers gets CTLC and CTLF (below), 300 s confinement for a first
+   sweep.
 
 ### CTL checker (`CTL_PLAN.md` section 9 has the list, 11 the design talk)
 
