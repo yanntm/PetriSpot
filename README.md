@@ -266,7 +266,7 @@ comparison with TAPAAL's dependency graphs.
 | `Petri/src/io/` | KERS and PNET binary formats, ASCII matrix, PNML and dot exporters |
 | `Petri/src/walk/` | the explicit walk engine: net view, marking, enabled set, strategies, portfolio |
 | `Petri/test/` | scripts, hand-written property files, logs (ignored) |
-| `docs/` | `HISTORY.md`, the append-only sink of past handoffs and session notes, frozen at the time of writing |
+| `docs/` | the operating guides (`CLUSTER.md`, `CI.md`, `BUILD.md`) and `HISTORY.md`, the append-only sink of past handoffs, frozen at the time of writing |
 
 ## Kernel Basis Computation for Integer Matrices
 

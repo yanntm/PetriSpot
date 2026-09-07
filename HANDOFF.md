@@ -15,6 +15,7 @@ the design file, history in git and `docs/HISTORY.md`). State as of
 | the state equation, LP hints | `Petri/src/lp/algorithm.md` | `Petri/src/lp/` |
 | the campaigns, the harness | `BENCH.md`, `Petri/test/mcc/README.md`, `TOTAL_QUERIES.md` | `Petri/test/mcc/` |
 | libHSC as a competitor | `libHSC_in_MCC.md` | `~/git/MCC-drivers/hsc/` |
+| operating guides: cluster, CI chain, local builds | `docs/CLUSTER.md`, `docs/CI.md`, `docs/BUILD.md` | |
 
 Repositories: this one; `~/git/ITStools` (origin `lip6/ITStools`, the Java
 side); `~/git/MCC-drivers` (the harness, origin `yanntm/MCC-drivers`, the
