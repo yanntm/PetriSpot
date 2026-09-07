@@ -4,6 +4,24 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07: spotutil, the three contracts written
+
+**spotutil** (Spot-BinaryBuilds `tools/`, commits b4a9e6b and after): one
+static binary over the Spot C++ API with two subcommands, `stutter-states`
+(was `autstates.py`) and `sensitivity` (was `senseclsl.py`), same output
+formats; CMake against the Spot install of `build_spot.sh`, CLI11 vendored;
+tested locally against the Spot 2.14.5 install of that repo on three
+automata. The Spot-BinaryBuilds CI publishes it on gh-pages beside
+`ltl2tgba`. **ITS-Tools commit 1ed32177 (local, not pushed)** fetches
+`bin/spotutil-linux64` in the plugin's pom, drops the two scripts, and
+`SpotRunner` calls the subcommands; push it once
+`https://github.com/yanntm/Spot-BinaryBuilds/raw/gh-pages/spotutil` answers,
+else the ITS-Tools build fails on the fetch. Then the product chain and a
+warmup on an LTL instance whose log carried the traceback.
+
+**PORTFOLIO.md** gained "Three contracts for a walker call": glean, commit,
+companion, with the Java call sites and their contract; no code yet.
+
 ## 2026-09-07, morning: LTL slowed by the walker's budget, the Spot scripts, the total pages
 
 **LTL.** `LTLC/OAR.1337407` (AirplaneLD-PT-0010, 15 s in the contest) took
