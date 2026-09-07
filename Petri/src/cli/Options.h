@@ -96,10 +96,11 @@ struct Options
   size_t partition = 0; // sweeps over at least this many targets are split between threads (0: never)
 
   // CTL (cli/CtlDriver.h, ctl/)
-  uint64_t ctlSteps = 1000;     // --ctlSteps: hunt steps of the first round, tenfold per round
+  uint64_t ctlSteps = 1000;     // --ctlSteps: hunt steps in the first round, root and nested; the rounds grow them
   uint64_t ctlRunLength = 1000; // --ctlRunLength: steps of a hunt run before a restart
-  uint64_t ctlRegion = 1000;    // --ctlRegion: states of a region proof in the first round, tenfold per round
-  unsigned ctlRounds = 6;       // --ctlRounds: rounds of growing budgets per property
+  uint64_t ctlRegion = 1000;    // --ctlRegion: states of a region proof in the first round, root and nested
+  unsigned ctlRounds = 8;       // --ctlRounds: rounds per property, each tenfold the work of the last
+  bool ctlSaturate = true;      // --ctlNoSat: no saturated runs in the hunts
 
   bool invariants () const
   {
@@ -249,13 +250,16 @@ inline void addOptions (CLI::App &app, Options &o)
   wk->add_option ("--debugSteps", o.debugSteps, "Trace the first n relaxed-plan decisions on stderr.");
 
   auto *ctl = app.add_option_group ("CTL");
-  ctl->add_option ("--ctlSteps", o.ctlSteps, "Hunt steps per E node in the first round, tenfold per round (default 1000); "
-                   "a nested obligation gets a hundredth, at least 100.");
+  ctl->add_option ("--ctlSteps", o.ctlSteps, "Hunt steps per E node in the first round (default 1000), at the root of "
+                   "the search and for the probe of a state met along the way; odd rounds multiply the root by ten, "
+                   "even rounds the probe.");
   ctl->add_option ("--ctlRunLength", o.ctlRunLength, "Steps of one hunt run before a restart (default 1000).");
-  ctl->add_option ("--ctlRegion", o.ctlRegion, "States a region proof of an A node may hold in the first round, tenfold "
-                   "per round (default 1000); a nested obligation gets a hundredth, at least 100.");
-  ctl->add_option ("--ctlRounds", o.ctlRounds, "Rounds of growing budgets per CTL property (default 6); the clock is -t, "
-                   "or an equal share of --totalTime.");
+  ctl->add_option ("--ctlRegion", o.ctlRegion, "States a region proof of an A node may hold in the first round (default "
+                   "1000), root and probe, grown by the rounds as --ctlSteps.");
+  ctl->add_flag ("!--ctlNoSat", o.ctlSaturate, "Hunts: no saturated runs (by default every other run repeats its chosen "
+                 "transition while it stays enabled, every intermediate state checked).");
+  ctl->add_option ("--ctlRounds", o.ctlRounds, "Rounds per CTL property, each tenfold the work of the last (default 8); "
+                   "the clock is -t, or an equal share of --totalTime.");
 }
 
 } // namespace petri::cli

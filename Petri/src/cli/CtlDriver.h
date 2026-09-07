@@ -62,22 +62,29 @@ template<typename T>
       auto propStart = clock::now ();
       petri::ctl::Checker<T> checker (wnet, o.seed + 7919 * decided);
       petri::ctl::Budget budget;
-      budget.huntSteps = o.ctlSteps;
       budget.runLength = o.ctlRunLength;
-      budget.regionStates = o.ctlRegion;
       budget.epsilon = o.epsilon;
+      budget.saturate = o.ctlSaturate;
       budget.sample = o.sample ? o.sample : 8;
       budget.deadline = propStart + std::chrono::milliseconds (shareMs);
       Verdict v = Verdict::Unknown;
       petri::ctl::Evidence ev;
       unsigned round = 0;
       for (; round < o.ctlRounds && v == Verdict::Unknown && !checker.timedOut (); ++round) {
+        // the work of a round grows tenfold: odd rounds widen the root search, even rounds the probe of a state
+        uint64_t rootScale = 1, nestedScale = 1;
+        for (unsigned r = 0; r < (round + 1) / 2; ++r) rootScale *= 10;
+        for (unsigned r = 0; r < round / 2; ++r) nestedScale *= 10;
         budget.level = round;
+        budget.huntSteps = o.ctlSteps * rootScale;
+        budget.regionStates = o.ctlRegion * rootScale;
+        // the probe of a state: a short hunt (a reachable operand is found in a few steps, an unreachable one
+        // wastes the whole budget) and the region, which is where the proof is
+        budget.nestedSteps = std::max<uint64_t> (100, o.ctlSteps / 10) * nestedScale;
+        budget.nestedStates = o.ctlRegion * nestedScale;
         checker.setBudget (budget);
         ev = petri::ctl::Evidence ();
         v = checker.solve (init, f, &ev);
-        budget.huntSteps *= 10;
-        budget.regionStates *= 10;
       }
       long ms = static_cast<long> (std::chrono::duration_cast<std::chrono::milliseconds> (clock::now () - propStart).count ());
       if (v != Verdict::Unknown) {
