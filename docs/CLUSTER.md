@@ -56,38 +56,63 @@ one is `Petri/test/mcc/submit-2026-09-07.sh`).
 ## 3. Watch
 
 ```
-ssh cluster.lip6.fr 'cd MCC26/MCC-drivers && for d in RD QLA LTLC LTLF; do echo "$d: $(ls $d 2>/dev/null | grep -c stdout) logs"; done; oarstat -u | tail -n +3 | awk "{print \$2}" | sort | uniq -c'
+bash Petri/test/mcc/cluster_status.sh              # every result folder; or name examinations: cluster_status.sh QLA LTLC
 ```
 
-One `.stdout` per finished job; `R` running, `W` waiting. About 450 jobs an
-hour at 4 cores on `tall%`. A job killed at the wall leaves a log without a
-`Test :` trailer; resubmit only those (`BENCH.md`, the `comm -3` recipe).
+One line per examination folder: logs written (one `OAR.<id>.stdout` per
+finished job) and how many carry the harness trailer (a job killed at the
+wall leaves none), then the jobs by state (`R` running, `W` waiting). The
+18-log folders are the Airplane warmups. About 450 jobs an hour at 4 cores on
+`tall%`. Resubmit only the killed ones (`BENCH.md`, the `comm -3` recipe).
 
-## 4. Collect
-
-```
-rsync -rz --exclude='*.stderr' cluster.lip6.fr:MCC26/MCC-drivers/{RD,QLA,LTLC,LTLF} /data/ythierry/MCC26run/<date>/
-cd /data/ythierry/MCC26run/<date>
-python3 ~/git/PetriSpot/Petri/test/mcc/mcclogs2csv.py RD LTLC LTLF -o csv                 # classic examinations
-python3 ~/git/PetriSpot/Petri/test/mcc/totallogs2csv.py QLA SMA UBA -o csv --oracles csv/oracles   # total examinations
-python3 ~/git/PetriSpot/Petri/test/mcc/report.py csv --baseline <csv folder of the run to compare with>
-python3 ~/git/PetriSpot/Petri/test/mcc/toolsupport.py ~/git/pnmcc-models-2026/website/raw-result-analysis.csv csv/verdicts.csv -o csv/support.csv
-```
-
-`REPORT.md` in `csv/` is the readable result; the tables of a campaign worth
-keeping go to `Petri/test/mcc/csv/<date>/` with a README saying what it
-showed. The Eclipse fatals (about 5 per examination) sit in the `failure`
-column: read it before believing a one second miss. Run to run variance is a
-few instances per examination; no A/B worth less than a few dozen instances
-can be read from one run.
-
-## 5. Publish and archive
+## 4. Collect, as often as wanted
 
 ```
-# the pages: point "ITS-Tools latest" at the new folder, name the previous one after its date
-$EDITOR ~/git/MCC-analysis/campaign/example.json && (cd ~/git/MCC-analysis && python3 build.py ...)   # see its README
-mv /data/ythierry/MCC26run/<date> /data/ythierry/MCC26archive/<date>
-ssh cluster.lip6.fr 'cd MCC26/MCC-drivers && rm -rf RD QLA LTLC LTLF'        # only after the archive is complete
+BASELINE=Petri/test/mcc/csv/<run to compare with> bash Petri/test/mcc/collect.sh <date> QLA LTLC LTLF
+```
+
+Rsyncs the folders into `/data/ythierry/MCC26run/<date>/` (never with
+`--delete`; a draining campaign is collected as it goes and a rerun adds the
+new logs), runs `mcclogs2csv.py` on the classic examinations and
+`totallogs2csv.py` on `QLA SMA UBA`, then `report.py` into
+`<date>/csv/REPORT.md`, the readable result, against `$BASELINE` when set.
+`toolsupport.py` (which contest tools back a value we miss) is the manual
+extra:
+
+```
+python3 Petri/test/mcc/toolsupport.py ~/git/pnmcc-models-2026/website/raw-result-analysis.csv /data/ythierry/MCC26run/<date>/csv/verdicts.csv -o /data/ythierry/MCC26run/<date>/csv/support.csv
+```
+
+The tables of a campaign worth keeping go to `Petri/test/mcc/csv/<date>/`
+with a README saying what it showed. The Eclipse fatals (about 5 per
+examination) sit in the `failure` column: read it before believing a one
+second miss. Run to run variance is a few instances per examination; no A/B
+worth less than a few dozen instances can be read from one run.
+
+## 5. Pages, then archive
+
+The pages (`~/git/MCC-analysis/campaign/`, its README) are built from
+`campaign/example.json`: one *set* per campaign, `"logs":
+["/data/ythierry/MCC26run/<date>/*"]`, so a rebuild picks up whatever the
+folder holds. A new campaign date is a new set at the top of the list (copy
+the previous block, rename it); the previous `latest` keeps its dated name.
+
+```
+bash Petri/test/mcc/collect.sh <date> QLA LTLC LTLF --pages     # collect and rebuild the pages (about four minutes)
+python3 ~/git/MCC-analysis/campaign/build.py ~/git/MCC-analysis/campaign/example.json   # the rebuild alone
+python3 ~/git/MCC-analysis/campaign/serve.py /data/ythierry/MCC26run/pages --port 8080  # browse, logs served from disk
+```
+
+The order is: collect, update `example.json` if the campaign is new, rebuild
+the pages, browse. When the campaign is complete and read, archive it and free
+the cluster. The cluster home is under quota and the inputs alone are 25 GB
+that do not compress; result folders are deleted there as soon as they are
+archived, `/data` has terabytes and keeps everything.
+
+```
+mv /data/ythierry/MCC26run/<date> /data/ythierry/MCC26archive/<date>      # then point the set's glob at the archive
+ssh cluster.lip6.fr 'cd MCC26/MCC-drivers && rm -rf QLA LTLC LTLF'        # only after the archive is complete
+ssh cluster.lip6.fr 'du -sh MCC26; quota -s 2>/dev/null | tail -2'         # what is left up there
 ```
 
 ## 6. Run one instance locally through the same harness

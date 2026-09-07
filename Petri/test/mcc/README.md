@@ -6,6 +6,14 @@ The campaign itself is described in `BENCH.md` at the repository root: one
 (`L/`, `OS/`, `QL/`, `RD/`, `SM/`, `UB/`, ...). This folder holds what turns
 those logs into tables we can analyse.
 
+* `cluster_status.sh` — how far a campaign is on the cluster: logs per
+  examination folder, with and without the harness trailer, jobs by state.
+* `collect.sh <date> EXAM... [--pages]` — rsync the folders down (never
+  `--delete`), run the collectors and `report.py` (against `$BASELINE` when
+  set), optionally rebuild the MCC-analysis pages. Rerunnable while the
+  campaign drains. The procedure is `docs/CLUSTER.md`.
+* `submit-<date>.sh` — a copy of the submission script of that campaign as
+  run on the cluster head.
 * `mcclogs2csv.py` — the collector. Takes examination directories, writes
   `runs.csv` (one row per log) and `verdicts.csv` (one row per formula).
 * `totallogs2csv.py` — the collector of the total examinations
