@@ -31,10 +31,13 @@ inline const char* to_string (Verdict v)
 
 struct Budget
 {
-  uint64_t huntSteps = 10000;    // steps of one hunt, over its restarts
+  uint64_t huntSteps = 1000;     // steps of one hunt at the root of the search, over its restarts
+  uint64_t regionStates = 1000;  // states a region at the root may hold
+  uint64_t nestedSteps = 1000;   // the same for a hunt opened from a state met along a hunt or in a region
+  uint64_t nestedStates = 1000;  // the same for a nested region: the probe of one state
   uint64_t runLength = 1000;     // steps of one run of a hunt before a restart
-  uint64_t regionStates = 10000; // states a region may hold
   unsigned epsilon = 10;         // percentage of uniform moves in a hunt
+  bool saturate = true;          // every other run of a hunt repeats its chosen transition while it stays enabled
   size_t sample = 8;             // successors scored per greedy step (0: all)
   unsigned level = 0;            // the round: memo entries left unknown at a lower level are retried
   std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::time_point::max ();

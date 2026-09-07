@@ -58,7 +58,12 @@ with the path so far; else `solve(s', a)` must be `1` or the run ends. For
 earlier in the run (a lasso: the loop index is recorded). The choice of the
 transition is uniform, or with probability `1 - epsilon` the best of a few
 sampled successors by the marking distance (`expr/Distance.h`) to `suf(b)`,
-the state predicate implying `b` when the formula has one. A `0` at the start
+the state predicate implying `b` when the formula has one. Every other run
+is *saturated*: the chosen transition is fired again while it stays enabled
+(as many times as the marking allows, `Walker::maxFirings`), so stacks of
+tokens move in a few choices; every intermediate state is checked as any
+other, so the until semantics is untouched. Free on a one-safe net, where the
+repeat count is one. A `0` at the start
 state (`a` and `b` both fail, or `b` fails at a deadlock for `U`) is returned
 as `0` at once.
 
@@ -74,20 +79,27 @@ holds more than the state budget.
 
 ## Budgets by depth
 
-A hunt or a region at the root of the search gets the round's budget; one
-opened from a state met along a hunt or in a region (a nested obligation)
-gets a hundredth of it, floored at a hundred steps and a hundred states. A state is thus probed cheaply, most probes fail fast, and the
-rounds grow the probe tenfold with the rest: on CloudOpsManagement the stuck
-region behind a non-live transition is proved with a few states once the
-hunt lands there, while a full budget per probe spent the whole clock on
-the states where the transition was still reachable.
+A hunt or a region at the root of the search gets the root budget of the
+round; one opened from a state met along a hunt or in a region (a nested
+obligation, the probe of one state) gets the nested budget. The two grow in
+alternation: an odd round multiplies the root budget by ten, an even round
+the nested one, so the work of a round is ten times the last, and the probe
+stays at a hundred steps and a thousand states through the first two rounds
+(the probe's hunt is a tenth of the root's: a reachable operand is found in a
+few steps, an unreachable one wastes the whole budget before the region, which
+is where the proof is, gets its turn). Measured on CloudOpsManagement-PT-00020by00010 (`AG EF fireable`
+of a non-live transition): the stuck region behind the transition holds 600
+to 5 000 states, so a probe of a hundred states never proves it and a probe
+of a thousand does in 120 ms; a probe with the root's budget of ten thousand
+spent the whole clock on the states where the transition was still
+reachable.
 
 ## Rounds and reporting
 
 The driver (`cli/CtlDriver.h`) simplifies each property, evaluates it at the
-initial marking, and runs `solve` in rounds with the hunt steps and the
-region states multiplied by ten per round (a thousand each in the first, six
-rounds by default), under a wall clock per property. The rounds start small
+initial marking, and runs `solve` in rounds: hunt steps and region states of
+the first round a thousand each, the work multiplied by ten per round as
+above (eight rounds by default), under a wall clock per property. The rounds start small
 on purpose: a conjunction of many obligations (the Liveness examination as
 one formula) is probed child by child at the first round's price before
 any child gets a large budget, the `and` stopping at the first `0` and

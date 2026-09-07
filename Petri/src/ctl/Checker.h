@@ -155,17 +155,16 @@ template<typename T>
     }
 
     /**
-     * The budget of a hunt or a region at the current depth: the round's
-     * budget at the root, a hundredth of it, floored at a hundred, for a nested
-     * obligation: a state met along a hunt is probed cheaply, and the rounds
-     * grow the probe with the rest.
+     * The budget of a hunt or a region at the current depth: the root budget
+     * at the root, the nested budget for an obligation opened from a state
+     * met along a hunt or in a region (the probe of one state).
      */
     Budget effectiveBudget () const
     {
       if (depth == 0) return budget;
       Budget b = budget;
-      b.huntSteps = std::max<uint64_t> (100, budget.huntSteps / 100);
-      b.regionStates = std::max<uint64_t> (100, budget.regionStates / 100);
+      b.huntSteps = budget.nestedSteps;
+      b.regionStates = budget.nestedStates;
       return b;
     }
 

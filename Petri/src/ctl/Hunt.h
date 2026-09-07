@@ -37,6 +37,26 @@ template<typename T>
     Checker<T> &chk;
     std::mt19937_64 &rng;
 
+    /**
+     * How many times t can fire in a row from the marking: it stays enabled as
+     * long as every place it depletes keeps its input weight; 1 when it
+     * depletes nothing.
+     */
+    static uint64_t maxFirings (const Cursor<T> &cur, uint32_t t)
+    {
+      const SparseArray<T> &eff = cur.net->effect (t);
+      const SparseArray<T> &pre = cur.net->pre (t);
+      uint64_t k = std::numeric_limits<uint64_t>::max ();
+      for (size_t i = 0; i < eff.size (); ++i) {
+        T d = eff.valueAt (i);
+        if (d >= 0) continue;
+        size_t p = eff.keyAt (i);
+        T have = cur.marking.get (p) - pre.get (p);
+        k = std::min (k, static_cast<uint64_t> (have / -d) + 1);
+      }
+      return k == std::numeric_limits<uint64_t>::max () ? 1 : k;
+    }
+
     /** Epsilon-greedy choice: the sampled successor nearest to suf by the marking distance. */
     uint32_t choose (Cursor<T> &cur, const Expression *suf, const Budget &b)
     {
@@ -108,8 +128,14 @@ template<typename T>
       std::vector<uint32_t> path;
       std::unordered_map<SparseArray<T>, size_t> seen; // W: states of the run, by their index on the path
       uint64_t steps = 0;
+      uint64_t runs = 0;
       while (steps < budget.huntSteps && !chk.timedOut ()) {
         ++st.huntRuns;
+        // saturation on every other run: the chosen transition is repeated while it stays enabled, every
+        // intermediate state checked as any other (stacks of tokens move in a few choices)
+        bool saturated = budget.saturate && (runs++ & 1);
+        uint64_t repeat = 0;
+        uint32_t last = 0;
         Cursor<T> cur (start);
         path.clear ();
         seen.clear ();
@@ -124,7 +150,17 @@ template<typename T>
             }
             break;
           }
-          uint32_t t = choose (cur, suf, budget);
+          uint32_t t;
+          if (repeat > 0 && cur.enabled.isEnabled (last)) {
+            t = last;
+            --repeat;
+          } else {
+            t = choose (cur, suf, budget);
+            if (saturated) {
+              repeat = maxFirings (cur, t) - 1;
+              last = t;
+            }
+          }
           cur.fire (t);
           path.push_back (t);
           ++steps;
