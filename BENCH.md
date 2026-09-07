@@ -191,6 +191,47 @@ per-examination directories and writes one row per log and one row per formula,
 carrying the oracle comparison, the failure signature and the PetriSpot walker
 census. `Petri/test/mcc/csv/<date>/README.md` reports what a campaign showed.
 
+## Facts worth not rediscovering
+
+* An `eclipse fatal error` hits a run at random (about 5 per examination of
+  1953, 62 in the September 5 campaign; two jobs of the same instance starting
+  within 200 ms share `configuration/`) and looks exactly like a tool failure
+  in the CSV: check the `failure` column before believing a one second miss.
+* Run to run variance is real: seven of sixteen repeats of eight marginal
+  deadlock instances disagreed with the campaign. No A/B worth less than a few
+  dozen instances can be read from a single run.
+* The oracle files of `pnmcc-models-2026` name the tools behind each consensus
+  value (`TECHNIQUES ORACLE2026 ITSTOOLS TAPAAL 2025GOLD`).
+* The ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux`
+  branch at build time: push PetriSpot first, wait for its CI to deploy, then
+  push ITS-Tools, or a new Java flag meets an old binary and CLI11 rejects it,
+  killing every walk. Check with `git log -1 origin/Inv-Linux` after a fetch
+  and the `Last-Modified` of the product zip on `lip6.github.io/ITSTools`.
+
+## Commands
+
+```
+# collect a campaign into CSV, from the log directory (never rsync with --delete)
+rsync -rz --exclude='*.stderr' cluster.lip6.fr:MCC26/MCC-drivers/RD /data/ythierry/MCC26run/<date>/
+python3 ~/git/PetriSpot/Petri/test/mcc/mcclogs2csv.py RD LTLC LTLF -o csv
+python3 ~/git/PetriSpot/Petri/test/mcc/totallogs2csv.py QLA SMA UBA -o csv --oracles csv/oracles
+python3 ~/git/PetriSpot/Petri/test/mcc/report.py csv --baseline <other csv folder>
+python3 ~/git/PetriSpot/Petri/test/mcc/toolsupport.py \
+    ~/git/pnmcc-models-2026/website/raw-result-analysis.csv csv/verdicts.csv -o csv/support.csv
+
+# deploy a fresh ITS-Tools, then push it to the cluster (a subtree, never the root)
+cd /data/ythierry/MCC26deploy/MCC-drivers && rm -rf itstools && ./install_itstools.sh && (cd itstools && ./install.sh)
+rsync -rlptD --no-g --chmod=Dg+s --delete /data/ythierry/MCC26deploy/MCC-drivers/itstools/ \
+  cluster.lip6.fr:MCC26/MCC-drivers/itstools/
+
+# submit one examination (1953 jobs; from the foreground, let it finish)
+ssh cluster.lip6.fr 'cd ~/MCC26/MCC-drivers && TIMEOUT=1800 WALLTIME=0:35:0 CORES=4 \
+  HOSTS="tall%" ./run_oar.sh "oracle/*-RD.out"'
+
+# one instance through the harness locally, with a local petri64 or product
+cd /data/ythierry/MCC26deploy/MCC-drivers && BK_TOOL=itstools ./run_test.pl oracle/AirplaneLD-PT-0010-LTLC.out -t 300
+```
+
 ## Known harness artefact: StateSpace
 
 ITS-Tools reports three of the four `STATE_SPACE` values (`STATES`,
