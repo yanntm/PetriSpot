@@ -9,6 +9,7 @@
 # Usage: bash Petri/test/ctl_oracle.sh [-t seconds] [-s "1 2 3"] bench/models/<model>...
 set -u
 PETRI=${PETRI:-build/petri64}
+EXTRA=${EXTRA:-}   # extra options for every run, e.g. EXTRA=--ctlNoSat
 ORACLE=${ORACLE:-$HOME/git/MCC-drivers/oracle}
 TOTAL=10; SEEDS="1 2 3"
 while getopts "t:s:" opt; do case $opt in t) TOTAL=$OPTARG;; s) SEEDS=$OPTARG;; esac; done
@@ -23,7 +24,7 @@ for dir in "$@"; do
     orc="$ORACLE/$m-$short.out"; [ -f "$orc" ] || { echo "no oracle for $m $short"; continue; }
     for seed in $SEEDS; do
       log="$LOGS/$m-$x-seed$seed.log"
-      "$PETRI" -i "$dir/model.pnml" --props="$xml" --totalTime=$TOTAL --seed=$seed --printUnknown -q --trace > "$log" 2>&1
+      "$PETRI" -i "$dir/model.pnml" --props="$xml" --totalTime=$TOTAL --seed=$seed --printUnknown -q --trace $EXTRA > "$log" 2>&1
       ok=0; unk=0; bad=0
       while read -r name verdict; do
         ours=$(grep -E "^(FORMULA|UNKNOWN) $name( |$)" "$log" | head -1 | awk '{print $1=="UNKNOWN"?"?":$3}')
