@@ -46,10 +46,13 @@ searched by walkers, A nodes are closed by cheap proofs (structural, or an
 enumeration under a budget), and the engine answers only when the whole tree
 closes. Anything else is UNKNOWN, for the symbolic engine.
 
-Semantics assumed, to confirm against the MCC manual before coding: a
-deadlock loops on itself, so `EG a` holds at a deadlock satisfying `a`,
-`AX phi` at a deadlock is `phi` there, and `A[a U b]` fails at a deadlock
-where `b` fails. Deadlocks are witness-friendly and the walkers find them.
+Semantics, as `its-ctl` (libITS `CTL/src/mc/ctlCheck.cpp`) and TAPAAL
+compute it and the contest oracles confirm: a deadlock ends its path. `EG a`
+holds at a deadlock satisfying `a` and `A[a U b]` fails at a deadlock where
+`b` fails; `EX phi` is false at a deadlock and `AX phi` true, there being no
+successor (a first version gave the deadlock a self-loop and got
+AirplaneLD-PT-0010 CTLFireability-08 wrong). Deadlocks are witness-friendly
+and the walkers find them.
 
 ## 2. The shape of MCC formulas (measured)
 

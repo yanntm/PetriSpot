@@ -211,6 +211,7 @@ else on stdout is a log (`INTEROP.md` section 5).
 | `--escalate` | on such a round, multiply the step budget and walk on while `--totalTime` lasts, rather than concluding that more time cannot help |
 | `--trace` | record, verify by replay and print the witness trace as `WITNESS <id> <k> t...` |
 | `--printUnknown` | at exit, one `UNKNOWN <id>` line per property left without verdict |
+| `--ctlSteps`, `--ctlRegion`, `--ctlRounds`, `--ctlRunLength` | CTL checker: hunt steps and region states of the first round (1000 each), tenfold per round (6 rounds), steps of a hunt run before a restart (1000) |
 | `--netStats` | structural histograms of the net |
 
 `TOTAL_QUERIES.md` proposes three total examinations, a query per place or per
@@ -225,6 +226,33 @@ scheduler handing out goals and budgets rather than a pipeline;
 `BENCH.md` and `Petri/test/mcc/` are the MCC campaigns and their reading;
 each source folder documents itself (`Petri/src/*/README.md`, and
 `algorithm.md` where there is an algorithm to explain).
+
+## CTL by witness search
+
+A property file may hold CTL formulas (the MCC `CTLCardinality` /
+`CTLFireability` XML, or `(ctl NAME f)` forms in the s-expression syntax with
+`EX AX EF AF EG AG EU AU EW AW`, `deadlock`, booleans and comparisons). They
+go to an explicit local checker (`Petri/src/ctl/`) that closes a formula
+when a bounded witness or counter-example exists and answers UNKNOWN
+otherwise: existential nodes by guarded random walks, universal nodes by a
+DFS over a bounded region or by hunting their negation, verdicts memoised per
+(marking, subformula) and propagated along witness paths, budgets growing
+tenfold per round under the clock. It proves nothing by exhausting a large
+state space; it is the counter-example side of a portfolio whose proof side
+is a symbolic engine.
+
+```
+petri64 -i model.pnml --props=CTLFireability.xml --totalTime=30 --printUnknown
+petri64 -i model.pnml --props=live.sexpr --trace       # (ctl Liveness (and (AG (EF (fireable t)))...))
+```
+
+Output: `FORMULA <id> TRUE|FALSE TECHNIQUES EXPLICIT CTL_WALK`, a state formula
+decided at the initial marking as `TECHNIQUES TOPOLOGICAL INITIAL_STATE`,
+and with `--trace` a `WITNESS` block: the evidence tree, one line per node
+with the firing sequence it relies on (a `[ ... ]*` marks a lasso). The
+semantics is the contest's: a deadlock ends its path (`EX` is false there,
+`EG a` holds there when `a` does). `CTL_PLAN.md` has the design and the
+comparison with TAPAAL's dependency graphs.
 
 ## Source layout
 
