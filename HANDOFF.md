@@ -4,6 +4,43 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 14:50: ITS-Tools on a flat classpath, a prototype
+
+**ITS-Tools f9e46d4e.** `its-tools-flat.sh`, shipped beside `its-tools` in the
+Linux product (a root file of `fr.lip6.move.gal.itscl.feature`): `java -cp`
+over the product's `plugins/` (every jar, every unpacked bundle folder, the
+jars a bundle nests under `lib/` unpacked into a private temp folder), the
+JVM flags of `its-tools.ini`, main class
+`fr.lip6.move.gal.itscl.application.Application`. No Equinox, no launcher, no
+configuration area, no extension registry: the "Cannot open display" fatals
+of the first wave cannot happen. Code: `main(String[])` in both application
+classes, the `IApplication.start` delegating to a `run(args)`; the six
+binaries plugins locate `bin/` from the folder their class was loaded from
+when `getDefault()` is null (no framework), the Eclipse path unchanged.
+EMF and Xtext need nothing: `setStandalone(true)` was already on for the CLI
+and the generated packages self-register. Verified against the Eclipse
+launcher on AirplaneLD-PT-0010 LTLC, deadlock and OneSafe, AirplaneLD-COL-0010
+RC (the PNML framework, unfolding, skeleton) and LTLF (spotutil): same
+verdicts, same times, no error. The stashed BND experiment
+(`stash@{0}`, a bnd-export of a bndrun) was the other road: one executable
+jar still launching Equinox and `eclipse.application`; it stalled on bnd's
+FileRepo not reading Tycho's flat `plugins/` layout, and is not needed here.
+
+**Startup, measured.** Locally, OneSafe on AirplaneLD-PT-0010: Eclipse
+launcher 340-400 ms wall for 41-44 ms of `Total runtime`; flat 310-600 ms
+wall for 97-203 ms internal (a 75-entry flat classpath makes every first
+class load a linear jar search, where Equinox indexes packages), a bare JVM
+10 ms. Through `run_test.pl` locally the gap wall minus internal is 0.77 s.
+**On the cluster** (the 260 Airplane warmup runs, `time -p` in the stderr
+against our `Total runtime`): gap median 1.30 s, p10 1.02, p90 1.74, never
+under 0.85 s; a trivial examination is 2 s wall for 0.7 s of our own time.
+The comparison of the two launchers on a tall node is job 1365883
+(`~/MCC26/flat-test/`, `flatbench.sh`, three runs each), queued behind the
+campaign; the stderr files were fetched into `warmup-2026-09-07/` for this.
+Group quota: files copied to the cluster must take the tree's group, hence
+the recipe's `rsync --no-g --chmod=Dg+s`; without it a copy hits "Disk
+quota exceeded" at once, the campaign's own logs were never at risk.
+
 ## 2026-09-07, 13:55: campaign 2026-09-07 launched (RD, QLA, LTLC, LTLF)
 
 **Product.** The official CI product `202609071104` (ITS-Tools 9fde1d1e, an
