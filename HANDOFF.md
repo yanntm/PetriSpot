@@ -4,6 +4,35 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 15:30: ITS-Tools as a native executable (GraalVM), it works
+
+Oracle GraalVM 25.0.4 in `/data/ythierry/graal/` (no Fedora package; the
+`zlib-ng-compat-devel` already installed provides zlib). The tracing agent
+over seven examinations of AirplaneLD PT-0010 and COL-0010 recorded a small
+closed world (182 reflective types, 35 ours, 30 resources); `native-image`
+over the flat class path built a 60 MB executable in 36 s (77 MB with G1).
+Ten examinations against the flat JVM launcher, **identical verdicts every
+time, the two untraced examinations (CTLC, RF) included**: OneSafe 10 ms
+(flat 240 ms, Eclipse 340 ms warm, 1.2 s cold); LTLC 8.4 s vs 9.3 s; CTLC
+4.5 vs 5.1; COL LTLF 1.1 vs 2.2; RF and UB equal (75 and 105 s in the
+external engines). No JIT-less slowdown seen; the missing warm-up shows as a
+gain. The G1 build (`--gc=G1 -R:MaxHeapSize=16g -R:MinHeapSize=40m
+-R:StackSize=128m`, the ini's values as run-time defaults) runs the same.
+ITS-Tools `08a3de1b` gives the binaries plugins
+`-Dfr.lip6.binaries.root=<product>/plugins` (an image has no class folder);
+`ITS-commandline/native/` (commit after it) holds `build-native.sh`,
+`trace-agent.sh`, the recorded `config/reachability-metadata.json` and a
+README. A closed-world miss at run time is a `ClassNotFoundException`,
+`NoSuchMethodException` or `MissingReflectionRegistrationError` naming the
+element (a resource: null, a few frames later); trace that run, rebuild.
+The image `its-tools-native` (G1) sits beside the flat product in
+`cluster.lip6.fr:MCC26/flat-test/`, and job 1365883 (`flatbench.sh`, still
+queued behind the campaign) now times the three launchers on a tall node.
+A cluster trial of the image on real examinations is a variant of
+`runeclipse.sh` (ITS-Tools-MCC) calling the executable with the binaries
+root; not done. Local artefacts: `/data/ythierry/graal/{build.sh,build.log,
+build-g1.log,runs/}`, products `/data/ythierry/MCC26deploy/flat-test{2,3}/`.
+
 ## 2026-09-07, 14:50: ITS-Tools on a flat classpath, a prototype
 
 **ITS-Tools f9e46d4e.** `its-tools-flat.sh`, shipped beside `its-tools` in the
