@@ -57,8 +57,25 @@ A `Property` has a name, a kind and a body:
   `body`); `boundHint` is a known upper bound or -1. The exploration goal is
   `form >= hint` when there is a hint, and there is no reachable goal without
   one: the engine reports the largest value seen.
-* `Unsupported`: parsed but out of the fragment (nested temporal operators,
-  bounds, LTL, CTL); `comment` says why.
+* `CTL`: a formula with nested path operators, kept as a `CtlFormula` in
+  `ctl`; checked by `ctl/` after normalisation (`CtlSimplify.h`).
+* `Unsupported`: parsed but out of the fragment (LTL, unknown elements);
+  `comment` says why.
+
+## CTL normal form (`ctlNormalize`)
+
+Negation is pushed to the leaves (`not E[a U b] = A[not b W (not a and not
+b)]`, `not EX = AX not`, `not EF = AG not`, and so on), predicates are
+simplified as above and merged when they are siblings under a boolean, and
+nested operators collapse: `EF EF a`, `EF AF a`, `AF EF a`, `EF E[a U b]`,
+`EF A[a U b]`, `A[a U EF b]`, `E[a U EF b]` are all `EF` of the innermost
+operand; `AF AF a = AF a`, `A[a U AF b] = AF b`, `EG EG a = EG a`,
+`EG AG a = AG a`, `AG AG a = AG a`; `AG (a and b) = AG a and AG b`,
+`EF (a or b) = EF a or EF b`, an `EF` disjunct is pulled out of the right
+side of an until or an `AF`; `deadlock` and `not deadlock` as an until's
+operand reduce it; `X` of a constant becomes the deadlock atom (`EX true`
+is `not deadlock`, `AX false` is `deadlock`: a deadlock has no successor).
+The rules are TAPAAL's (verifypn, `CTL-formula-equivalence-rewriting.pdf`).
 
 `goal(property)` gives the state predicate the engine has to reach, and
 `verdictIfReached(property)` the MCC answer (TRUE for reachability, FALSE for

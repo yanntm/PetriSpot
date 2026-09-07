@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "expr/CtlFormula.h"
 #include "expr/Expression.h"
 #include "expr/Property.h"
 
@@ -32,7 +33,7 @@ inline bool needsQuotes (const std::string &s)
   if (indexLike) return true;
   if (std::isdigit (static_cast<unsigned char> (s[0])) || s[0] == '-' || s[0] == '+') return true;
   static const char *keywords[] = { "true", "false", "and", "or", "not", "fireable", "reach", "invariant",
-      "deadlock", "bound" };
+      "deadlock", "bound", "ctl", "EX", "AX", "EF", "AF", "EG", "AG", "EU", "AU", "EW", "AW" };
   for (const char *k : keywords) if (s == k) return true;
   return false;
 }
@@ -105,6 +106,23 @@ inline void printSexpr (std::ostream &os, const Expression &e, const std::vector
   }
 }
 
+/** A CTL formula: predicates as above, deadlock, (OP f) and (OP f g) for the path operators. */
+inline void printSexpr (std::ostream &os, const CtlFormula &f, const std::vector<std::string> *pnames)
+{
+  switch (f.op) {
+  case CtlOp::Pred: printSexpr (os, f.pred, pnames); break;
+  case CtlOp::Deadlock: os << "deadlock"; break;
+  case CtlOp::NoDeadlock: os << "(not deadlock)"; break;
+  default:
+    os << "(" << to_string (f.op);
+    for (const auto &k : f.kids) {
+      os << " ";
+      printSexpr (os, k, pnames);
+    }
+    os << ")";
+  }
+}
+
 /** One form per property; an unsupported property becomes a comment line. */
 inline void printSexpr (std::ostream &os, const Property &p, const std::vector<std::string> *pnames)
 {
@@ -128,6 +146,13 @@ inline void printSexpr (std::ostream &os, const Property &p, const std::vector<s
     os << " ";
     printSexprForm (os, p.boundForm (), pnames);
     if (p.boundHint >= 0) os << " " << p.boundHint;
+    os << ")";
+    break;
+  case PropertyKind::CTL:
+    os << "(ctl ";
+    printSexprName (os, p.name);
+    os << " ";
+    printSexpr (os, p.ctl, pnames);
     os << ")";
     break;
   case PropertyKind::Unsupported:

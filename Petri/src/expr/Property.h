@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "expr/CtlFormula.h"
 #include "expr/Expression.h"
 #include "expr/Hint.h"
 #include "expr/Simplify.h"
@@ -23,6 +24,7 @@ enum class PropertyKind
   Invariant,    // AG body
   Deadlock,     // EF deadlock
   Bound,        // maximise body (a single linear atom holds the form)
+  CTL,          // a CTL formula beyond the reachability fragment, in ctl
   Unsupported   // parsed, outside the supported fragment; see comment
 };
 
@@ -33,6 +35,7 @@ inline const char* to_string (PropertyKind k)
   case PropertyKind::Invariant: return "AG";
   case PropertyKind::Deadlock: return "EF deadlock";
   case PropertyKind::Bound: return "bound";
+  case PropertyKind::CTL: return "CTL";
   case PropertyKind::Unsupported: return "unsupported";
   }
   return "?";
@@ -46,6 +49,7 @@ struct Property
   std::string comment;
   long long boundHint = -1; // Bound: a known upper bound of the form, -1 when unknown
   ParikhHint hint;          // from --hints, empty when none
+  CtlFormula ctl;           // CTL: the formula as parsed (the checker normalises it)
 
   /** Bound: the linear form to maximise (the terms of body's atom). */
   const LinearAtom& boundForm () const
@@ -93,6 +97,9 @@ struct Property
       form.constant = boundHint;
       form.print (os, pnames);
       os << (boundHint < 0 ? " (no hint)" : " (hint)");
+    } else if (kind == PropertyKind::CTL) {
+      os << " : ";
+      ctl.print (os, pnames);
     } else if (kind != PropertyKind::Deadlock) {
       os << " : ";
       body.print (os, pnames);
