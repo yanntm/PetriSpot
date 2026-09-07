@@ -80,6 +80,8 @@ template<typename T>
     std::vector<std::string> catalogue; // kind names, one per tool
     Factory factory;
     More more;
+    uint64_t stepCap = 0;               // steps the whole walk may spend over all its tasks; 0: the clock alone bounds it
+    uint64_t stepsTotal = 0;            // steps booked so far
     SharedPool<T> *pool;
     std::vector<KindShare> kinds;       // per tool
     std::map<std::pair<uint64_t, size_t>, Arm> arms; // (state id, tool)
@@ -113,6 +115,7 @@ template<typename T>
     {
       Task &t = scheduler->task (i);
       KindShare &k = kinds[t.tool];
+      stepsTotal += r.steps;
       double seconds = static_cast<double> (r.micros) / 1e6;
       double decay = std::exp (-seconds / spec.tau);
       k.reward = k.reward * decay + static_cast<double> (r.claims) + spec.noveltyWeight * static_cast<double> (r.novelty);
@@ -215,8 +218,11 @@ template<typename T>
     }
 
   public:
-    Coordinator (CoordinatorSpec s, unsigned runnerCount, std::vector<std::string> tools, Factory f, More m, SharedPool<T> *p)
-        : spec (s), runners (runnerCount), catalogue (std::move (tools)), factory (std::move (f)), more (std::move (m)), pool (p)
+    /** stepCap: steps the walk may spend over all its tasks before spawning stops (0: none); the live tasks still end on their own budget. */
+    Coordinator (CoordinatorSpec s, unsigned runnerCount, std::vector<std::string> tools, Factory f, More m, SharedPool<T> *p,
+                 uint64_t cap = 0)
+        : spec (s), runners (runnerCount), catalogue (std::move (tools)), factory (std::move (f)), more (std::move (m)),
+          stepCap (cap), pool (p)
     {
       for (const std::string &name : catalogue) kinds.push_back (KindShare { name, 0, 0.0, 0.0, 0.0, 0.0 });
     }
@@ -267,6 +273,11 @@ template<typename T>
     {
       return spawned;
     }
+    /** The walk spent its step cap: no task is spawned any more, the live ones end on their own budget. */
+    bool exhausted () const
+    {
+      return stepCap != 0 && stepsTotal >= stepCap;
+    }
     uint64_t parkedCount () const
     {
       return parked;
@@ -298,6 +309,7 @@ template<typename T>
     Scheduler::Plan plan ()
     {
       if (scheduler->liveCount () >= spec.liveCap * runners) return nullptr;
+      if (exhausted ()) return nullptr;
       if (more && !more ()) return nullptr;
       uint64_t stateId;
       size_t tool;

@@ -271,12 +271,15 @@ template<typename T>
     std::vector<KindReport> kinds;     // one per strategy kind
     uint64_t spawned = 0, parked = 0;  // the coordinator's tasks
     size_t arms = 0;                   // (state, tool) pairs tried
+    bool stepsExhausted = false;       // the walk ended on its step cap, not on the clock
   };
 
 /**
  * Run threads walkers on targets toward focus (NO_FOCUS: sweep). onClaim, if
  * given, is called under a lock as each claim is published; traces are only
- * verified after the threads join (Claim::hasTrace).
+ * verified after the threads join (Claim::hasTrace). stepCap, when not 0,
+ * bounds the steps of the whole walk over all its tasks: once spent, no task
+ * is spawned and the walk ends with the live ones (PortfolioResult::stepsExhausted).
  */
 /**
  * Default of partitionMin: 0, sweeps are never split. On ResIsolation-PT-N10P4
@@ -297,7 +300,8 @@ template<typename T>
                                    const RestartPolicy *restartPolicy = nullptr,
                                    const Components<T> *components = nullptr,
                                    const std::vector<const RestartPolicy*> *policies = nullptr,
-                                   SchedulerSpec sched = SchedulerSpec (), CoordinatorSpec coord = CoordinatorSpec ())
+                                   SchedulerSpec sched = SchedulerSpec (), CoordinatorSpec coord = CoordinatorSpec (),
+                                   uint64_t stepCap = 0)
   {
     // a policy per strategy of the pool when given (aligned with specs), else the one policy for every task
     PortfolioResult<T> out;
@@ -374,7 +378,7 @@ template<typename T>
     std::vector<std::string> catalogue;
     for (const StrategySpec &sp : specs) catalogue.push_back (sp.name);
     auto more = [&] { return targets.openCount () > 0 && !(focus != NO_FOCUS && targets.isSolved (focus)); };
-    Coordinator<T> coordinator (coord, threads, catalogue, factory, more, pool);
+    Coordinator<T> coordinator (coord, threads, catalogue, factory, more, pool, stepCap);
     coordinator.install (scheduler);
     auto deadline = budget.timeoutMillis ? std::chrono::steady_clock::now () + std::chrono::milliseconds (budget.timeoutMillis)
                                          : std::chrono::steady_clock::time_point::max ();
@@ -405,6 +409,7 @@ template<typename T>
     out.spawned = coordinator.spawnedCount ();
     out.parked = coordinator.parkedCount ();
     out.arms = coordinator.armCount ();
+    out.stepsExhausted = coordinator.exhausted ();
 
     bool anyTrace = false;
     for (const auto &c : out.claims) anyTrace = anyTrace || c.hasTrace;

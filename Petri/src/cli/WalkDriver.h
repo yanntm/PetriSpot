@@ -203,14 +203,11 @@ template<typename T>
     }
   }
 
-/** True iff every walker stopped because it exhausted the step budget. */
+/** True iff the walk ended on its step cap (walkSteps steps per thread over all its tasks), not on the clock. */
 template<typename T>
   bool stepBound (const petri::walk::PortfolioResult<T> &res, const petri::walk::WalkBudget &budget)
   {
-    if (budget.maxSteps == 0) return false;
-    for (const auto &rep : res.reports)
-      if (rep.stats.steps < budget.maxSteps) return false;
-    return true;
+    return budget.maxSteps != 0 && res.stepsExhausted;
   }
 
 /**
@@ -241,10 +238,14 @@ template<typename T>
     coord.liveCap = o.tasks ? std::max<unsigned> (1, o.tasks / std::max<unsigned> (1, o.threads)) : 3;
     coord.grant = o.grant;
     coord.spawning = o.spawn != "off";
+    // a focused walk spends walkSteps steps per thread over all its tasks, whatever their number: the coordinator
+    // replaces a task that ended on its budget only while that cap lasts, so that a step budget still bounds a round;
+    // the sweep is bounded by its clock alone
+    uint64_t stepCap = (focus != petri::walk::NO_FOCUS && budget.maxSteps) ? budget.maxSteps * o.threads : 0;
     petri::walk::PortfolioResult<T> res = petri::walk::runPortfolio (wnet, targets, focus, specs, o.threads, budget,
                                                                      seed, pool.get (), o.debugSteps, onClaim,
                                                                      o.partition, knowledge, policy, components, policies,
-                                                                     sched, coord);
+                                                                     sched, coord, stepCap);
     printReports (o, res);
     if (pool) {
       std::cout << "Shared pool: " << pool->publishedCount () << " published, " << pool->drawnCount ()

@@ -207,7 +207,7 @@ else on stdout is a log (`INTEROP.md` section 5).
 | `--sweepTime=<s>` | random multi-target round before the focused rounds (default 1, 0 disables) |
 | `--threads=<n>`, `--tasks=<n>`, `--slice=<steps>`, `--sliceMs=<ms>`, `--shares=adaptive\|equal`, `--shareFloor=<f>` | runner threads, exploration tasks time-shared over them (default two per thread), steps per slice and its wall-clock cap, shares of the strategy kinds following their claims per running second above a floor |
 | `--lp`, `--lpHints=<file>`, `--lpTime=<s>` | the properties over the state equation (`Petri/src/lp/`): an infeasible goal is answered (`TECHNIQUES STATE_EQUATION`), a feasible one writes its Parikh vector for a later `--hints`; seconds per property |
-| `--walkSteps=<n>`, `--runLength=<n>`, `--seed=<n>` | budgets and reproducibility; with `--walkSteps` the rounds stop as soon as one solves nothing and every walk hit the step budget |
+| `--walkSteps=<n>`, `--runLength=<n>`, `--seed=<n>` | budgets and reproducibility; a focused round spends `--walkSteps` steps per thread over all its tasks, and the rounds stop as soon as one solves nothing on that budget |
 | `--escalate` | on such a round, multiply the step budget and walk on while `--totalTime` lasts, rather than concluding that more time cannot help |
 | `--trace` | record, verify by replay and print the witness trace as `WITNESS <id> <k> t...` |
 | `--printUnknown` | at exit, one `UNKNOWN <id>` line per property left without verdict |

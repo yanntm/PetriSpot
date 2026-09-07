@@ -332,9 +332,16 @@ coordinator picks a (state, tool) pair, untried pairs first (every tool from
 the initial marking, then from the pooled states, best heuristic first), then
 the best yield per running second with a small exploration bonus; yields and
 times of an arm decay over two running seconds, so a state exhausted by a tool
-stops being chosen. A first version gave a fresh task's own first firings as
-novelty and rewarded every spawn for a while: novelty is what nobody fired
-before. On the yardsticks (4 runners, 30 s): Erlangen full QLA 2 417 (8 tasks
+stops being chosen. A focused walk carries a step cap, `--walkSteps` per
+thread over all its tasks: once the tasks together have spent it no task is
+spawned and the walk ends with the live ones, so the step budget bounds a
+round as it did with one walker per thread (without the cap every task ending
+on its budget was replaced and a round always ran its wall time, a glean of
+10 000 steps costing its whole 10 s); the result says whether the cap or the
+clock ended the walk, which is what the driver's stopping rule reads. The
+sweep has no cap, its clock alone bounds it. A first version gave a fresh
+task's own first firings as novelty and rewarded every spawn for a while:
+novelty is what nobody fired before. On the yardsticks (4 runners, 30 s): Erlangen full QLA 2 417 (8 tasks
 spawned, the quests kept), Stigmergy 1 609, DLCflexbar 76 160, RERS 30 186 in
 10 s, ResIsolation 1 000 targets in 9.6 s; on the CAN gathering target 263
 tasks over 139 (state, tool) pairs in 30 s, none reaching it: the broad
