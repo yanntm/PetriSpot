@@ -34,6 +34,22 @@ class load a linear jar search, where Equinox indexes packages), a bare JVM
 **On the cluster** (the 260 Airplane warmup runs, `time -p` in the stderr
 against our `Total runtime`): gap median 1.30 s, p10 1.02, p90 1.74, never
 under 0.85 s; a trivial examination is 2 s wall for 0.7 s of our own time.
+Taken apart locally (flat, OneSafe, 315 ms wall): the shell script's per-run
+scan of 65 jars for nested libs 82 ms (fixed in ff0208e4: unpacked once into
+`plugins-lib/`, atomic rename; the flat run is 230-270 ms since), JVM start to
+`main` 120 ms, our run about 95 ms, exit a few ms. Only 2 340 classes load,
+some 300 of ours: not classloader hungry. **Twenty of the 65 jars are signed
+(Orbit third parties: antlr, aopalliance, javax.activation, ...)** and the JVM
+verifies them at every class load, 168 `sun.security` classes: stripping
+`META-INF/*.{SF,RSA,DSA,EC}` in a copy of the product took the flat run from
+230 to 175 ms (`/data/ythierry/MCC26deploy/flat-unsigned/`). That is the one
+cheap packaging win, best done once at install in `install_itstools.sh`
+(ITS-Tools-MCC), or after `materialize-products` in the product's pom.
+AppCDS (`-XX:ArchiveClassesAtExit`, then `-XX:SharedArchiveFile`) gave 20 ms,
+C1 only 15 more: not worth a knob. GraalVM: no Fedora package (Mandrel is a
+RHEL build), a CE tarball plus the tracing agent for Guice, Xtext and EMF
+would be needed, and a native image runs without C2, so minutes of Java work
+slow down to save 0.2 s at start: not for the MCC.
 The comparison of the two launchers on a tall node is job 1365883
 (`~/MCC26/flat-test/`, `flatbench.sh`, three runs each), queued behind the
 campaign; the stderr files were fetched into `warmup-2026-09-07/` for this.
