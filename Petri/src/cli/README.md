@@ -17,8 +17,9 @@ The `petri*` binaries are one `main` (`src/Petri.cpp`) over these headers.
   of the file are handed to `CtlDriver.h` first.
 * `CtlDriver.h` — the CTL properties: normalisation, the checker of `ctl/`
   in rounds of growing budgets (`--ctlSteps`, `--ctlRegion`, `--ctlRounds`)
-  under a clock per property (`-t`, or a share of `--totalTime`), `FORMULA`
-  lines, evidence trees with `--trace`.
+  under a clock per property (`-t`, or a share of `--totalTime`),
+  `--threads` properties checked at a time (each check single-threaded),
+  `FORMULA` lines, evidence trees with `--trace`.
 
 CLI11 (v2.7.2) is the documented all-in-one header, copied as is into
 `src/cli11/CLI11.hpp` with its BSD-3 licence alongside; it is included only
