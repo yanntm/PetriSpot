@@ -34,6 +34,12 @@ Reference code bases, read-only from this project; never edit them from here:
 * `~/git/PetriVizu/public/syntax.md` : the human-friendly property syntax.
 * `~/git/pnmcc-models-20xx` : MCC model corpora (benchmark inputs, run on the
   cluster, never copied here).
+* `~/git/MCC-drivers` (the harness, `BK_TOOL` folders, `run_oar.sh`) and
+  `~/git/MCC-analysis` (the result pages): editable when the task calls for
+  it, one commit per logical change, their own READMEs first. `~/git/ITStools`
+  is edited only when the user sanctions it in the session (as for the CTL
+  plug); add only the files you changed, the tree carries the user's own
+  uncommitted edits.
 * Branch `origin/er/link-spot` (2021): source of the `expr/` tree and the MCC
   property parser. Read it with `git show origin/er/link-spot:<path>`; do not
   check it out or merge it.
@@ -52,11 +58,25 @@ editing files in a folder. Maintain these docs in sync with code.
   in a double-quoted `-m`.
 - `git add/rm/mv` close to `git commit`; don't leave the index open. Remember
   `git mv` / `git rm` already populate the index: commit before adding more.
-- **Pushing**: don't ask, don't do it. The user pushes.
+- **Committing** is liberal: commit as the work reaches increments.
+  **Pushing** is not: by default the user pushes. When the work needs the CI
+  (a binary the harness or ITS-Tools must pick up), ask; the user may allow
+  pushing for the session or for some repositories, and that permission does
+  not carry over to the next session.
 - **Never rewrite history**: no reset/rebase/amend, even unpushed. Fix forward.
 - **NO persistent "memory" files**: the user does not use them (not inspectable
   in the repo, they bloat unseen). Capture anything durable in documentation in
   the repo. Never edit this file unless prompted by the user.
+- **`HANDOFF.md` is current state only**: orientation, where things are, in
+  flight, next actions by thread, blockers named; no session narrative, no
+  dates but the "as of" stamp. Rewritten, never appended to. A completed item
+  is flushed entirely: its result belongs in the README or the design file,
+  its history in git. Length is the signal to evict.
+- **`docs/HISTORY.md`** is the append-only sink for past handoffs and session
+  notes, frozen at the time of writing: written by shell append when the
+  handoff is rewritten or near session close if asked, never read unless
+  prompted. The operating guides (`docs/CLUSTER.md`, `docs/CI.md`,
+  `docs/BUILD.md`) are where recipes go; follow them rather than groping.
 - Work in the folder: avoid `/tmp` and the scratchpad. If a session crashes,
   all traces of work must be *in* the repo.
 - Keep files roughly under 500 LOC, single responsibility, organised in folders.
