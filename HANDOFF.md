@@ -4,6 +4,55 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 13:30: Effort, the contract of a walker call, and the step cap of a round
+
+**ITS-Tools bae71d95.** `fr.lip6.move.petrispot.runner.Effort { GLEAN, COMMIT }`
+is a parameter of every `PetriSpotWalker` call (`runReachability`,
+`runBounds`, `runDeadlock`; `runBeside` always commits, the companion's seed)
+and of the loop `ReachabilitySolver.applyReductions(reader, doneProps,
+timeout, effort)`, which hands it to `randomCheckReachability` and the Parikh
+replay. GLEAN caps the sweep at 3 s and the total at 10 s and omits
+`--escalate`; COMMIT passes the budgets through with it. Callers: GLEAN for
+`AtomicReducer`, `AtomicReducerSR` and `KnowledgeFacts` (the LTL and CTL atoms,
+the knowledge loop); COMMIT for the reachability examinations in
+`Application`, `GlobalPropertySolver`, `UpperBoundsSolver`, the projection
+solver and `DeadlockSolver`. INTEROP.md section 7 and PORTFOLIO's "Three
+contracts" record it. The three overloads of `runBounds` and the two of
+`runDeadlock` without an effort are gone.
+
+**PetriSpot 3f29014.** The glean alone brought AirplaneLD-PT-0010 LTLC from
+209 s to 23 s, but each glean call still spent its whole 10 s: with the
+scheduler, a task ending on its `--walkSteps` budget was replaced by a fresh
+one until the round's wall time, so a step budget no longer bounded a round
+and the driver's "solved nothing on the step budget: stopping" rule never
+fired. Now a focused walk carries a step cap of `--walkSteps` per thread over
+all its tasks (`Coordinator`, `stepCap`); once spent no task is spawned, the
+walk ends with the live ones, `PortfolioResult::stepsExhausted` says so and
+`stepBound` reads it. The sweep keeps its clock alone. Effects: Airplane RC
+as a glean (`--walkSteps=10000 --sweepTime=3 --totalTime=10`) ends in 4 s
+with the stopping message instead of 10 s; as a commit (`--escalate`,
+15 s) it now runs 5 rounds raising the budget twice where the old binary ran
+one round for the wall time, same 3 witnesses. RERS17pb114 QLA (15 812 vs
+16 760 in 4.5 s) and Erlangen full QLA (759 vs 832 in 12 s) are unchanged in
+kind: both are settled by the sweep. Through the harness with the new
+`petri64` in the deploy tree (`smoke-airplane-{LTLC,RC}-effort2.log`):
+**Airplane LTLC 16/16 in 9.5 s** (the two glean calls 3 s each, the 3 s
+sweep cap), Airplane RC 16/16 in 50 s as before (one commit call of 50 s on
+two properties the walker cannot settle), CTLC 16/16 in 12 s.
+
+Open, seen on Erlangen: with 78 000 open targets after the sweep the driver
+finds no round "worth a walk" (under 20 ms each) and hands back 18 of the 30
+seconds, `--escalate` or not; PORTFOLIO's G2 (budgets from the clock) covers
+it, the sweep should simply go on with the time left.
+
+The deploy tree: `MCC-drivers/itstools/` was wiped by mistake this session
+(a `rm -rf` one level too high) and restored by `install_itstools.sh` (a
+fresh clone of ITS-Tools-MCC), `install_greatspn.sh` and `mkdir bin`; the
+product inside is the local build of bae71d95 (`202609071031`) with
+`petri64` replaced by the local 3f29014 build (the CI's copy kept as
+`/data/ythierry/MCC26deploy/petri64-1031.bak`). The kept CI product
+`itstools.ci-1624` is gone; the cluster still runs that product.
+
 ## 2026-09-07, 12:40: inf-stutter, the third spotutil job
 
 `spotutil inf-stutter FILE.hoa` (Spot-BinaryBuilds 6258f61, Linux CI green,
