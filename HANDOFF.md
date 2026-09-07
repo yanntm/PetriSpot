@@ -4,6 +4,44 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 17:30: closing the session's threads
+
+**Campaign 2026-09-07 (RD, QLA, LTLC, LTLF), running.** Submission complete
+at 14:37 CEST (`submit-2026-09-07.log`); at 17:00 RD had all 1953 logs, QLA
+1195, LTLC and LTLF none yet, 4505 jobs queued, about 110 running. To
+analyse it: `rsync -rz --exclude='*.stderr' cluster.lip6.fr:MCC26/MCC-drivers/{RD,QLA,LTLC,LTLF} /data/ythierry/MCC26run/2026-09-07/`
+(without `--delete`; the stderr carry the harness `time -p` lines if wanted),
+then `mcclogs2csv.py RD LTLC LTLF -o csv` and `totallogs2csv.py QLA -o csv`,
+`report.py csv --baseline ~/git/PetriSpot/Petri/test/mcc/csv/2026-09-06-baseline`
+for LTLC and LTLF (the contest-like ITS-Tools; the question is whether the
+Effort glean brought LTL back to it: Airplane says yes), `csv/2026-09-06c`
+for RD and QLA (the walker of 6a5d288 against 3f29014 with the step cap);
+point `ITS-Tools latest` in `~/git/MCC-analysis/campaign/example.json` at the
+new folder and rebuild the pages; archive whole to
+`/data/ythierry/MCC26archive/2026-09-07/` and remove from the cluster as done
+for 06c. Watch the first-wave Eclipse fatals (5 in RD, the usual) and any run
+whose log names a class: none expected, the product is the classic one.
+
+**Native image, state.** Published by the CI (`its-tools-native`, 80 MB,
+14:20 UTC, the beside-the-executable lookup), driver support pushed
+(ITS-Tools-MCC 3839363), verified locally through `run_test.pl` (Airplane
+LTLC 16/16 in 10.7 s, RD 0.05 s). Not yet run on the cluster: the campaign
+holds `itstools/`; after it, `install_itstools.sh` in a fresh clone there
+(or the image dropped into `itstools/itstools/` beside `its-tools`), the
+Airplane warmup, then one examination. Bench jobs 1365883 (tall) and 1365884
+(small) still queued; if `small` refuses the image, `-march` in
+`build-native.sh`. Open items on that path: `--exact-reachability-metadata`
+for loud closed-world misses on a sweep, stripping the 20 signed jars at
+install (a 25 % start-up gain for the flat launcher, irrelevant to the image).
+
+**libHSC as a competitor.** Explored in `libHSC_in_MCC.md` (this repository)
+with the measurements; a portfolio driver prototype `MCC-drivers/hsc/` is
+committed and pushed (b6440228) and works through `run_test.pl`. Work for a
+dedicated session: exact `count`, static binaries, the other StateSpace
+values, deadlock, then a StateSpace sweep. The deploy clone
+`/data/ythierry/MCC26deploy/MCC-drivers` is behind origin: untracked local
+oracle files collide with ones upstream now tracks; move them aside and pull.
+
 ## 2026-09-07, 16:50: the image published, the site rewritten
 
 ITS-Tools CI: the native step and the Node 24 update (`checkout@v7`,

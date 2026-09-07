@@ -48,9 +48,11 @@ The directives change everything, in both directions (`/data/ythierry/hsc-exp/`)
 (`--decompose` of `hsc-mcc` behaves like Louvain without FORCE.) FORCE alone
 never lost more than a factor 1.4 and often won; Louvain wins big on the
 process-like nets and loses big on SwimmingPool and Peterson. No configuration
-dominates: the driver runs them as a portfolio. FMS-00500 (500 tokens per
-place, an `int_set` leaf per value) and Vasy2003 under the directives were
-still running when this was written; see the `hsc-exp` logs.
+dominates: the driver runs them as a portfolio. Vasy2003: 3 s by default,
+0.1 s under Louvain (with or without FORCE), 6.5 s under FORCE alone, the
+count off by one in every case (the `double`). FMS-00500 (500 tokens per
+place, an `int_set` leaf per value) times out under every configuration: the
+high-token nets are the bounded-integer leaf theory of roadmap R3.
 
 ## What it could compete in
 
@@ -91,8 +93,15 @@ answer wins and the others are killed; `ulimit -v` from the memory
 confinement, `timeout` from the time confinement, `CANNOT_COMPUTE` when none
 answers. OneSafe is decided from `max-value`. `SupportedExamination.txt`:
 StateSpace PT, OneSafe PT. `install.sh` copies binaries from a local build
-(`HSC_BUILD`). Checked through `run_test.pl` locally (see the smoke logs in
-`/data/ythierry/MCC26deploy/smoke-hsc-*.log`).
+(`HSC_BUILD`). Checked through `run_test.pl` locally
+(`/data/ythierry/MCC26deploy/smoke-hsc-*.log`): Philosophers-000020 STATES
+exact in 0.06 s (winner Louvain+FORCE), Kanban-00050 in 0.23 s, SwimmingPool-01
+in 0.17 s (winner FORCE), Raft-02 and Angiogenesis-05 OneSafe right, Sudoku-AN04
+`CANNOT_COMPUTE` at the 55 s confinement. `run_test.pl` marks StateSpace
+runs failed because they carry one of the four expected values; the value
+itself is right. The deploy clone `/data/ythierry/MCC26deploy/MCC-drivers`
+holds a copy of `hsc/` but cannot `git pull` (untracked local oracle files
+collide with ones upstream now tracks); move them aside, then pull.
 
 ## Next session
 
