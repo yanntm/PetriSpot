@@ -12,7 +12,11 @@ static binary over the Spot C++ API with two subcommands, `stutter-states`
 formats; CMake against the Spot install of `build_spot.sh`, CLI11 vendored;
 tested locally against the Spot 2.14.5 install of that repo on three
 automata. The Spot-BinaryBuilds CI publishes it on gh-pages beside
-`ltl2tgba`. **ITS-Tools commit 1ed32177 (local, not pushed)** fetches
+`ltl2tgba`. That repository now builds the **Spot 2.16 release** (2a74e64)
+instead of the 2.14.5.dev snapshot: the knowledge integration ITS-Tools
+uses (`--given-formula`, `--given-automaton`, `--given-strategy` with
+`auto-small` and `auto-si`, `--product-and`, `--included-in`) is in the
+release, its `auto` choice gaining a tie-break on transitions. **ITS-Tools commit 1ed32177 (local, not pushed)** fetches
 `bin/spotutil-linux64` in the plugin's pom, drops the two scripts, and
 `SpotRunner` calls the subcommands; push it once
 `https://github.com/yanntm/Spot-BinaryBuilds/raw/gh-pages/spotutil` answers,
