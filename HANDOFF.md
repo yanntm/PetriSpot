@@ -4,6 +4,32 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 16:10: the native image wired into the CI and the MCC driver
+
+ITS-Tools (commit after 3aec3d8c): `main()` in both application classes runs
+the tool on a thread with a 128 MB stack (`Application.MAIN_STACK`, the
+ini's `-Xss128m`; a native executable's `main` would otherwise sit on the OS
+stack, 64 MB under the driver's `ulimit -s 65536`); `build.yml` adds
+`graalvm/setup-graalvm` (Java 25, Oracle GraalVM) and runs
+`ITS-commandline/native/build-native.sh` on the Linux product (`NATIVE_XMX`
+10g for the 16 GB runner), publishing `its-tools-native` on gh-pages beside
+the product zip; the travis-era `ITS-commandline/{runeclipse.sh,
+install_eclipse.sh,.travis.yml}` are removed (the driver has its own
+`runeclipse.sh`). Verified locally before the push: product rebuilt, image
+rebuilt from it in 36 s, OneSafe 18 ms, LTLC and COL LTLF 16/16, no error.
+ITS-Tools-MCC 3839363 (`~/git/MCC-drivers/itstools`, pushed):
+`install_itstools.sh` fetches `its-tools-native` after the zip (dropped when
+the URL fails), `runeclipse.sh` execs it with
+`-Dfr.lip6.binaries.root=$BINDIR/itstools/plugins` when present, the
+Eclipse launcher otherwise. Meant for a sweep: if the image holds, one of the
+two products suffices. Bench jobs on the cluster: 1365883 (tall) and 1365884
+(small, the old hardware that may lack AVX2; `-march` in build-native.sh is
+the knob), both `~/MCC26/flat-test/flatbench.sh`, queued behind the campaign.
+Next: when the CI has published the image, `install_itstools.sh` in a fresh
+`MCC-drivers/itstools/` on hydrogen, the Airplane warmup through
+`run_oar.sh`, read the logs for closed-world misses (named exceptions), trace
+and rebuild if any, then a real examination.
+
 ## 2026-09-07, 15:30: ITS-Tools as a native executable (GraalVM), it works
 
 Oracle GraalVM 25.0.4 in `/data/ythierry/graal/` (no Fedora package; the
