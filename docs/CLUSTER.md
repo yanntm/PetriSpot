@@ -3,7 +3,15 @@
 How a campaign is run, watched, collected and archived. The harness itself
 (what the tree holds, how it is built and rsynced, the OAR details) is in
 `BENCH.md`; this is the operating sequence. Every command is meant to be run
-as written; the head node `cluster.lip6.fr` runs nothing but `oarsub`.
+as written.
+
+The head node `cluster.lip6.fr` is for `oarsub` and for deployment only. It
+has no tools beyond the basics (no Java, no compiler, `zip` and `rsync` about
+sum it up), and it is not meant for test runs, not even a small one: anything
+that executes a tool is a job. Deployment works because the compute nodes see
+the same file system as the head we log into: what is rsynced to
+`~/MCC26/MCC-drivers/` is what every job finds, and the result folders the
+jobs write are read back from the head.
 
 ## Layout
 
