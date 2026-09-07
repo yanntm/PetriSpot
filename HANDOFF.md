@@ -4,6 +4,24 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 16:50: the image published, the site rewritten
+
+ITS-Tools CI: the native step and the Node 24 update (`checkout@v7`,
+`setup-java@v6`, the runner's own Maven; c6f632b0, 043bd1ca) both green,
+`https://lip6.github.io/ITSTools/its-tools-native` published (80 MB).
+54c9dbac makes the image find `plugins/` beside its own executable (the code
+source of a native image is the executable; a file that is not a jar means
+that) so no property is needed, and rewrites `website/index.html` and the
+`README.md`: Java 21, the `-pnfolder`/`-examination` and `-i model.gal`
+command lines, the flat script, the native image as an experimental build
+made for the contest driver with how to report a closed-world miss and the
+fallback to `its-tools`. Verified locally before the push: image beside
+`plugins/`, no property, from another directory: LTLC 16/16, COL LTLF 16/16,
+deadlock, all binaries found. The cluster's `itstools/` is not touched while
+the campaign runs; the local deploy tree gets the published image through the
+updated driver (`git pull` in `MCC-drivers/itstools`, `wget` of the image)
+for a `run_test.pl` check, then the cluster trial after the campaign.
+
 ## 2026-09-07, 16:10: the native image wired into the CI and the MCC driver
 
 ITS-Tools (commit after 3aec3d8c): `main()` in both application classes runs
