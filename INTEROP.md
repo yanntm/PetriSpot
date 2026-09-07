@@ -162,6 +162,11 @@ FORM  ::= (reach NAME BEXP)          ; find a marking satisfying BEXP; verdict T
         | (invariant NAME BEXP)      ; find a marking violating BEXP;  verdict FALSE (AG)
         | (deadlock NAME)            ; find a dead marking;             verdict TRUE
         | (bound NAME EXPR [INT])    ; maximise EXPR; the optional INT is a known upper bound
+        | (ctl NAME CTL)             ; a CTL formula at the initial marking; verdict its truth
+CTL   ::= BEXP | deadlock
+        | (and CTL+) | (or CTL+) | (not CTL)
+        | (EX CTL) | (AX CTL) | (EF CTL) | (AF CTL) | (EG CTL) | (AG CTL)
+        | (EU CTL CTL) | (AU CTL CTL) | (EW CTL CTL) | (AW CTL CTL)   ; W the weak until
 BEXP  ::= true | false
         | (and BEXP+) | (or BEXP+) | (not BEXP)
         | (CMP EXPR EXPR)            ; CMP in == != <= >= < >
@@ -253,6 +258,13 @@ UNKNOWN <name>                                   only with --printUnknown: at ex
 A bound target without a hint never gets a `FORMULA` line nor an `UNKNOWN`
 line; its answer is its last `BOUND` line, and a reader cut off early holds
 the best value known at that time.
+
+On a `ctl` form the value is the truth of the formula at the initial marking,
+`TRUE` or `FALSE`, both final and both backed by a witness tree (`TECHNIQUES
+EXPLICIT CTL_WALK`, or `TOPOLOGICAL INITIAL_STATE` for a formula without
+temporal operator); the checker prints nothing for a formula it could not
+close, which the reader takes as unknown. `WITNESS` on a `ctl` form is a
+multi-line block (the evidence tree), for humans, not for the reader.
 
 The value of a `FORMULA` line carries the polarity and the reader must honour
 it. On a `reach` or `deadlock` form `TRUE` is a witness: a marking satisfying
@@ -419,6 +431,13 @@ All in `petrispot/fr.lip6.move.petrispot.runner`, beside `PetriSpotRunner`:
   it is the companion's seed. The step budget of a call still grows with the
   loop's iterations, so a glean that keeps failing asks more each time
   without ever outlasting the engine it serves.
+* `PetriSpotWalker.runCtl` (2026-09-07): the CTL properties of an attempt
+  as `(ctl prop<i> f)` forms (`SexprPropertyPrinter.ctl`, the operators
+  EX AX EF AF EG AG EU AU and the deadlock atom), `--totalTime` the
+  companion's clock, a `FORMULA` value the formula's truth. `ParallelWalk`
+  takes that path when every open property of the attempt is of type CTL:
+  the per-property `verifyWithSDD` of the CTL examinations in `Application`
+  now runs the explicit checker on the idle cores beside `its-ctl`.
 
 This work happens in the ITS-Tools repository, after the PetriSpot side is
 validated on the MCC harness; it is listed here so the plan is whole.
