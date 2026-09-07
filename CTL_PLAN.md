@@ -7,7 +7,8 @@ proofs to the symbolic engine (`its-ctl` on libDDD, the only CTL backend of
 ITS-Tools; libHSC has no CTL either)? This note says what a CTL witness is,
 what TAPAAL's explicit engine does that we should borrow, what exists here,
 what is missing, and proposes a folder `ctl/` with a lean first milestone:
-basic walks that try to close a formula by a witness. Nothing is built yet.
+basic walks that try to close a formula by a witness. Section 9 is the state
+after that milestone was built.
 
 ## 1. What a CTL witness is
 
@@ -304,7 +305,63 @@ engine a reduced net and a simplified formula, as for LTL.
 * **Depth.** Hunts under regions under hunts multiply budgets; the rounds and
   the memo are the defence, a per-formula wall clock the last resort.
 
-## 9. Plan of attack
+## 9. State after the first proof of concept (2026-09-07 evening)
+
+Built, in `expr/` (`CtlFormula.h`, `CtlSimplify.h`), `parse/` (MCC XML
+path operators, `(ctl NAME f)` s-expressions), `ctl/` (`Checker.h`,
+`Hunt.h`, `Region.h`, `Cursor.h`, `Evidence.h`, `Verdict.h`) and
+`cli/CtlDriver.h`; single-threaded; `Petri/src/ctl/algorithm.md` is the
+reference. What it does: normal form with TAPAAL's rules, evaluation at the
+initial marking, then `solve` over `(marking, node)` configurations with a
+memo: `EX`/`AX` by successors, E nodes by guarded random hunts (epsilon-greedy
+on the distance to `suf(b)`, every other run saturated), A nodes by a hunt
+for their negation first and a bounded region DFS second, E nodes by the
+region of their negation when the hunt fails; verdicts propagated along
+witness paths and closed regions as TAPAAL propagates `ONE`; budgets by depth
+(root and per-state probe), rounds of tenfold work alternating the two;
+`FORMULA` lines, evidence trees with `--trace`.
+
+Measured (`Petri/test/ctl_oracle.sh`, 8 s per file, two seeds):
+
+| file | decided | unknown | wrong |
+|---|---|---|---|
+| AirplaneLD-PT-0010 CTLCardinality | 12 / 16 | 4 | 0 |
+| AirplaneLD-PT-0010 CTLFireability | 13 / 16 | 3 | 0 |
+| Angiogenesis-PT-05 CTLCardinality | 8 / 16 | 8 | 0 |
+| Angiogenesis-PT-05 CTLFireability | 9-10 / 16 | 6-7 | 0 |
+
+Liveness as one conjunction (`Petri/test/probes/liveness_props.py --one`) on
+CloudOpsManagement: PT-00005by00002 FALSE in 0.1 s, PT-00010by00005 in 0.6 s,
+PT-00020by00010 in 6.7 s (the counter-example: a path to a stuck region of
+600 to 5 000 states where the transition is dead, proved by the region DFS),
+PT-00040by00020 unknown in 15 s; the oracle says FALSE for all four.
+
+Two soundness bugs were found by the oracle and fixed: the hunt and region
+objects were shared and re-entered by sub-obligations (the inner one cleared
+the outer's stack), and `EX` at a deadlock was read with a self-loop. The
+unknowns split in two: formulas whose oracle verdict needs an exhaustive
+proof (Angiogenesis CTLFireability-08, `EF((EG x || EF y) && AG z)` FALSE:
+only `AG` of its negation refutes it), which is the symbolic engine's job, and
+witnesses whose A nodes need larger regions than the rounds reached in 8 s.
+
+Next, in order of expected yield:
+
+1. **Saturation as a strategy, not a fixed share**: on when the initial
+   marking has places with many tokens (never on a one-safe net, not on an
+   unbounded one), its share of the runs following its success as the
+   portfolio's shares do. The same applies to the reachability walk, which
+   tries `+sat` too little on such models (typically a property asking to
+   empty a place).
+2. **Hunts through the portfolio** (`Portfolio`, strategies, quests) instead
+   of the built-in random walk: the CTL hunt as a `TargetSet` with a guard and
+   refusable claims, threads for free.
+3. **LP from a state** to close `AG a` leaves and cut hopeless hunts.
+4. **A verifier of the evidence tree** before the `FORMULA` line, and the
+   memo bounded by size.
+5. **ITS-Tools**: `--ctl` beside `its-ctl`, the differential test on the
+   bench, then the cluster.
+
+## 10. Plan of attack (as written before the proof of concept)
 
 0. **Measure before building** (half a day). A script in `Petri/test/`
    classifies the formulas of the bench models by shape after NNF: E-led or

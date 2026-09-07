@@ -1,8 +1,28 @@
 # Handoff — MCC 2026 campaign, the portfolio design, the first fixes, the total examinations
 
-State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
+State of the work as of 2026-09-07, 19:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
+
+## 2026-09-07, 19:30: an explicit CTL checker, proof of concept
+
+New direction, designed and built in one session: `CTL_PLAN.md` (the design,
+TAPAAL's dependency graphs as read in `~/git/verifypn`, section 9 the state
+and the next steps), `Petri/src/ctl/` (`README.md`, `algorithm.md`), the CTL
+AST and simplifier in `expr/`, the parsers extended (MCC XML path operators,
+`(ctl NAME f)` s-expressions), `cli/CtlDriver.h` and the `--ctl*` options.
+A property file with CTL formulas runs the checker; `FORMULA ... TECHNIQUES
+EXPLICIT CTL_WALK`, evidence trees with `--trace`. Witnesses and
+counter-examples only, never an exhaustive proof: hunts for E nodes, bounded
+regions for A nodes, the negation tried too, verdicts propagated along paths.
+Checked against the contest oracles with `Petri/test/ctl_oracle.sh`: 0 wrong
+over 12 runs after two soundness fixes (re-entrant hunts and regions; `EX`
+false at a deadlock, the MCC reading), 12-13 of 16 decided on Airplane, 8-10
+on Angiogenesis in 8 s. Liveness of CloudOpsManagement as one conjunction
+(`Petri/test/probes/liveness_props.py --one`): FALSE in 0.1, 0.6 and 6.7 s
+on the three smallest instances, unknown on the fourth in 15 s. Not done:
+threads, the portfolio strategies in the hunts, the LP from a state, the
+evidence verifier, the ITS-Tools side. Everything is pushed.
 
 ## 2026-09-07, 17:30: closing the session's threads
 

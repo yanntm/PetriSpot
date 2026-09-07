@@ -211,7 +211,7 @@ else on stdout is a log (`INTEROP.md` section 5).
 | `--escalate` | on such a round, multiply the step budget and walk on while `--totalTime` lasts, rather than concluding that more time cannot help |
 | `--trace` | record, verify by replay and print the witness trace as `WITNESS <id> <k> t...` |
 | `--printUnknown` | at exit, one `UNKNOWN <id>` line per property left without verdict |
-| `--ctlSteps`, `--ctlRegion`, `--ctlRounds`, `--ctlRunLength` | CTL checker: hunt steps and region states of the first round (1000 each), tenfold per round (6 rounds), steps of a hunt run before a restart (1000) |
+| `--ctlSteps`, `--ctlRegion`, `--ctlRounds`, `--ctlRunLength` | CTL checker: hunt steps and region states of the first round (1000 each, root and per-state probe), rounds of tenfold work (8), steps of a hunt run before a restart (1000) |
 | `--netStats` | structural histograms of the net |
 
 `TOTAL_QUERIES.md` proposes three total examinations, a query per place or per
