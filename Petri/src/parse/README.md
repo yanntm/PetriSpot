@@ -11,8 +11,8 @@
 * `PropertyFile.h` — `loadPropertyFile(file, net, syntax)`: picks the parser
   by explicit syntax or by extension (`.xml` is MCC, anything else
   s-expressions).
-* `mcc/` — MCC property XML parser producing `expr::Property` values
-  (unsupported kinds kept with a comment).
+* `mcc/` — MCC property XML parser producing `expr::Property` values,
+  reachability kinds and CTL formulas (unsupported kinds kept with a comment).
 * `sexpr/` — s-expression reader and property reader, the tool-to-tool
   syntax (`INTEROP.md` section 4).
 

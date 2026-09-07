@@ -3,7 +3,10 @@
  *
  * S-expression forms to expr::Property values over a net. Grammar in
  * README.md. Comparisons are linearised into one LinearAtom; place and
- * transition references are indices (p<i>, t<i>) or names.
+ * transition references are indices (p<i>, t<i>) or names. A (ctl NAME f)
+ * form reads a CTL formula: booleans and comparisons as elsewhere, deadlock,
+ * and the path operators (EX f) (AX f) (EF f) (AF f) (EG f) (AG f)
+ * (EU f g) (AU f g) (EW f g) (AW f g), case-insensitive.
  */
 #ifndef PETRI_PARSE_SEXPR_PROPERTYREADER_H_
 #define PETRI_PARSE_SEXPR_PROPERTYREADER_H_
@@ -18,6 +21,7 @@
 
 #include "core/Log.h"
 #include "core/SparsePetriNet.h"
+#include "expr/CtlFormula.h"
 #include "expr/Property.h"
 #include "parse/NetResolver.h"
 #include "parse/sexpr/Sexpr.h"
@@ -33,6 +37,8 @@ template<typename T>
     using Property = petri::expr::Property;
     using PropertyKind = petri::expr::PropertyKind;
     using Cmp = petri::expr::Cmp;
+    using CtlFormula = petri::expr::CtlFormula;
+    using CtlOp = petri::expr::CtlOp;
 
     /** An integer expression: sum of coeff * place, plus a constant. */
     struct LinearForm
@@ -179,12 +185,71 @@ template<typename T>
       fail (d, "boolean expression expected, got " + (h.empty () ? std::string ("a list") : h));
     }
 
+    static bool temporalOf (std::string h, CtlOp &op, size_t &arity)
+    {
+      for (auto &c : h) c = static_cast<char> (std::toupper (static_cast<unsigned char> (c)));
+      arity = 1;
+      if (h == "EX") op = CtlOp::EX;
+      else if (h == "AX") op = CtlOp::AX;
+      else if (h == "EF") op = CtlOp::EF;
+      else if (h == "AF") op = CtlOp::AF;
+      else if (h == "EG") op = CtlOp::EG;
+      else if (h == "AG") op = CtlOp::AG;
+      else {
+        arity = 2;
+        if (h == "EU") op = CtlOp::EU;
+        else if (h == "AU") op = CtlOp::AU;
+        else if (h == "EW") op = CtlOp::EW;
+        else if (h == "AW") op = CtlOp::AW;
+        else return false;
+      }
+      return true;
+    }
+
+    static bool allPreds (const std::vector<CtlFormula> &fs)
+    {
+      for (const auto &f : fs) if (f.op != CtlOp::Pred) return false;
+      return true;
+    }
+
+    /** A CTL formula; a subtree without temporal operator or deadlock is one predicate. */
+    CtlFormula readCtl (const Datum &d) const
+    {
+      if (d.isAtom ()) {
+        if (d.text () == "deadlock") return CtlFormula::leaf (CtlOp::Deadlock);
+        return CtlFormula::predicate (readBool (d));
+      }
+      const std::string &h = d.head ();
+      const auto &items = d.items ();
+      CtlOp op;
+      size_t arity;
+      if (temporalOf (h, op, arity)) {
+        if (items.size () != arity + 1) fail (d, "(" + h + " ...) takes " + std::to_string (arity) + " operand(s)");
+        if (arity == 1) return CtlFormula::unary (op, readCtl (items[1]));
+        return CtlFormula::binary (op, readCtl (items[1]), readCtl (items[2]));
+      }
+      if (h == "and" || h == "or" || h == "not") {
+        std::vector<CtlFormula> kids;
+        for (size_t i = 1; i < items.size (); ++i) kids.push_back (readCtl (items[i]));
+        if (h == "not" && kids.size () != 1) fail (d, "(not e) takes one operand");
+        if (allPreds (kids)) {
+          std::vector<Expression> es;
+          for (auto &k : kids) es.push_back (std::move (k.pred));
+          if (h == "not") return CtlFormula::predicate (Expression::makeNot (std::move (es[0])));
+          return CtlFormula::predicate (h == "and" ? Expression::makeAnd (std::move (es)) : Expression::makeOr (std::move (es)));
+        }
+        if (h == "not") return CtlFormula::unary (CtlOp::Not, std::move (kids[0]));
+        return CtlFormula::nary (h == "and" ? CtlOp::And : CtlOp::Or, std::move (kids));
+      }
+      return CtlFormula::predicate (readBool (d));
+    }
+
     Property readForm (const Datum &d) const
     {
       const std::string &h = d.head ();
       const auto &items = d.items ();
       if (!d.isList () || items.size () < 2 || !items[1].isAtom ()) {
-        fail (d, "expected (reach NAME e), (invariant NAME e), (deadlock NAME) or (bound NAME e [k])");
+        fail (d, "expected (reach NAME e), (invariant NAME e), (deadlock NAME), (bound NAME e [k]) or (ctl NAME f)");
       }
       Property p;
       p.name = items[1].unquoted ();
@@ -210,6 +275,10 @@ template<typename T>
         if (items.size () != 3) fail (d, "(" + h + " NAME e) takes one body");
         p.kind = h == "reach" ? PropertyKind::Reachability : PropertyKind::Invariant;
         p.body = readBool (items[2]);
+      } else if (h == "ctl") {
+        if (items.size () != 3) fail (d, "(ctl NAME f) takes one formula");
+        p.kind = PropertyKind::CTL;
+        p.ctl = readCtl (items[2]);
       } else {
         fail (d, "unknown property form: " + h);
       }

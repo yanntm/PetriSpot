@@ -12,7 +12,10 @@ copied so the two projects keep one syntax without depending on each other.
 * `PropertyReader.h` — forms to `expr::Property` values over a net:
   `(reach NAME BEXP)`, `(invariant NAME BEXP)`, `(deadlock NAME)`,
   `(bound NAME EXPR [K])` (maximise a weighted sum of places, `K` a known
-  upper bound). Booleans
+  upper bound), `(ctl NAME F)` where `F` is a CTL formula: booleans and
+  comparisons as below, `deadlock`, and the path operators `(EX f)`, `(AX f)`,
+  `(EF f)`, `(AF f)`, `(EG f)`, `(AG f)`, `(EU f g)`, `(AU f g)`, `(EW f g)`,
+  `(AW f g)` (`W` the weak until; operator names case-insensitive). Booleans
   are `true`, `false`, `(and ...)`, `(or ...)`, `(not e)`, `(CMP e e)` with
   `CMP` in `== != <= >= < >`, `(fireable t...)`; integers are literals, place
   references, `(+ ...)`, `(- a b...)` or `(- a)`, `(* k e)`. A comparison is
