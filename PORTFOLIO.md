@@ -484,7 +484,9 @@ Java call sites and their contract: `ReachabilitySolver.randomCheckReachability`
 iteration under the reachability ones), `AtomicReducer` and `AtomicReducerSR`
 (glean), `DeadlockSolver.runDeadlock` and `UpperBoundsSolver` (commit, the
 budget growing per call rather than a walk that refuses to return),
-`ParallelWalk` (the companion's seed). Not coded yet.
+`ParallelWalk` (the companion's seed). Coded as the `Effort` enum of the
+runner (`GLEAN`, `COMMIT`), a parameter of every walker call and of the loop
+`applyReductions`; the companion is not.
 
 ## Goals, in order
 

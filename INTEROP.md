@@ -405,6 +405,21 @@ All in `petrispot/fr.lip6.move.petrispot.runner`, beside `PetriSpotRunner`:
   `UpperBoundsSolver`. Technique words in `DoneProperties` come from the
   `FORMULA` line.
 
+* `Effort`, the contract of one call (PORTFOLIO.md, "Three contracts for a
+  walker call"): every `runReachability`, `runBounds` and `runDeadlock` takes
+  one, and so does the loop `ReachabilitySolver.applyReductions(reader,
+  doneProps, timeout, effort)`, which hands it to every walk it makes.
+  `GLEAN` reads the budgets a call site names as caps (sweep at most 3 s,
+  total at most 10 s) and omits `--escalate`, so the run ends when a round
+  solves nothing with every walk on its step budget: the LTL and CTL atom
+  checks (`AtomicReducer`, `AtomicReducerSR`) and the knowledge loop
+  (`KnowledgeFacts`). `COMMIT` passes the budgets through with `--escalate`:
+  the reachability examinations (`Application`), the global properties,
+  bounds, projections, deadlock. `runBeside` (`ParallelWalk`) always commits:
+  it is the companion's seed. The step budget of a call still grows with the
+  loop's iterations, so a glean that keeps failing asks more each time
+  without ever outlasting the engine it serves.
+
 This work happens in the ITS-Tools repository, after the PetriSpot side is
 validated on the MCC harness; it is listed here so the plan is whole.
 
