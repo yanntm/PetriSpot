@@ -4,6 +4,48 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 13:55: campaign 2026-09-07 launched (RD, QLA, LTLC, LTLF)
+
+**Product.** The official CI product `202609071104` (ITS-Tools 9fde1d1e, an
+empty commit on bae71d95 to rebuild once PetriSpot's `Inv-Linux` carried
+3f29014: the first build of bae71d95 had fetched the previous `petri64`;
+always check the checksum, `sha256sum .../bin/petri64` against `git show
+origin/Inv-Linux:petri64`, here `3843b530652a`). Installed locally with
+`install_itstools.sh` in `/data/ythierry/MCC26deploy/MCC-drivers/itstools/`
+(the previous local product kept beside it as `itstools.local-bae71d95`),
+rsynced with `--delete` over `cluster.lip6.fr:MCC26/MCC-drivers/itstools/`.
+
+**Cluster logs.** The 2026-09-06c results (OS QL QLA RD SM SMA UBA, RDvar)
+were copied whole to `/data/ythierry/MCC26archive/2026-09-06c/` (4.7 GB,
+file counts checked, README inside) and removed from the cluster, whose
+tree is back to its 25 GB of INPUTS.
+
+**Warmup.** All 261 AirplaneLD oracles through `run_oar.sh` (18 instances,
+16 examinations), collected in `/data/ythierry/MCC26run/warmup-2026-09-07/`
+(`csv/` by the collectors): zero wrong verdict; RC RF RD UB OS QL SM QLA SMA
+UBA identical to the campaign tables; **LTLC 288/288 (baseline 287), LTLF
+287/288 (baseline 287)** with the wall times down from 240-420 s to 12-22 s
+on the COL instances and PT-2000 LTLC from 704 s to 200 s: the glean is back
+to nominal. Two Eclipse fatals ("Cannot open display", the shared
+`configuration/` race of two jobs of the same instance starting 188 ms
+apart): PT-1000 LTLF resubmitted alone answered 16/16, PT-1000 QLA is redone
+by the campaign; 2 of 262 is the rate of every campaign so far (30 of 7812
+in 06c). CTLC 285/288 and CTLF 273/288 have no baseline of ours (PT-2000
+and PT-4000 miss a few within 1800 s).
+
+**Campaign.** `~/MCC26/MCC-drivers/submit-2026-09-07.sh` (a copy is
+`Petri/test/mcc/submit-2026-09-07.sh`), detached on the cluster head at
+13:52 CEST, log `submit-2026-09-07.log`: RD, QLA, LTLC, LTLF in that order,
+one `run_oar.sh` after another, 1800 s / 4 cores / `tall%` /
+`runatest_cluster.sh`; the warmup folders of those four moved aside as
+`*-before-2026-09-07`. Capacity: 20 tall nodes of 64 cores, about 300
+concurrent jobs. Collect each examination when it ends into
+`/data/ythierry/MCC26run/2026-09-07/` (rsync without `--delete`, stderr
+excluded), run the collectors, point `ITS-Tools latest` at it in
+`~/git/MCC-analysis/campaign/example.json`, compare LTLC and LTLF against
+`csv/2026-09-06-baseline` (the contest-like ITS-Tools of 2026), then archive
+whole and remove from the cluster as above.
+
 ## 2026-09-07, 13:30: Effort, the contract of a walker call, and the step cap of a round
 
 **ITS-Tools bae71d95.** `fr.lip6.move.petrispot.runner.Effort { GLEAN, COMMIT }`
