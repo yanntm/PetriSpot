@@ -6,6 +6,17 @@ this for where everything lives and what is in flight.
 
 ## 2026-09-07, 17:30: closing the session's threads
 
+**Campaign 2026-09-07, 17:45: RD collected.** `/data/ythierry/MCC26run/2026-09-07/RD`
+(1953 logs, `csv/` beside it): 1897 answered as in 06c, 0 wrong, 3 gained
+(DLCflexbar-PT-8b, PGCD-COL-D02N100, RERS2020-PT-pb104), 3 lost
+(DatabaseWithMutex-PT-20, HypercubeGrid-PT-C5K3P3B15,
+HypertorusGrid-PT-d5k3p2b10), the same 5 Eclipse fatals and 2 overlarge
+markings: variance. The pages (`/data/ythierry/MCC26run/pages`, built 16:37)
+carry it as the set `ITS-Tools 2026-09-07`; the previous `latest` is now named
+`ITS-Tools 2026-09-06c` (MCC-analysis c3aae82). QLA, LTLC, LTLF follow the
+recipe below when they end. The deploy clone of MCC-drivers is repaired and at
+origin (b6440228): the 5 050 untracked collisions were byte-identical copies.
+
 **Campaign 2026-09-07 (RD, QLA, LTLC, LTLF), running.** Submission complete
 at 14:37 CEST (`submit-2026-09-07.log`); at 17:00 RD had all 1953 logs, QLA
 1195, LTLC and LTLF none yet, 4505 jobs queued, about 110 running. To
