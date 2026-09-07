@@ -392,3 +392,100 @@ Next, in order of expected yield:
 
 Out of scope: fairness (none in MCC CTL), CTL*, exhaustive CTL (that is
 `its-ctl`), partial order reduction for the regions.
+
+## 11. Knowledge, subgoals, and a symbolic engine on the side (design conversation, 2026-09-07 evening, to comment)
+
+The checker's configurations `(s, f)` are subgoals and its memo is a table of
+lemmas about single states. Three things widen that.
+
+### 11.1 Knowledge: lemmas that hold on every reachable state
+
+ITS-Tools' presolving already hands us formulas where the atoms decided by
+invariants and SMT are constants (an atom `a` with `AG a` or `AG not a` on
+the reachable set is folded wherever it appears, which is sound because CTL
+subformulas are only ever evaluated on reachable states). Inside the checker
+the same shape of fact is a memo entry without a state: `node -> verdict for
+every reachable s`. Sources, from the cheapest:
+
+* the P-flows and semiflows (in-process): an atom whose violation contradicts
+  a flow is `AG a`;
+* the LP over the state equation from `m0`, and from a state `s` (the fact
+  is then relative: "from `s`, `AG a`"), `lp/` has the simplex and the
+  refiners;
+* the dual: a Parikh vector feasible for `suf(b)` from `s` is a hint for the
+  hunt of `E[a U b]`, infeasibility a `CZERO` for that configuration;
+* structural traps and siphons: a siphon once empty stays empty, a trap once
+  marked stays marked, so `AG (sum siphon = 0)` from any state where it is
+  empty. These are *conditional* lemmas, a guard predicate on `s` and a
+  verdict on a node; the memo generalises to "if `p(s)` then `f(s) = v`",
+  checked by evaluating `p` before any search;
+* facts the symbolic engine leaves behind when it has computed a reachable
+  set on a reduced net (dead transitions, bounds, home states: `AG EF p`),
+  as `KnowledgeCollector` exports them for LTL today.
+
+For Liveness the useful lemma is about bottom strongly connected components:
+`t` is live iff every bottom SCC enables `t` somewhere. The stuck regions the
+checker proves are exactly bottom SCCs where `t` is dead; a lemma "`s` is in a
+bottom SCC where `t` is dead" is what a symbolic engine can produce
+wholesale and the explicit engine only one at a time.
+
+### 11.2 Subgoals on a smaller net
+
+A subgoal `(s, f)` mentions few places. Two abstractions pair with the two
+kinds of nodes:
+
+* an **over-approximation** (the cone of influence of the atoms of `f`: the
+  places and transitions that can affect them, the rest of the net dropped
+  and its constraints on the kept transitions relaxed; or the state equation;
+  or ITS-Tools' `PlaceProjection`) has more behaviours than the net, so a
+  universal proof on it is a proof on the net: A nodes go there. A
+  counter-example found on it may be spurious: it is a hint for the hunt, or
+  a reason to refine the abstraction (`ProjectionCegar` does this loop for
+  reachability);
+* an **under-approximation** (a subset of transitions, a bounded marking,
+  places fixed to their current value, or simply the sample of paths a walker
+  fires) has fewer behaviours, so an existential witness on it is a witness
+  on the net: E nodes live there, and the walker *is* the under-approximation.
+
+`Components` (from the semiflows) gives ready-made subnets: a subgoal over
+the places of one process, checked on that process with the others' inputs
+free, is an over-approximation for the A node and a plan for the E node.
+
+### 11.3 Invoking the symbolic engine on a subgoal
+
+The explicit engine should choose the states and the symbolic engine prove
+the universal subgoals, so that the latter never sees the whole system:
+
+* **a region proof from `s`**: when the region DFS for `A[a W b]` hits its
+  budget without a counter-example, the reachable set from `s` is large but
+  the answer is likely `1`. `its-ctl` on the same net with `s` as initial
+  marking answers `AG a` from `s`; the downstream of a state deep in a run
+  (tokens consumed, choices made) is far smaller than the state space from
+  `m0`, and the decision diagrams take millions of states in stride where
+  the DFS stops at a hundred thousand;
+* **from the frontier**: better still, hand the symbolic engine the *frontier*
+  of the aborted region (the states whose successors were not expanded) as
+  its initial *set*: decision diagrams start from a set of states as easily
+  as from one, and the visited part is already proved explicitly. The result
+  closes the region, and every state of it enters the memo;
+* **on a subnet**: the over-approximation of 11.2 as the net given to the
+  symbolic engine, with `s` projected: cheaper again, sound for A nodes, and
+  a spurious counter-example refines the projection;
+* the reverse direction is the knowledge of 11.1: a symbolic run that
+  computed a reachable set leaves lemmas the explicit engine reads before
+  searching.
+
+Each call is a process and costs seconds: a few well chosen states per
+property, not one per hunt step. The choice is the explicit engine's job: a
+state whose region stayed open at the largest budget, whose probes never
+found a counter-example, is the one to hand over.
+
+### 11.4 Where it stands
+
+`ParallelWalk` runs the checker beside `its-ctl` on the CTL examinations and on
+Liveness (confirmed locally: CloudOpsManagement-PT-00020by00010 Liveness
+FALSE by the checker in 142 ms of its own time inside a 31 s run whose first
+30 s went to a reachability pre-step). The knowledge of 11.1 is upstream
+presolving only; nothing of 11.2 and 11.3 exists. The cheapest first step is
+the LP from a state (already planned), the most valuable the region handoff
+from the frontier, which needs a way to give `its-ctl` an initial set.
