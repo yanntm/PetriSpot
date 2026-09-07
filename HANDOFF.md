@@ -1,8 +1,31 @@
 # Handoff — MCC 2026 campaign, the portfolio design, the first fixes, the total examinations
 
-State of the work as of 2026-09-07, 19:30. Read `PORTFOLIO.md` first if you are
+State of the work as of 2026-09-07, 20:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
+
+## 2026-09-07, 20:30: the CTL checker plugged into ITS-Tools beside its-ctl
+
+ITS-Tools (one commit, pushed): `SexprPropertyPrinter.ctl` writes `(ctl NAME
+f)` with the operators EX AX EF AF EG AG EU AU and the deadlock atom,
+`PetriSpotWalker.runCtl` runs the checker under `--totalTime`, and
+`ParallelWalk.start` takes that path when every open property of the attempt
+is of type CTL, so the per-property `verifyWithSDD` of the CTL examinations
+runs the explicit checker on the idle cores beside `its-ctl`, publishing into
+`DoneProperties` as verdicts arrive (INTEROP.md section 7). Local product
+(`mvn -o install -DskipTests`, 1:26 min, extracted to
+`/data/ythierry/itstools-local-ctl/` with the master `petri64` copied over the
+bundled one) on AirplaneLD-PT-0010, `-its -smt -timeout 120`: CTLF 16/16
+right, 11 answered by the checker (`TECHNIQUES TOPOLOGICAL EXPLICIT
+CTL_WALK`), 4 by the diagrams, 1 at the initial state; CTLC 16/16 right, 5 by
+the checker (logs `Petri/test/logs/its-airplane-ctl{c,f}.log`). PetriSpot
+side: `runCtl` checks `--threads` properties at a time, one single-threaded
+checker each (14/16 CTLF in 8 s on 4 threads against 13 on one). The
+CI-published pair (ITS-Tools product, `petri64` of `Inv-Linux`) carries the
+plug once both CIs have run; the harness install then picks it up unchanged.
+Next: the MCC-drivers `petrispot` tool gets CTLCardinality and CTLFireability
+for a stand-alone measurement of the checker against the oracles; the
+saturation share; the portfolio in the hunts.
 
 ## 2026-09-07, 19:30: an explicit CTL checker, proof of concept
 
