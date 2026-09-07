@@ -74,52 +74,79 @@ handful. So:
 
 ## 3. What TAPAAL does, and what we take from it
 
-TAPAAL's `verifypn` checks CTL explicitly as a local fixed point over a
-*dependency graph* (Liu and Smolka's linear local algorithm, 1998; the
-extended graphs with negation edges and the *certain-zero* optimisation of
-Dalsgaard, Enevoldsen, Fogh, Jensen, Jensen, Johannsen, Larsen, Muñiz, Olesen
-and Srba, Petri Nets 2016 and 2017; the same engine is distributed over
-threads in their later work). The ideas, stated in our words:
+TAPAAL's `verifypn` (cloned read-only in `~/git/verifypn`, `src/CTL/`) checks
+CTL explicitly as a local fixed point over a *dependency graph* (Liu and
+Smolka's local algorithm, 1998; the negation edges and the *certain-zero*
+optimisation of Dalsgaard, Enevoldsen, Fogh, Jensen, Jensen, Johannsen,
+Larsen, Muñiz, Olesen and Srba, Petri Nets 2016 and 2017). As the code has
+it:
 
-* A **configuration** is a subgoal `(s, node)`: a marking and a subformula.
-  Its value is 1 (holds), 0 (fails) or unknown.
+* A **configuration** is a subgoal `(s, node)`: a marking and a subformula
+  (`PetriConfig`; markings in a compressed trie, the configurations of a
+  marking in a list beside it). Its assignment is `ONE`, `ZERO` (not yet
+  proved), `CZERO` (certainly false) or unknown.
 * A **hyperedge** from a configuration to a set of configurations is one way
-  to prove it: `(s, a and b) -> {(s,a),(s,b)}`; `(s, a or b)` has two
-  hyperedges of one target each; `(s, EX phi)` has one hyperedge per enabled
-  transition, `(s, AX phi)` one hyperedge with every successor;
+  to prove it (`OnTheFlyDG::successors`): `(s, a and b) -> {(s,a),(s,b)}`;
+  `(s, a or b)` has one hyperedge per child; `(s, EX phi)` one hyperedge per
+  successor, `(s, AX phi)` one hyperedge with every successor;
   `(s, E[a U b])` has `{(s,b)}` and, per successor `s'`, `{(s,a), (s',E[a U b])}`;
   `(s, A[a U b])` has `{(s,b)}` and one hyperedge `{(s,a)} ∪ {(s',A[a U b])
-  for all s'}`. `EG`/`AG` go through negation edges.
-* The **local algorithm** expands configurations on demand from the root,
-  keeps a waiting list, and propagates 1 backwards the moment a hyperedge
-  has all its targets at 1. The configurations touched by that propagation
-  *are the witness tree*: the algorithm is a witness search, and it never
-  enumerates more of the graph than the witness needs (plus what it explored
-  in vain).
-* **Certain zero** propagates definite failure: a configuration is certainly
-  0 when every hyperedge has a target that is certainly 0. For an A node one
-  failing successor suffices: the counter-example side, again without
-  exhaustive exploration. For an E node all hyperedges must fail, which is
-  the exhaustive side.
-* The **search order** of the waiting list is a heuristic (they use the
-  distance of the marking to the atoms, the same estimate as their
-  reachability engine): which configuration to expand next is what decides
-  whether the witness is found in thousands of steps or never.
+  for all s'}`. Non-temporal operands are **evaluated on the spot** while the
+  edges are generated (`fastEval`): a right side that holds closes the
+  configuration without an edge, a left side that fails suppresses the
+  successor edges, a successor where the whole until-formula is decided
+  yields no configuration. A hyperedge pointing back at its own source is
+  dropped. `G` is not in the graph: `EG a` is rewritten to `not AF not a` and
+  goes through a **negation edge**.
+* The **algorithm** (`CertainZeroFPA`) expands configurations on demand from
+  the root, keeps a waiting list `W`, a list `D` of edges to re-check because
+  a target was just decided (served first), and a list `N` of negation edges
+  parked until the graph below them is exhausted (a negation edge may fire on
+  a `ZERO` target only once nothing below it can still turn `ONE`). `ONE`
+  propagates the moment a hyperedge has all its targets at `ONE`: the
+  configurations touched by that propagation *are the witness tree*.
+  `CZERO` propagates when every hyperedge of a configuration has a `CZERO`
+  target: one failing successor kills an A node, the counter-example side;
+  an E node needs all its hyperedges dead, the exhaustive side.
+* **Search orders** (`SearchStrategy/`): DFS, BFS, a random DFS that shuffles
+  the edges of the last expanded configuration, and a "heuristic" that is a
+  priority on the *formula* (smaller and shallower subformulas first), not
+  on the marking; the marking-distance code is commented out. The
+  marking-distance heuristics live in their reachability engine, which the
+  CTL front end (`CTLEngine.cpp`, `recursiveSolve`) calls for every
+  reachability-shaped subquery after splitting top-level booleans; a single
+  `AF`, `EG`, `AU` or `EU` over state predicates without `X` goes to their
+  LTL engine; the dependency graph handles what is left. Optionally a
+  stubborn set reduces the successors of `EF` over a state predicate.
+* A page of **rewrite rules** (`Documentation/CTL-formula-equivalence-rewriting.pdf`)
+  collapses nested operators before anything runs: `EF EF a = EF a`,
+  `EF AF a = EF a`, `AF EF a = EF a`, `EF E[a U b] = EF b`, `EF A[a U b] = EF b`,
+  `A[a U EF b] = EF b`, `E[a U (b or EF c)] = EF c or E[a U b]`, `deadlock`
+  and `not deadlock` on either side of an until, `not EX = AX not`, and the
+  booleans. Every rule of the `EF ... = EF b` family removes an A node from
+  under an E path, exactly the nodes that cost us a proof.
 
-What we take: configurations as subgoals, the memo of values, 1 and
-certain-zero propagation, and the observation that the witness is the closed
-fragment of the graph. What we change:
+What we take: configurations as subgoals, the memo of assignments with `ONE`
+and `CZERO` propagation, the on-the-spot evaluation of non-temporal
+operands, the recursive decomposition (booleans split, reachability leaves to
+the reachability portfolio), the rewrite rules, and the observation that the
+witness is the closed fragment of the graph. What we change:
 
 * An E node is **never expanded into all its hyperedges**. A walker picks one
   successor at a time, pursuing `(s', E[a U b])` as a *quest*: a chain of
   hyperedges of the same node along the walk, with `(s, a)` checked at each
   step. The graph never learns that an E node fails, which is exactly the
   exhaustive question we do not ask; it only learns that it holds. TAPAAL
-  expands hyperedges on the waiting list; we expand along a walk, thousands
-  of configurations a millisecond, keeping only what the witness needs.
+  expands hyperedges on the waiting list, one marking at a time; we expand
+  along a walk, thousands of configurations a millisecond, keeping only what
+  the witness needs.
+* `W` and `G` **stay in the formula**. TAPAAL's negation edge for `EG a` can
+  only fire once the `a`-region below it is exhausted, an exhaustive proof in
+  disguise; a lasso or a deadlock found along a walk is the direct witness
+  of `E[a W b]`, and the region DFS proves `A[a W b]` under its budget.
 * An A node's hyperedge **is expanded in full, under a budget**, or closed by
-  a structural proof (LP over the state equation from `s`, section 4) that
-  TAPAAL does not have.
+  an LP over the state equation from `s` (section 4), which TAPAAL does not
+  have.
 * The search order is the portfolio's: strategies, quests, shares, restarts,
   the pool, over many open configurations at once as `TargetSet` does today
   over many targets.
@@ -144,14 +171,19 @@ close, walk on.
   ending on a deadlock is a deadlock hunt under a constraint.
 * **Successors**: `EnabledSet` gives the enabled list, `Marking::peek`
   applies and reverts an effect. `AX` and `EX` cost `|enabled|` peeks.
-* **Global truths about atoms**: the invariant engine (semiflows in-process,
-  as `sync` does) and the LP over the state equation (`lp/`: `Simplex.h`,
-  `StateEquation.h`). An atom whose violation is infeasible under
-  `m = m0 + C x, x >= 0` holds on every reachable marking: `AG atom` is TRUE
-  everywhere, `EF not atom` FALSE everywhere, and the CTL simplifier folds
-  the node. The same LP *from a state `s`* (`m = s + C x`) proves `AG atom`
-  at `s` with no enumeration: the cheapest universal leaf we can have, and
-  the one the on-the-fly checkers do not lean on.
+* **The LP over the state equation from a state** (`lp/`: `Simplex.h`,
+  `StateEquation.h`, with `s` in place of `m0`). *Global* truths (an atom
+  whose violation is infeasible under `m = m0 + C x`) are not our business:
+  ITS-Tools' presolving with invariants and SMT drops such atoms before
+  calling us, so an `AG atom` that survives to the engine is one that fails
+  somewhere reachable. What is new and ours is the same question *from the
+  current state `s`*: `not a` infeasible under `m = s + C x, x >= 0` proves
+  `AG a` at `s` with no enumeration, a place drained for good or a token
+  parked beyond recall being the typical reason. It closes the universal leaf
+  the walker has just reached, and the dual question, `suf(b)` infeasible
+  from `s`, tells a hunt for `E[a U b]` that it is hopeless from `s` (a
+  `CZERO` we can afford), which `badStart` already knows how to act on. The
+  on-the-fly checkers have neither.
 * **Traces and verification**: recorded traces replayed by an independent
   walker before printing. A witness tree is a tree of such traces.
 * **Time sharing**: `Scheduler`, `Coordinator`, resumable tasks. Every piece
@@ -162,8 +194,10 @@ close, walk on.
 1. **The formula.** `expr/` stops at state predicates; the MCC parser tags a
    nested quantifier Unsupported. Needed: a CTL AST in NNF over
    `expr::Expression` leaves, the MCC XML and s-expression parsers extended,
-   a CTL simplifier (booleans, `X` on constants, atoms decided globally by the
-   LP folded, `E[a U b]` with `b` true at `s`), and the two approximations of
+   a CTL simplifier (booleans, `X` on constants, TAPAAL's rewrite rules of
+   section 3, the `EF ... = EF b` family first; ITS-Tools' `Simplifier` has
+   its own set, and upstream will have applied most of it before calling us,
+   but the engine must stand alone), and the two approximations of
    a node by a state predicate that steer the walkers: `suf(node)`, a
    predicate implying it (`suf(atom) = atom`, `suf(E[x U y]) = suf(y)`,
    `suf(A[x U y]) = suf(y)`, `suf(E[x W y]) = suf(y)`, `suf(and)` / `suf(or)`
@@ -200,7 +234,9 @@ close, walk on.
 
 `solve(s, node, budget) -> 1 | 0 | unknown`, memoised:
 
-* **atom**: evaluate (globally decided atoms are constants already);
+* **atom**: evaluate; non-temporal operands of every node are evaluated on
+  the spot as TAPAAL does, so a configuration is only opened for a temporal
+  subformula;
 * **and / or**: children in order of estimated cost (atoms, `X`, hunts,
   regions); an `or` runs its hunts as one target set;
 * **EX phi**: enabled transitions in heuristic order (the successor's
@@ -214,8 +250,8 @@ close, walk on.
   a step budget; a Parikh hint to `suf(b)` from `s` is today's `--hints`
   mechanism with `s` in place of `m0`;
 * **A[a U b]**, **A[a W b]**: proofs in order of cost: `b` at `s`; for `W`
-  with `a` a state predicate, the LP from `s` proving `AG a`, or a deadlock
-  at `s` satisfying `a`; then the region DFS under the budget. Over budget is
+  with `a` a state predicate, a deadlock at `s` satisfying `a`, or the LP
+  from `s` proving `AG a`; then the region DFS under the budget. Over budget is
   unknown for this `(s, node)` at this budget and the enclosing hunt walks
   on: it now looks for *another* state where the proof closes. That is the
   heuristic content of the A side: steer the walker to states where the
@@ -275,8 +311,10 @@ engine a reduced net and a simplified formula, as for LTL.
    campaign it says where the explicit engine could matter, and whether to
    go on.
 1. **`ctl/` formula** (about 600 lines): AST in NNF, MCC XML and s-expression
-   parsing, CTL simplifier with LP-decided atoms, `now` / `suf`, printing.
-   Folder `README.md` and `algorithm.md` first.
+   parsing, CTL simplifier with the rewrite rules, `now` / `suf`, printing.
+   Folder `README.md` and `algorithm.md` first. The phase 0 script is
+   re-run on the simplified formulas: how many A nodes under E paths
+   survive the rules is the number that matters.
 2. **Basic walks, single thread** (about 1 000 lines): `solve` with the memo,
    `EX` / `AX` fan-out, region DFS, hunts on the existing `Walker` with the
    guard, the rolling hash and refusable claims (walk-side changes, about 200
@@ -286,8 +324,8 @@ engine a reduced net and a simplified formula, as for LTL.
 3. **Hunts through the portfolio**: quests toward `suf` / `now`, deadlock
    distance for the `W` / `G` ends, LP hints from a state, rounds and
    escalation. Measure the yield on the bench models.
-4. **LP proofs from a state** for `W` / `G` leaves, shared memo, hunts and
-   regions as scheduler tasks on several threads.
+4. **LP from a state**: `AG a` closed at the leaf, hopeless hunts cut;
+   shared memo, hunts and regions as scheduler tasks on several threads.
 5. **MCC driver and Java side**: `--ctl` end to end beside `its-ctl`,
    differential test on the bench, then the cluster on CTLCardinality and
    CTLFireability.
