@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+#include "cli/CtlDriver.h"
 #include "cli/Options.h"
 #include "core/SparsePetriNet.h"
 #include "expr/Property.h"
@@ -287,8 +288,13 @@ template<typename T>
     for (const auto &prop : props) {
       if (format == "infix") {
         prop.print (std::cout, pnames);
-        std::cout << "\n  goal (" << prop.goal ().size () << " nodes) : ";
-        prop.goal ().print (std::cout, pnames);
+        if (prop.kind == petri::expr::PropertyKind::CTL) {
+          std::cout << "\n  normal form : ";
+          petri::expr::ctlNormalize (prop.ctl).print (std::cout, pnames);
+        } else {
+          std::cout << "\n  goal (" << prop.goal ().size () << " nodes) : ";
+          prop.goal ().print (std::cout, pnames);
+        }
       } else {
         petri::expr::printSexpr (std::cout, prop, pnames);
       }
@@ -364,6 +370,15 @@ template<typename T>
     if (o.printProps) {
       printProperties (props, pn, o.printPropsFormat);
       return;
+    }
+    // CTL properties have their own engine; the rest go to the walk
+    std::vector<petri::expr::Property> ctlProps;
+    for (const auto &p : props) if (p.kind == petri::expr::PropertyKind::CTL) ctlProps.push_back (p);
+    if (!ctlProps.empty ()) {
+      props.erase (std::remove_if (props.begin (), props.end (),
+                                   [] (const petri::expr::Property &p) { return p.kind == petri::expr::PropertyKind::CTL; }),
+                   props.end ());
+      runCtl (o, pn, ctlProps);
     }
     petri::walk::TargetSet<T> targets = makeTargets (props, pn);
     if (targets.size () == 0) return;

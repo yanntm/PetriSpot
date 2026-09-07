@@ -95,6 +95,12 @@ struct Options
   uint64_t noveltyStall = 100000; // sweep: restart after this many steps without a new transition (0: never)
   size_t partition = 0; // sweeps over at least this many targets are split between threads (0: never)
 
+  // CTL (cli/CtlDriver.h, ctl/)
+  uint64_t ctlSteps = 1000;     // --ctlSteps: hunt steps of the first round, tenfold per round
+  uint64_t ctlRunLength = 1000; // --ctlRunLength: steps of a hunt run before a restart
+  uint64_t ctlRegion = 1000;    // --ctlRegion: states of a region proof in the first round, tenfold per round
+  unsigned ctlRounds = 6;       // --ctlRounds: rounds of growing budgets per property
+
   bool invariants () const
   {
     return pflows || psemiflows || tflows || tsemiflows;
@@ -241,6 +247,15 @@ inline void addOptions (CLI::App &app, Options &o)
   wk->add_option ("--sample", o.sample, "bestfirst: candidates scored per step (default all).");
   wk->add_option ("--stall", o.stall, "Heuristic strategies: restart after n steps without improvement.");
   wk->add_option ("--debugSteps", o.debugSteps, "Trace the first n relaxed-plan decisions on stderr.");
+
+  auto *ctl = app.add_option_group ("CTL");
+  ctl->add_option ("--ctlSteps", o.ctlSteps, "Hunt steps per E node in the first round, tenfold per round (default 1000); "
+                   "a nested obligation gets a hundredth, at least 100.");
+  ctl->add_option ("--ctlRunLength", o.ctlRunLength, "Steps of one hunt run before a restart (default 1000).");
+  ctl->add_option ("--ctlRegion", o.ctlRegion, "States a region proof of an A node may hold in the first round, tenfold "
+                   "per round (default 1000); a nested obligation gets a hundredth, at least 100.");
+  ctl->add_option ("--ctlRounds", o.ctlRounds, "Rounds of growing budgets per CTL property (default 6); the clock is -t, "
+                   "or an equal share of --totalTime.");
 }
 
 } // namespace petri::cli
