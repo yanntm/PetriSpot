@@ -4,6 +4,39 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, morning: LTL slowed by the walker's budget, the Spot scripts, the total pages
+
+**LTL.** `LTLC/OAR.1337407` (AirplaneLD-PT-0010, 15 s in the contest) took
+215 s: two walker calls of 135 s and 70 s. They come from
+`ReachabilitySolver.randomCheckReachability`, whose budget is
+`30 + 5 min(|tocheck|, 50)` seconds and whose `runReachability` call always
+passes `--escalate` (added for the deadlock and reachability examinations,
+where a walk that returned after one second was the loss): under LTL the
+reductions (`applyReductions` with `ReductionType.LTL`/`SI_LTL`,
+`Application.java` 717) call it to glean easy atoms, and since 202609060003
+the walk spends the whole budget whenever one atom stays open. The
+`AtomicReducer`s themselves ask for 30 s. Fix, on the Java side (not made
+from here): `randomCheckReachability` takes the `ReductionType`; for LTL,
+SI_LTL and CTL it asks the walker for a short glean (`sweepSeconds` 1, total
+a few seconds) and no escalation, `PetriSpotWalker.runReachability` gaining
+an `escalate` flag; the reachability examinations keep the formula.
+
+**Spot.** 1 108 LTLF logs carry a python traceback: `autstates.py` and
+`senseclsl.py` in `fr.lip6.ltl.spot.binaries` do `import spot`, absent on the
+cluster's python. They compute stutter-invariant states made forward closed
+(`spot.stutter_invariant_states`, `make_stutter_invariant_forward_closed_inplace`,
+HOA out) and stutter, lengthening and shortening insensitivity (`closure`,
+`sl`, `complement`, `product`, `is_empty`). Both are a page of the Spot C++
+API each; built static like `ltl2tgba-linux64` in the same plugin, they would
+end the python dependency. Preferred over shipping the python module.
+
+**Total pages** (MCC-analysis, pushed): the completion-against-time plot is
+gone (every run at the wall sat on one line), replaced by A against B scatters
+of wall time and of atoms answered on the shared instances, an
+answered-against-atoms plot per set, the progression along a family on wall
+time by default (on completion two complete runs coincide, which was the
+"identical curves"), and A/B filters of the runs table.
+
 ## 2026-09-07, 03:00: the rerun is complete and collected
 
 All seven examinations of `submit-2026-09-06c.sh` are in
