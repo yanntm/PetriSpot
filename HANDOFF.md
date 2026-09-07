@@ -4,6 +4,26 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 12:15: spotutil wired end to end, the local product in the deploy tree
+
+Spot-BinaryBuilds builds Spot 2.16 and `spotutil` (C++20: the 2.16 headers
+use `std::set::contains`; a first CI run compiled it as C++17 and the
+gh-pages deploy with `clean` dropped the binary, which made the ITS-Tools
+fetch fail). ITS-Tools 1ed32177 (the plugin, `SpotRunner`) and 7c39bc62 (the
+`p2.inf` chmod touchpoints, which named the deleted scripts and broke the
+product install) are pushed; the CI run of 7c39bc62 was re-run through the
+API once the binary was published. Locally: `mvn -o install -DskipTests`
+succeeds (`/data/ythierry/itstools-mvn17.log`, 1:26 min), the product
+`202609070959` carries `spotutil-linux64` with the three 2.16 Spot binaries
+and the master `petri64` (`8de6bbfccc06`, the scheduler and coordinator, not
+yet run at scale). **That local product now sits in
+`/data/ythierry/MCC26deploy/MCC-drivers/itstools/itstools/`**; the CI product
+of 1624 with the 6a5d288 walker is kept beside it as `itstools.ci-1624`.
+Through `run_test.pl`: Sudoku-PT-AN01 LTLF (2 tracebacks in the campaign)
+16/16 in 4.4 s, no traceback; AirplaneLD-PT-0010 LTLC 16/16, no traceback,
+still 210 s on the two walker calls of 135 s and 70 s: the Java budget change
+of PORTFOLIO's "three contracts" is the pending piece.
+
 ## 2026-09-07: spotutil, the three contracts written
 
 **spotutil** (Spot-BinaryBuilds `tools/`, commits b4a9e6b and after): one
