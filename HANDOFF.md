@@ -4,6 +4,19 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 03:00: the rerun is complete and collected
+
+All seven examinations of `submit-2026-09-06c.sh` are in
+`/data/ythierry/MCC26run/2026-09-06c/`, the tables in
+`Petri/test/mcc/csv/2026-09-06c/` with a README (the reading), the pages
+rebuilt (`ITS-Tools latest` is that set). The LTLF baseline is complete
+(1 953), its tables with RC, RF, LTLC in `csv/2026-09-06-baseline/`, the
+whole logs archived to `MCC26archive/2026-09-06-baseline/` and LTLF flushed
+from the cluster, whose tree is now INPUTS plus the seven rerun directories.
+The cluster queue is empty; no watch is armed. Next campaign: rebuild the
+product through the chain for master (the scheduler, the coordinator, the
+quest tool: 7acb697 to 243adaa), warm up, then the totals first.
+
 ## 2026-09-07, 01:30: Walker.h split, the quest tool, seats
 
 ca706a8 moves the target index to `walk/TargetIndex.h` (Walker.h 474
