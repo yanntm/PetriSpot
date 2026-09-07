@@ -4,6 +4,29 @@ State of the work as of 2026-09-06, 11:30. Read `PORTFOLIO.md` first if you are
 picking up the design, `TOTAL_QUERIES.md` for the total examinations; read
 this for where everything lives and what is in flight.
 
+## 2026-09-07, 12:40: inf-stutter, the third spotutil job
+
+`spotutil inf-stutter FILE.hoa` (Spot-BinaryBuilds 6258f61, Linux CI green,
+gh-pages binary republished): per state q, the letters x whose infinite word
+x x x ... is accepted from q, enumerated (up to 14 atomic propositions, else
+status 3) through a one-state word automaton in product with the automaton
+restarted at q; the answer is an HOA of self-loops over the same states.
+ITS-Tools fcd6e174 `SpotRunner.computeInfStutter` is that one call, the
+per-state loop of three Spot processes (`autfilt --small`, `ltl2tgba` of the
+stuttering formula, `autfilt --product-and`) and its `simplify` helper are
+gone; when the tool fails every state gets `false`, which both consumers
+(`RandomProductWalker`, `KnowledgeFacts.computeEGknowledge`) read as nothing
+known. Checked on AirplaneLD-PT-0010 LTLC against the previous local log
+(`/data/ythierry/MCC26deploy/smoke-airplane-LTLC-{local,infstutter}.log`):
+the 15 lists are the same formulas (conjunct order aside), same 16 verdicts,
+stuttering time 843 ms to 141 ms; Sudoku-PT-AN01 LTLF 16/16 in 2.8 s. The
+deploy tree `itstools/` now holds product `202609071016` with the locally
+built (unstripped, 114 MB) spotutil copied over the fetched one; the next
+local `mvn` build fetches the published binary, which has the subcommand.
+Not yet observed in a run: `stutter-states` and `sensitivity` (no run so far
+printed their call). Wall time of Airplane LTLC unchanged at 209 s: the
+walker budget (PORTFOLIO "three contracts") remains the pending piece.
+
 ## 2026-09-07, 12:15: spotutil wired end to end, the local product in the deploy tree
 
 Spot-BinaryBuilds builds Spot 2.16 and `spotutil` (C++20: the 2.16 headers
