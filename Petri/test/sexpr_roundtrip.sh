@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # sexpr_roundtrip.sh: check the s-expression property syntax against the MCC
-# parser. For each model folder given (model.pnml plus Reachability*.xml):
+# parser. For each model folder given (model.pnml plus Reachability*.xml,
+# UpperBounds.xml, CTL*.xml):
 # MCC XML -> sexpr (names) -> parse -> sexpr must be identical, likewise with
 # indices, and the infix dump of the two parses must agree.
 #
@@ -13,7 +14,7 @@ strip() { grep -v '^\[\|^Total runtime\|^;' ; }
 fail=0
 for dir in "$@"; do
   m=$(basename "$dir")
-  for ex in ReachabilityCardinality ReachabilityFireability UpperBounds; do
+  for ex in ReachabilityCardinality ReachabilityFireability UpperBounds CTLCardinality CTLFireability; do
     xml="$dir/$ex.xml"; [ -f "$xml" ] || continue
     a="$LOGS/$m-$ex.a.sexpr"; b="$LOGS/$m-$ex.b.sexpr"
     ai="$LOGS/$m-$ex.ai.sexpr"; bi="$LOGS/$m-$ex.bi.sexpr"

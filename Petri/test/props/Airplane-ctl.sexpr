@@ -1,0 +1,14 @@
+; Hand-written CTL properties for Petri/examples/Airplane.pnml, in the
+; s-expression syntax: (ctl NAME f) with the path operators EX AX EF AF EG AG
+; EU AU EW AW, deadlock, booleans and comparisons as in Airplane.sexpr.
+(ctl ef-ground (EF (>= Plane_On_Ground_Signal_no_T 1)))
+(ctl ag-not-ground (AG (< Plane_On_Ground_Signal_no_T 1)))
+(ctl ef-eg (EF (EG (>= Plane_On_Ground_Signal_no_T 1))))
+(ctl ax-init (AX (or (>= p3 1) (fireable t0 t1))))
+(ctl ex-ex (EX (EX (>= Plane_On_Ground_Signal_no_T 1))))
+(ctl eu (EU (< Plane_On_Ground_Signal_no_T 1) (>= Plane_On_Ground_Signal_no_T 1)))
+(ctl af-ground (AF (>= Plane_On_Ground_Signal_no_T 1)))
+(ctl ag-ef (AG (EF (>= P6 1))))
+(ctl eg-deadlock (EF deadlock))
+(ctl ef-ag (EF (AG (< Plane_On_Ground_Signal_no_T 1))))
+(ctl not-nested (not (AG (EF (>= stp4 1)))))

@@ -6,13 +6,21 @@
   of the example nets used as a regression reference.
 * `bench_kers.sh` — KERS input/output benchmark of the invariant solver.
 * `sexpr_roundtrip.sh` — MCC XML to s-expressions and back on the property
-  files of the given model folders; the ASTs must agree.
+  files of the given model folders (reachability, bounds and CTL); the ASTs
+  must agree.
+* `ctl_oracle.sh` — the CTL checker on CTLCardinality and CTLFireability of
+  the given model folders, several seeds, every verdict compared with the
+  contest oracle (`~/git/MCC-drivers/oracle`); a WRONG line is a soundness
+  bug. `props/Airplane-ctl.sexpr` is a hand-written CTL set for the Airplane
+  example, run with `--trace` to read the evidence trees.
 * `probes/` — one-off analysis scripts kept for reference (place projection
   and the BridgeAndVehicles bound finding; `perprop_payoff.py`,
   `reduction_resistance.py` and `dd_tail.py` measure the campaign claims of
   `PORTFOLIO.md` against a directory of MCC logs; `qla_props.py` writes the
   QuasiLivenessAll target set of a PNML as `(reach pI (fireable tI))` lines,
-  the walker's yardstick on a large target set).
+  the walker's yardstick on a large target set; `liveness_props.py` writes the
+  Liveness examination as CTL, one `(ctl liveI (AG (EF (fireable tI))))` per
+  transition or, with `--one`, the single conjunction).
 * `pnet_roundtrip.sh` — PNML versus PNET input on the given model folders:
   same invariant counts, same verdicts and step counts (step-bound walks).
 
