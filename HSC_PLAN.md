@@ -536,6 +536,21 @@ skipped without parsing), then a KERS block. `TMULT`, `PMULT` to start.
 Absence is the staleness signal, so no validity bit in the format: a
 producer that cannot maintain omits the block.
 
+**Done (2026-09-08).** PNET carries optional named blocks (8-byte name,
+uint32 length, KERS payload; `KERS.md` and `INTEROP.md` §3), read only when
+asked for, unknown names skipped, absence meaning "not available".
+`hsc-pn` honours `TMULT` in its arc count and leaves transitions that cannot
+change the marking out of the fixpoint, reading their guards from the net
+instead (`tools/README.md`). Checked by `tests/pn_samples.sh`: weights of 2
+on Raft-PT-02 double TRANSITIONS (55824 to 111648) and leave STATES at 7381;
+`tests/pnet_block.py` writes a block without needing a producer.
+
+**Next, and it wants the same treatment:** the NUPN unit tree as blocks, so
+the PNET path stops losing the hierarchy (today it reclusters with Louvain).
+A places-by-units incidence matrix plus a one-column parent index per unit
+are two ordinary KERS payloads — one format for the net, its counting
+record and its shape.
+
 **Prototype, in this order.** (1) Weights in the unfolder only, on an
 unreduced unfold, written as a standalone one-column KERS. (2) `hsc-pn
 --mult FILE` weights its TRANSITIONS sum. (3) Test: BART-COL-002 (oracle
