@@ -36,68 +36,69 @@ without -p  : Accepting cycle FOUND!
 `--proviso=color` and `--proviso=stack` (the default here) both report empty,
 and `--pins-guards` changes nothing.
 
-## What we know, and what the `Visible groups: 0` line is not
+## Visibility is correct; the reduction loses the cycle anyway
 
-Every reduced run prints
+Every reduced run prints `Visible groups: 0 / 111, labels: 2 / 111`, which is a
+trap: `pins2lts-seq.c` prints the `GBgetPorGroupVisibility` **array**, which only
+`pins_add_group_visible` ever writes. The reduction works from `ctx->visible`, a
+separate `bms_t` that `init_visible_labels` (`pins2pins-por.c`) fills, per state,
+by unioning the NES and NDS groups of every visible label.
+
+Instrumenting that function settles it (upstream at 07f9bf8, built with Spot):
 
 ```
+Initializing POR dependencies: labels 109, guards 107
 Visible groups: 0 / 111, labels: 2 / 111
+PORDIAG before: 2 visible labels,  0 visible groups
+PORDIAG after:  2 visible labels, 22 visible groups
+Empty product with LTL!
 ```
 
-That line is the obvious suspect and it is a trap. `pins2lts-seq.c` prints the
-`GBgetPorGroupVisibility` **array**, which only `pins_add_group_visible` ever
-writes. The POR layer derives its working set elsewhere: `init_visible_labels`
-(`pins2pins-por.c`) unions, for every visible label, the groups of that label's
-NES and NDS into `ctx->visible`, a separate `bms_t`. It is called from
-`por_init_transitions`, per state during exploration, so it runs long after the
-HOA layer has parsed the atomic propositions. A zero in the printed array is
-therefore consistent with POR having the right groups internally. We have not
-shown that visibility is empty where it matters.
+POR receives exactly the 22 groups our model declares, and still reports the
+product empty where the same binary without `-p` finds an accepting cycle. The
+defect is in the reduction, downstream of visibility.
 
-What is established is that the model we hand over carries the information:
+Everything the model owes LTSmin is there:
 
 * `label_matrix` gives label 107 (`LTLAPp0`) the state variables 12 and 28, and
   label 108 (`LTLAPp1`) the variable 25.
 * `write_matrix` has 22 groups writing one of those three:
   `[1, 2, 3, 6, 7, 28, 29, 30, 31, 32, 40, 46, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]`.
-* `mayEnableAtom` and `mayDisableAtom`, the NES and NDS rows for those two
-  labels, list exactly those groups (20 for `p0`, 2 for `p1`) -- precisely what
-  `init_visible_labels` consumes.
+* `mayEnableAtom` and `mayDisableAtom`, the NES and NDS rows of those two labels,
+  list exactly those groups (20 for `p0`, 2 for `p1`) -- and those are what
+  `init_visible_labels` turns into the 22 above.
 
-And two candidate faults on our side are ruled out:
+Two further candidates are ruled out. We never emit `GBsetDMInfoMayWrite`
+(`Gal2PinsTransformerNext`, `PetriNet2PinsTransformer`) though POR's dependency
+pruning reads may-write, but adding it changes nothing and LTSmin defaults
+may-write to the combined matrix anyway (`pins.c`), a superset. And the property
+is genuinely stutter invariant, so `-p` is legitimately applicable: Spot on the
+source formula gives `properties: stutter-invariant very-weak weak
+inherently-weak`.
 
-* We register `GBsetDMInfoRead`, `GBsetDMInfoMustWrite` and `GBsetDMInfo`, never
-  `GBsetDMInfoMayWrite` (`Gal2PinsTransformerNext`, `PetriNet2PinsTransformer`),
-  and POR's dependency pruning reads may-write. Adding
-  `GBsetDMInfoMayWrite(m, wm)` to `model.c` and rebuilding changes nothing.
-  LTSmin defaults may-write to the combined matrix anyway (`pins.c`), which is a
-  superset of the writes, so the pruning was never starved.
-* The property is genuinely stutter invariant, so partial order reduction is
-  legitimately applicable and the `-p` ITS-Tools passes is not the mistake. Spot
-  on the source formula: `properties: stutter-invariant very-weak weak
-  inherently-weak`.
-
-The one asymmetry that is certain: LTSmin's own LTL front end refuses the
+What remains is an asymmetry in LTSmin itself. Its LTL front end refuses the
 combination outright,
 
 ```
-$B/pins2lts-seq-linux64 ./gal.so -p --pins-guards --when \
+pins2lts-seq ./gal.so -p --pins-guards --when \
    --ltl='[]((<>(LTLAPp0==true)) || (X (X (<>(LTLAPp1==true)))))' --ltl-semantics=spin
 ** error **: The neXt operator is not allowed in combination with --por
 ```
 
 while the same front end without `-p` finds the accepting cycle. That guard
 (`pins2pins-ltl.c`) is syntactic -- it refuses any X, though this formula is
-stutter invariant -- and it exists only on the path where LTSmin parses the
-formula. Through `--hoa` LTSmin sees an automaton, the guard cannot fire, and
-the reduction runs. `-m` also shows POR being set up before the automaton
-exists: `Initializing POR dependencies: labels 109, guards 107`, our raw
-counts, printed before `buchi has 3 states`.
+stutter invariant -- and it lives only on the path where LTSmin parses a formula.
+Through `--hoa` it sees an automaton, the guard cannot fire, and the reduction
+runs. `-m` shows POR being set up before the automaton exists at all:
+`Initializing POR dependencies: labels 109, guards 107`, our raw counts, printed
+before `buchi has 3 states`.
 
-Finding where the reduction actually loses the witness needs an instrumented
-build -- print `ctx->visible` after `init_visible_labels` -- which
-`~/git/LTSmin-BinaryBuilds` can produce: it clones upstream
-`utwente-fmt/ltsmin` and already applies `patch/pins-impl.h`.
+Reproducing the instrumentation: `~/git/ltsmin` is upstream
+`utwente-fmt/ltsmin`; `--hoa` needs Spot at configure time
+(`PKG_CONFIG_PATH=/usr/local/lib/pkgconfig`, `SPOT = yes`), the bundled `lemon`
+needs `CFLAGS=-std=gnu17` under GCC 15, and because the build is configured
+`--disable-dependency-tracking` a `make clean` is required after re-running
+configure or the objects keep the old `config.h`.
 
 ## What to do with it
 
