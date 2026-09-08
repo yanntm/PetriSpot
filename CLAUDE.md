@@ -55,7 +55,9 @@ editing files in a folder. Maintain these docs in sync with code.
 - One commit per file by preference when editing an existing core file; bulk
   commits are fine for one logical change, moved code, new datasets.
 - Use `git commit -F -` with a quoted heredoc and a terse message. No backticks
-  in a double-quoted `-m`.
+  in a double-quoted `-m`. **No URLs in a commit message**, no session link, no
+  issue link: the co-authorship trailer is already more than enough, and a
+  message that long dilutes what it says.
 - `git add/rm/mv` close to `git commit`; don't leave the index open. Remember
   `git mv` / `git rm` already populate the index: commit before adding more.
 - **Committing** is liberal: commit as the work reaches increments.
