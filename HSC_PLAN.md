@@ -382,3 +382,38 @@ When `invariants/` is needed inside libHSC, switch to a real dependency
 without a new repository: PetriSpot exposes `Petri/src` as an INTERFACE
 library target, libHSC fetches PetriSpot at a pinned commit at configure
 time as it does sparsehash. Same arrow, no copies, no new CI.
+
+## 10. Multiplicities: transitions now, places as weighted counting
+
+**Transitions.** The `m(t)` of section 4 travels as a one-column KERS: PNET
+already ends with the initial marking in that shape, so a fourth optional
+block (a header flags bit saying it is there, old readers unaffected) or a
+sibling `.kers` file does it. Sparse by nature: on P/T instances every
+coefficient is 1 and the block is empty.
+
+**Places.** A merged place standing for K places over which tokens travel
+freely (a free SCC) is *not* a scalar factor: a state with m tokens there
+represents C(m+K-1, K-1) real states, so the count is a sum over reachable
+merged states of a product of per-place binomials. That is the shape our
+counting already has — `cardinal_as` folds bottom-up and asks each leaf for
+the size of its value set, so a per-leaf *weight function of the value*
+gives weighted counting with the recursion unchanged, exact under the GMP
+instantiation (about 30 lines; a flat cardinality cannot express it).
+
+**Why it matters more than the coefficient.** StateSpace runs unreduced
+today because reductions change the count. With per-leaf weights we accept
+the reducer's net and still report exact STATES, which is often the
+difference between answering and timing out. The four values differ:
+MAX_TOKEN_PER_MARKING is untouched, MAX_TOKEN_IN_PLACE survives when the
+free SCC lets tokens gather in one place, STATES needs the weights,
+TRANSITIONS needs per-state arc weights and is the hardest.
+
+**Boundary.** Exact when the fibre over a reduced state factorises into
+independent per-place counts (free SCC, agglomerated place). A reduction
+tying several places by an invariant gives a general polytope: Berthomieu's
+setting, lattice-point counting, no closed form. So this is a cheap, well
+delimited subset — closed form, composable by product, refusable when the
+reducer reports a fibre it cannot factor. It needs the ITS-Tools reducer to
+emit the weights, composed through chained reductions, and the surface to
+carry them (a leaf-weight declaration, so a `.hsc` file stays
+self-describing).
