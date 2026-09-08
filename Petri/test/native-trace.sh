@@ -16,6 +16,10 @@ PROD=${PROD:-/data/ythierry/MCC26deploy/MCC-drivers/itstools/itstools}
 IN=${IN:-/data/ythierry/MCC26deploy/MCC-drivers/INPUTS}
 PT="$IN/AirplaneLD-PT-0010"
 COL="$IN/AirplaneLD-COL-0010"
+# AirplaneLD-COL declares no product sort, so the symmetric net terms of a
+# coloured model with one were never recorded: BART-COL died on
+# fr.lip6.move.pnml.symmetricnet.terms.Sort[] in the campaign of 2026-09-08.
+BART="$IN/BART-COL-002"
 run() {
 	echo "===== trace $2 on $(basename $1)"
 	"$NATIVE/trace-agent.sh" "$PROD" "$1" "$2" > /dev/null 2>&1 || echo "  (exit $?, traced anyway)"
@@ -25,6 +29,9 @@ for e in StateSpace Liveness CTLCardinality QuasiLiveness StableMarking Reachabi
 done
 for e in StateSpace Liveness CTLCardinality ; do
 	run "$COL" "$e"
+done
+for e in CTLCardinality CTLFireability ReachabilityCardinality LTLFireability ; do
+	run "$BART" "$e"
 done
 echo "===== done; config entries now:"
 python3 -c "import json;d=json.load(open('$NATIVE/config/reachability-metadata.json'));print({k:len(v) for k,v in d.items()})"
