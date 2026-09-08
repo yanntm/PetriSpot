@@ -236,3 +236,51 @@ campaign.
 * Shared Java formats in a new `interop` plugin, used by both companions.
 * No GAL frontend.
 * CTL parsing vendored now, the engine later.
+
+---
+
+## 7. The composite machinery, and where it went
+
+Notes from the first end-to-end runs (`-hscBench`), to steer the campaign.
+
+**Bypassed.** Past the reductions and the property bookkeeping, the
+`-hscBench` path writes a PNET and s-expressions; the GAL export,
+`GALRewriter.flatten`, array-to-variable rewriting, `SumRewriter`, the Java
+Louvain plugin and its veto, `CompositeBuilder` (variables into types), the
+label synchronisation that makes one transition a set of matching local
+transitions, the order file, and its-reach's GAL parser and
+`-reachable-file` syntax are not on it. libHSC clusters from the flow
+matrices itself; the hierarchy is a shape, not a type system.
+
+**Matching is free for nets.** An event is compiled to a product term along
+the shape, each separable piece on its leaf; the tree is the
+synchronisation. A P/T transition is a conjunction of `place >= w` guards
+and per-place increments, hence entirely separable (libHSC petri README):
+no labels to invent, no nesting to keep consistent. This is a property of
+nets, not of GAL: a guard over two variables or a sum is a crossing piece
+and goes through the case engine.
+
+**"Or of alts" moves into the algebra.** ITS-Tools splits a disjunctive
+guard into alternative synchronisations because a composite transition is
+a conjunction of local pieces. For nets the disjunctions are in the
+properties, and a `select` of an `or` is a union of selections on the
+fixpoint: done once on the result, not multiplied before it. Where a
+disjunction must be an event (an `is-fireable` operand under a CTL
+operator, later) the surface has `alt`, and the same choice returns.
+
+**Not free: sums across components.** ITS-Tools keeps comparison supports
+inside one component by feeding them to the Louvain graph (veto when it
+cannot). libHSC builds the graph from the net alone and lets the case
+engine resolve crossing atoms whatever the shape: more general, and the
+cost is visible on Angiogenesis-PT-05 (a `select` on a sum about 0.5 s on
+the 42M-state flat diagram, the all-places sum of MAX_TOKEN_PER_MARKING over
+15 s). Two options, to measure: property supports as optional hyperedges of
+the decomposition (a property-aware shape in the portfolio, ITS-Tools'
+idea), and a better case engine for linear atoms (calculus work).
+
+**Still owed to Java.** The structural reductions; the walk and SMT
+portfolio that settles most contest properties before any engine runs
+(why plain `-hsc` never fired on Raft); the hierarchy source on the PNET
+path, where the NUPN units are lost and we recluster. A `--shape FILE`
+taking ITS-Tools' partition would compare the two decompositions on equal
+footing.
