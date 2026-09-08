@@ -692,3 +692,91 @@ net that carries weights ignores them and prints an unweighted count. Not
 worth machinery: the only value affected is TRANSITIONS on coloured
 instances, which we leave unanswered today, and the deploy chain is ours
 end to end.
+
+## 14. Weighted counting and the free component rule (design)
+
+### The rule, precisely
+
+`StructuralReduction.findFreeSCC` builds a place-to-place graph from the
+*simple* transitions — one input place, one output place, both of weight one,
+neither untouchable — and fuses each strongly connected component of size
+above one, dropping the internal moves. Inside such a component a token
+travels to any place freely, so **every** distribution of the component's
+tokens over its K places is reachable, and the fibre over a reduced marking
+holding m there is the set of compositions of m into K non-negative parts,
+of size C(m+K-1, K-1). The binomial is exact, not an approximation.
+
+Two consequences follow for free. `MAX_TOKEN_IN_PLACE` is preserved by
+reading the merged place, since all of a component's tokens can gather in one
+of its places. `MAX_TOKEN_PER_MARKING` is untouched, the total being what the
+merged place holds. What is *not* recoverable is the arc count: the internal
+moves are deleted and no per-transition weight stands for them. So the rule
+and `TRANSITIONS` cannot both be had from one net — the same split we
+already accept, three values from a reduced run and the arcs from an
+unreduced one, which a portfolio runs in parallel. The rule is therefore
+skipped while a record wants arcs, exactly as the redundant composition rule
+is today.
+
+### What the count becomes
+
+`STATES` = Σ over the reduced net's reachable markings of
+Π_p C(m_p + K_p - 1, K_p - 1), with K_p = 1 (a factor of one) for every
+place that stands for itself. It is a sum of products over the diagram, not
+a global multiplier: the correction depends on the marking.
+
+### Where it plugs into the engine
+
+`diagram_engine::cardinal_as` already folds bottom-up and, at a leaf side,
+adds the size of the leaf's value set. Weighted, it must add
+Σ_{v ∈ set} C(v+K-1, K-1). The recursion, the arcs, the memo discipline are
+unchanged; the only new capability is reading a leaf set's *values*.
+
+**The interface gap.** `core::support_algebra` offers `cardinal` and `print`
+and no enumeration; the surface reaches `int_set_theory::elements` through
+the concrete theory. Three ways out:
+
+1. Add one method to the algebra, `values(code, out)` (or a span accessor).
+   Smallest honest addition, implemented by `int_set` from what it already
+   has, and useful beyond counting (witnesses, diagnostics). A theory that
+   cannot enumerate refuses, and weighting is then unavailable rather than
+   wrong.
+2. A `weighted_cardinal(code, table)` virtual on the algebra. Ties the core
+   interface to a number type and to a per-leaf table; less general.
+3. No interface change: probe membership with singleton meets, O(bound) per
+   set. Fine for a one-safe net, wrong-headed for a large domain.
+
+Recommendation: (1).
+
+**Memo.** The double and GMP memos are keyed by node alone. A weighted count
+depends on the weights, so it takes a memo local to the call and never
+writes the shared ones.
+
+**Exactness.** Binomials through GMP (`mpz_bin_uiui`), memoised per (leaf,
+value) pair. No overflow, no floating point.
+
+### Where the weights are declared
+
+Either the tool holds them out of band from `PCOEF` and calls a new entry
+point, or the model declares them, e.g. `(leaf-weight NAME binomial K)`,
+stored in the spec and honoured by `(count R exact)` and `(states)`. The
+second is preferable: a `.hsc` file stays self-describing and reproducible,
+`print-spec` round-trips it, and `hsc-pn` simply emits the forms into the
+model text it already generates. One path, and testable without ITS-Tools.
+
+### Composition, and the block
+
+Two free components merged in sequence give a place standing for K1 + K2
+places, provided the union is itself free, which a second application of the
+rule establishes: maintenance is **addition**, not multiplication. `PCOEF`
+stores K - 1, so an absent entry means one place, and a net with no fusion
+carries an empty block.
+
+### Test plan
+
+1. A committed `.hsc` model with a leaf declared as standing for K places
+   whose weighted count is computable by hand.
+2. A model where `findFreeSCC` fires, run twice through ITS-Tools: unreduced
+   for the reference `STATES`, then with the rule enabled and `PCOEF`
+   emitted, requiring the same number.
+3. The regression that matters: a net with no weights must give byte-identical
+   answers to today's.
