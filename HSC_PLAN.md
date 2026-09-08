@@ -594,37 +594,40 @@ weights to reach the surface language instead of staying out of band in
 
 ## 13. PNET named blocks: framing and impact radius (measured on the code)
 
-**What the code already gives.** The C++ reader validates `version == 1`
-*and* `flags == 0` (`io/PNETIO.h`), so setting a flags bit makes every
-existing reader fail loudly instead of silently ignoring a weight — the
-failure mode that matters, since an ignored weight is a wrong count, not a
-degraded one. It is stream-based and reads exactly three KERS blocks, and
-`SparseMatrixIO::read` already reads one block from a stream, so blocks
-compose with no change to KERS. On the Java side PNET is **write-only** and
-`KERSFormatIO` is stream-based too: there is no read path to extend.
+PNET is days old and only we produce and consume it, so there is no
+versioning question: the feature is simply added, no version bump, no
+header flag, no per-block "required" bit. Extensibility comes from the
+names — an unknown block is skipped by its length, and anything needed
+later is a new name rather than a re-framing.
 
-**Framing** (symmetric with the two existing 16-byte headers): 8 bytes
-zero-padded ASCII name, 1 flags byte (bit 0 = required), 3 bytes padding,
-uint32 payload length, then the ordinary KERS payload. Blocks follow the
-three mandatory ones, append-only, each name at most once, canonical order
-so bytes stay reproducible. Row counts validated per name against P or T
-with the `expect` helper already there, which catches a stale pairing at
-once. Header flags bit 0 = "named blocks follow"; a producer with nothing
-to declare leaves it 0 and its files stay byte-identical to today's.
+**What the code already gives.** Both sides are stream-composable:
+`SparseMatrixIO::read` reads one KERS block from a stream, the C++ PNET
+reader (`io/PNETIO.h`) reads exactly three and stops, and on the Java side
+PNET is **write-only** with a stream-based `KERSFormatIO`. So blocks
+append with no change to KERS and no change to the existing header
+validation (`version == 1`, `flags == 0`) — we never set the flags byte.
+
+**Framing.** After the three mandatory blocks, zero or more of: 8 bytes
+zero-padded ASCII name, uint32 payload length, then the ordinary KERS
+payload. Append-only, each name at most once, canonical order so bytes stay
+reproducible; read until the stream ends; an unknown name is skipped by its
+length (worth a line on stderr in verbose mode). Row counts are validated
+per name against P or T with the `expect` helper already there, which
+catches a stale pairing at once.
 
 **Impact radius, two files:**
 
 | where | change | size |
 |---|---|---|
-| PetriSpot `io/PNETIO.h` (vendored into libHSC by `vendor.sh`) | write blocks; read them into a small extras struct; one new overload keeping both existing entry points | ~80 lines |
-| ITS-Tools `PNETFormatIO.java` | optional record argument, same framing, lengths via a byte buffer | ~40 lines |
+| PetriSpot `io/PNETIO.h` (vendored into libHSC by `vendor.sh`) | write blocks; read them into a small extras struct; one new overload keeping both existing entry points | ~60 lines |
+| ITS-Tools `PNETFormatIO.java` | optional record argument, same framing, lengths via a byte buffer | ~30 lines |
 | `SparseMatrixIO.h`, `KERSFormatIO.java`, every existing call site | untouched | 0 |
 
 `kersconv --decode-net` can dump the blocks in ~15 lines. Docs: the framing
 table into `KERS.md` / `INTEROP.md` §3.
 
-**Decision to confirm before code.** Fail-loud (the header flags bit) over
-silent append: a pre-extension reader refuses a net carrying weights, and a
-new reader refuses only unknown blocks marked required, skipping the rest by
-length. Cost: the producer must know whether its consumer understands
-blocks, which the driver already decides when it picks a tool.
+**Residual risk, noted not engineered.** A deployed *old* binary reading a
+net that carries weights ignores them and prints an unweighted count. Not
+worth machinery: the only value affected is TRANSITIONS on coloured
+instances, which we leave unanswered today, and the deploy chain is ours
+end to end.
