@@ -23,6 +23,8 @@ pages=0; exams=""
 for a in "$@"; do case $a in --pages) pages=1;; *) exams="$exams $a";; esac; done
 [ -n "$exams" ] || { echo "no examination given"; exit 1; }
 dest=$RUNS/$date; mkdir -p "$dest"
+# report.py runs from $dest, so a relative BASELINE must be resolved here
+if [ -n "${BASELINE:-}" ]; then BASELINE=$(cd "$BASELINE" && pwd); fi
 for ex in $exams; do
   echo "== rsync $ex"
   rsync -rz --exclude='*.stderr' "$HOST:$TREE/$ex" "$dest/" || echo "rsync of $ex failed (folder absent on the cluster?)"
