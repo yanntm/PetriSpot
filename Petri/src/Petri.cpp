@@ -145,5 +145,9 @@ int main (int argc, char *argv[])
     delete[] emergencyMemory;
     std::cerr << "Out of memory error!" << std::endl;
     return 1;
+  } catch (const std::exception &ex) {
+    // e.g. std::overflow_error from the checked arithmetic or the PNML parse
+    std::cerr << "An unexpected exception occurred : " << ex.what () << std::endl;
+    return 1;
   }
 }
