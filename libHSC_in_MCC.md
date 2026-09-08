@@ -125,3 +125,53 @@ plugins with `-hsc` / `-hscBench`. Design and decisions: `HSC_PLAN.md`;
 the campaign spec (item 3 and beyond): `HSC_EXPERIMENTS.md`; current state
 and next actions: libHSC `handoff_mcc.md`. New measurements go in dated
 sections below this one.
+
+## 2026-09-08, campaign 20260908-hsc: StateSpace, first partial read
+
+`BK_TOOL=hsc`, StateSpace, 300 s, 4 cores, `tall%`, 1391 instances submitted
+(binaries from the libHSC CI branch `HSC-Linux`; driver: four configurations
+in parallel, the memory confinement split among them). Read at 163
+collected logs while the campaign drains; collected into
+`/data/ythierry/MCC26run/20260908-hsc/` (`csv/REPORT.md`), on the pages as
+the set `libHSC 20260908 SS`.
+
+| | |
+|---|---:|
+| instances read | 163 of 1391 |
+| oracle values known | 652 |
+| answered | 312 |
+| ok | 309 |
+| wrong | 3 |
+| runs at the 300 s wall | 41 |
+| median run | 60 s |
+| longest run | 300.6 s (the walltime of 10 min was never binding) |
+
+**The three wrong values are all TRANSITIONS, on BART-COL-002, -005, -010,
+and they are not the engine's.** A coloured instance reaches us unfolded:
+the harness runs ITS-Tools on it because we declare P/T only, and that
+unfolder fuses symmetric bindings without reporting their multiplicity. The
+unfolded net has the right reachable states (STATES, MAX_TOKEN_IN_PLACE and
+MAX_TOKEN_PER_MARKING all matched the oracle on those three) but fewer arcs
+than the coloured semantics, so an arc count over it is an undercount — a
+constant 167/202 of the oracle across the three instances. The driver now
+leaves TRANSITIONS unanswered on a coloured input rather than reporting a
+number we know to be biased. Answering it properly needs the unfolder to
+report a per-transition binding multiplicity `m(t)`, after which
+TRANSITIONS is `Σ_t m(t) · |{s ∈ R : s enables t}|`: a feature request on
+the ITS-Tools side, noted in `HSC_PLAN.md` section 4.
+
+Also found: `hsc-pn` dumped core on a coloured PNML (the vendored reader
+throws a string literal, which no handler caught). Fixed in libHSC: such a
+net is now a clean error, `Net is not a P/T net-> Colors are not supported
+currently.`, exit 1.
+
+Two collector notes for whoever reads the tables: 58 of the 163 logs are
+counted as "truncated (no trailer)" although no run exceeded its walltime —
+`collect.sh` excludes `*.stderr`, where the `time -p` trailer lives; and 3
+runs carry an `eclipse_fatal` signature, which is the unfolder failing on a
+coloured instance, not our tool.
+
+The full read (all 1391 instances, the failure classes, the winning
+configuration per family, the comparison against ITS-Tools, TEDD and the
+2025 gold) belongs to the next session: `HSC_EXPERIMENTS.md` E1, with the
+ITS-Tools 300 s baseline of the same examination beside it.
