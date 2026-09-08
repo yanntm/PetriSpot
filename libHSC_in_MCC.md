@@ -175,3 +175,45 @@ The full read (all 1391 instances, the failure classes, the winning
 configuration per family, the comparison against ITS-Tools, TEDD and the
 2025 gold) belongs to the next session: `HSC_EXPERIMENTS.md` E1, with the
 ITS-Tools 300 s baseline of the same examination beside it.
+
+### The full read (1391 instances, campaign 20260908-hsc)
+
+| set | answered | ok | wrong | at the wall | median s |
+|---|---:|---:|---:|---:|---:|
+| **libHSC, 300 s** | 3612 | 3589 | 23 | 668 | 225.6 |
+| ITS-Tools 2026 (contest run) | 3485 | 3485 | 0 | 202 | 69.2 |
+| TEDD 2026 | 5524 | 5524 | 0 | 0 | 4.9 |
+| 2025 gold | 5512 | 5512 | 0 | 0 | 5.6 |
+| TY 2026 | 1252 | 1252 | 0 | 314 | 332.1 |
+| petrivet 2026 | 460 | 431 | 29 | 659 | 2143.4 |
+
+5572 oracle values are known; we answered 3612 of them on our first attempt,
+slightly more than the contest's ITS-Tools run (whose StateSpace answers omit
+TRANSITIONS on many instances) and well short of TEDD, which answers 99 %.
+Values right by kind: STATES 1066, MAX_TOKEN_IN_PLACE 1066,
+MAX_TOKEN_PER_MARKING 779, TRANSITIONS 681. 1067 of 1391 runs produced at
+least one value; 668 hit the 300 s wall. The gap to TEDD is time and memory,
+not correctness — but note the contest sets ran at the contest's much longer
+confinement, so the honest comparison is the ITS-Tools 300 s baseline
+submitted beside this one (`SS.itstools`).
+
+**All 23 wrong values are understood and fixed.**
+
+* 22 TRANSITIONS on coloured instances (BART, DrinkVendingMachine,
+  GlobalResAllocation, PhilosophersDyn, UtilityControlRoom): the unfolding
+  path fuses bindings, as analysed in `HSC_PLAN.md` sections 10 to 13. The
+  driver now leaves TRANSITIONS unanswered on a coloured input.
+* 1 STATES and 1 MAX_TOKEN_IN_PLACE on GPPP-PT-C0010N1000000000, whose
+  markings pass four billion: the PNML parse assigned a `long` into the
+  build's integer type and silently shortened, so we answered STATES 2
+  against an oracle of 176894515156. Fixed at the parse (`castExact` in
+  `Arithmetic.hpp`, `PTNetHandler` throws): a value beyond the build's width
+  is refused, and `petri32` refuses it too where it used to truncate.
+  `petri64` is unaffected.
+
+**Two lessons for the next campaign.** The winning configuration was printed
+on stderr, which `collect.sh` drops, so this run cannot say which shape and
+order answered; the driver now prints the attribution on stdout. And the
+per-configuration memory split is untested under real pressure: with four
+configurations each holding a quarter of the confinement, a memory-bound
+instance may lose all four.
