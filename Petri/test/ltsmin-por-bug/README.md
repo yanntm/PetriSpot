@@ -181,6 +181,24 @@ Ruled out along the way, none of them the cause: the weak Buchi progress label
 visibility, and every use is `SAFETY || PINS_LTL` with PINS_LTL true), the cycle
 proviso choice, `--no-mc`, `--no-mcnds`, and the may-write matrix.
 
+## This is LTSmin issue 169, and we already had the workaround
+
+The flag is not a discovery, it is a regression. ITS-Tools history:
+
+| commit | date | |
+| --- | --- | --- |
+| `4c248a80` | 2019-03-14 | "Workaround for issue https://github.com/utwente-fmt/ltsmin/issues/169 -- Use --no-V to avoid problems, at the cost of some reduction power." Adds `--no-V`. |
+| `36a1a66f` | 2019-03-17 | "just another try". Comments it out again, three days later. |
+| `bbfac5cf`, `c540291f` | 2020-09-18, 2020-09-22 | the direct LTSmin API, then "POR matrices: NES, NDS now available". The line stays commented. |
+| `f6529b44` | 2021-11-15 | "more refactoring" moves the file to `runner/ltsmin/`, still commented. |
+
+So the reduction has run without the workaround since March 2019. Supplying
+proper NES and NDS matrices in September 2020 is the plausible reason nobody put
+it back -- if the matrices are right, the proviso should be right. The experiment
+above says otherwise: our NES and NDS rows are correct, POR reads exactly the 22
+groups from them, and the default V proviso still loses the cycle. Issue 169 was
+never fixed upstream, only worked around, and the workaround was dropped.
+
 ## What to do with it
 
 Ours to work around, upstream to fix. Our side of the choice is
