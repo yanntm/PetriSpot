@@ -724,35 +724,33 @@ is today.
 place that stands for itself. It is a sum of products over the diagram, not
 a global multiplier: the correction depends on the marking.
 
-### Where it plugs into the engine
+### A counter of its own, not a feature of the general one
 
-`diagram_engine::cardinal_as` already folds bottom-up and, at a leaf side,
-adds the size of the leaf's value set. Weighted, it must add
-Σ_{v ∈ set} C(v+K-1, K-1). The recursion, the arcs, the memo discipline are
-unchanged; the only new capability is reading a leaf set's *values*.
+Weighting is not something every state count needs, so it does not belong in
+`diagram_engine::cardinal`. It is a **dedicated algorithm at the query
+layer, with its own caches**, and the pattern it needs already exists there:
+`translator::collect_max` (`src/surface_query.cc`) walks a diagram by sort,
+reads a leaf's values through the concrete theory
+(`theory_->elements(c)`), and recurses over `mgr_.diagrams().arcs(c)` head
+then tail. The weighted counter is its sibling:
 
-**The interface gap.** `core::support_algebra` offers `cardinal` and `print`
-and no enumeration; the surface reaches `int_set_theory::elements` through
-the concrete theory. Three ways out:
+* at a **unit** sort, one;
+* at a **leaf** sort, Σ over the set's values of C(v+K-1, K-1), with K read
+  from the weight of that leaf (the sort code identifies the leaf position);
+* at a **pair**, Σ over the node's arcs of count(prime) x count(sub);
+* memoised on the node code, which carries its sort, in a map local to the
+  counter — unlike `collect_max` it must not *skip* a repeated node but
+  return its remembered value.
 
-1. Add one method to the algebra, `values(code, out)` (or a span accessor).
-   Smallest honest addition, implemented by `int_set` from what it already
-   has, and useful beyond counting (witnesses, diagnostics). A theory that
-   cannot enumerate refuses, and weighting is then unavailable rather than
-   wrong.
-2. A `weighted_cardinal(code, table)` virtual on the algebra. Ties the core
-   interface to a number type and to a per-leaf table; less general.
-3. No interface change: probe membership with singleton meets, O(bound) per
-   set. Fine for a one-safe net, wrong-headed for a large domain.
+Consequences of doing it this way: **no change to `core::support_algebra`**
+(the interface gap of the earlier draft disappears, since the concrete
+theory is in reach at this layer), no new virtual for every future theory,
+the general `cardinal` and `cardinal_exact` paths and their memos untouched,
+and no cost at all for a run that carries no weights. Its own file, its own
+caches: the node memo above and a binomial cache per (leaf, value) pair.
 
-Recommendation: (1).
-
-**Memo.** The double and GMP memos are keyed by node alone. A weighted count
-depends on the weights, so it takes a memo local to the call and never
-writes the shared ones.
-
-**Exactness.** Binomials through GMP (`mpz_bin_uiui`), memoised per (leaf,
-value) pair. No overflow, no floating point.
+**Exactness.** Binomials through GMP (`mpz_bin_uiui`). No overflow, no
+floating point.
 
 ### Where the weights are declared
 
