@@ -299,3 +299,27 @@ where the diagram engine reads it off in one pass. The fix is a query that
 folds the maximum of a sum over the diagram bottom-up, the same shape as
 `cardinal_as`, turning log(bound x P) symbolic searches into one traversal.
 That is the cheapest win visible in this table.
+
+### The counting record on reduced nets (2026-09-08)
+
+Through `its-tools -examination StateSpace -hscBenchReduce`, all four values
+on nets the reductions have worked over:
+
+| model | reduction | ours | oracle |
+|---|---|---|---|
+| AutonomousCar-PT-01a | 9 duplicate transitions fused, 2 no-effect kept | 227, 1, 6, 654 | same |
+| Dekker-PT-010 | 2 no-effect kept | 6144, 1, 20, 171530 | same |
+| AirplaneLD-PT-0010 | 32 constant places removed, holding 32 tokens | 43463, 1, 38, 183664 | same |
+
+AirplaneLD is the one that shows `PDROP` working: the exchanged net carries
+`TMULT` and `PDROP: 32 removed constant places holding 32 tokens`, and
+without that block the per-marking maximum would read 6 instead of 38.
+Dekker shows the no-effect rule: its arcs are self-loops nothing else
+carries, so the rule now keeps those transitions while a record exists.
+AutonomousCar shows the fusion: the survivor of each duplicate inherits its
+weight.
+
+The redundant composition rule is skipped while a record is tracked rather
+than allowed to destroy the arc count — it prefers longer firing paths and
+buys little. A plain run with no HSC flags applies every rule as before and
+creates no record.
