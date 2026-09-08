@@ -201,12 +201,27 @@ flags together run both engines side by side, which is how the comparison
 is made. CTL and LTL stay on its-ctl and its-ltl.
 
 Feature request found by the first campaign
-(`libHSC_in_MCC.md`, 2026-09-08): the unfolder fuses symmetric bindings
-without reporting their multiplicity, so an arc count over the unfolded net
-undercounts the coloured semantics. A per-transition multiplicity `m(t)`
-(a tool-specific annotation, or a companion file beside the unfolded net)
-would make the MCC `TRANSITIONS` value answerable on coloured instances as
-`Σ_t m(t) · |{s ∈ R : s enables t}|`.
+(`libHSC_in_MCC.md`, 2026-09-08): the unfolder fuses transitions with
+identical pre and post vectors without reporting how many bindings each
+stands for, so an arc count over the unfolded net undercounts the coloured
+semantics. Fusing is right — it is behaviourally neutral and it is what
+keeps the net tractable for every engine — so the fix is a per-transition
+multiplicity `m(t)` travelling with the net, not a de-fused net.
+
+The contest value is a multigraph count, arcs labelled by transitions: two
+fused bindings enabled in one state lead to the *same* successor, yet the
+oracle counts them separately (our fused count is 167/202 of it), so
+`TRANSITIONS = Σ_t m(t) · |{s ∈ R : s enables t}|` is exact with the
+multiplicities and unanswerable without them. `m(t)` is well defined at
+unfolding and does not survive transition-level structural reductions
+(agglomeration and removal change the graph), which is consistent with
+StateSpace running unreduced; on P/T instances every `m(t)` is 1.
+
+Cheapest path, the harness already orchestrating the unfolding: the
+unfolder writes a multiplicity file beside the unfolded model, the driver
+passes it to `hsc-pn` (a `--mult FILE` flag), the tool weights its sum. A
+PNET field or a PNML tool-specific annotation is the tidier home, and would
+serve PetriSpot too if it ever counts arcs.
 
 Measurement: the `itstools` MCC driver (`~/git/MCC-drivers/itstools/`) with
 `-hsc` in place of `-its` on the reachability examinations of the 2026
