@@ -481,6 +481,25 @@ sparse (no element can weigh 0). Semantics: how many elements of the
 *baseline* net this one stands for, the baseline being the net when the
 counters were created (the full unfolding).
 
+**Presence is the switch.** The record is attached at the top by the step
+that knows the values are wanted — the unfolder under
+`ReductionType.STATESPACE`, the examination that counts objects rather than
+deciding a property — and every later step is written as "if the record is
+there, maintain it, else skip this code". No flag travels through the rules,
+nothing is allocated for a run that does not track (the field is null), and
+a consumer weights its counts when the blocks are present.
+
+**Java side, implemented (2026-09-08).** `SparsePetriNet` carries optional
+named matrices (`getExtra`/`putExtra`/`getExtras`/`clearExtras`, null until
+something is attached, copied by the copy constructor);
+`SparseHLPetriNet.unfold` attaches an empty `TMULT` under STATESPACE, which
+declares tracking; `StructuralReduction` copies the record in, hands it back
+through `SparsePetriNet.readFrom`, and **drops it in `dropTransitions`** with
+a logged reason, since a dropped transition's arcs cannot be attributed to a
+survivor; `PNETFormatIO` writes whatever the net carries as named blocks.
+So today a reduction that removes transitions leaves the value unanswered
+(honest), and the ghost contributors below are what will make it survive.
+
 **Obligation, three options.** Maintain, invalidate, or — for any rule
 nobody has audited — invalidate by default. That default is what makes the
 feature safe to land incrementally: an unaudited rule costs an unanswered
