@@ -284,3 +284,41 @@ portfolio that settles most contest properties before any engine runs
 path, where the NUPN units are lost and we recluster. A `--shape FILE`
 taking ITS-Tools' partition would compare the two decompositions on equal
 footing.
+
+## 8. Flows, fusion, renaming: notes for the shape work
+
+**Flows as shape information.** Ciardo's argument (a place determined by a
+P-invariant sits right after its determiners, or every level in between
+duplicates the pending value) survives shapes and sharpens: a semiflow's
+support as a sub-sort is a small diagram of token distributions,
+referenced from above by one arc; the determined place is redundancy
+confined to that sort. Nested supports give nested sorts. GreatSPN's
+invariant orders are the linear shadow of this. Three ways in, least
+intrusive first: supports as weighted hyperedges of the Louvain graph
+(the bounded-contribution mechanism exists); minimal supports as unit
+seeds with Louvain arbitrating overlaps, in the portfolio; a FORCE-like
+objective on invariant spans within a sort. The solver is PetriSpot's
+`invariants/`, the one folder the vendoring left out: one line in
+`vendor.sh`, in-process, time-capped. Do not eliminate the determined
+place: its guards would become sums, the crossing atoms we pay for.
+
+**Fusion of transitions.** ITS-Tools fuses transitions with one local
+effect into one label by hand, so a synchronisation is a product of
+per-component alternatives. In the calculus this is the normal form of a
+sum of terms: `sum_at` folds `node(A,id) ⊕ node(A',id)` into
+`node(A⊕A',id)` recursively, one summand per level mirroring the shape,
+and the static saturation pass partitions events at every cut into F, L
+and G, recursively. Locality and hierarchy are automatic. The mixed pair
+`node(A,id) ⊕ node(id,B)` and crossing terms stay flat: the same boundary
+the composite builder hits.
+
+**Renaming.** Variables are positional, codes position-relative:
+isomorphic subcomponents anywhere in the tree intern to the same terms and
+diagrams. GAL names globally, so a composite shares nothing across
+isomorphic components. N philosophers cost one component's nodes.
+
+**Sums across components.** Supported exactly whatever the shape (SDD could
+not), paid for today. Knobs: property-aware clustering (keeps frequent sums
+local, at the price of a net-unnatural shape), and a case engine that
+treats a sum constraint as a weighted-count sub-shape, the semiflow idea
+from the other side. Measure before choosing.
