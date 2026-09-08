@@ -3,7 +3,7 @@
 Read this first, then the design file of the thread you pick up. This file is
 rewritten, never appended to: what is done leaves it (result in the README or
 the design file, history in git and `docs/HISTORY.md`). State as of
-2026-09-08, 05:05.
+2026-09-08, 05:25.
 
 ## Orientation
 
@@ -41,27 +41,39 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 
 ## In flight
 
-**Campaign 202609080208, the first CTL examinations at scale.** Submitted
-2026-09-08 04:47 by `Petri/test/mcc/submit-2026-09-08.sh`: CTLC, CTLF then
-Liveness, 1800 s, 4 cores, `tall%`, on the **native image** of the product
-`202609080208`, 5859 jobs, about 13 hours. Collect into a folder named for the
-product:
+**The CTL campaign, submitted then aborted, waiting on one CI run.** It went
+out at 04:47 on the product `202609080208` and was cancelled an hour later: the
+native image has a second closed world hole, `symmetricnet.terms.Sort[]`, which
+every coloured model that declares a product sort hits, answering nothing. All
+3067 jobs were deleted, the result folders removed, the cluster is clean and the
+queue empty. Nothing was kept: of the 177 CTLC logs only 67 had finished anyway.
+
+Waiting on the ITS-Tools CI for `fcdae5b8`. When it is green: reinstall in the
+deploy tree, rsync `itstools/`, warm up on AirplaneLD-PT-0010 **and
+BART-COL-002** (the instance that would have caught this), then resubmit
+`Petri/test/mcc/submit-2026-09-08.sh` unchanged -- CTLC, CTLF, L, 1800 s, 4
+cores, `tall%`, 5859 jobs, about 13 hours. Collect into a folder named for the
+product that runs:
 
 ```
-BASELINE= bash Petri/test/mcc/collect.sh 202609080208 CTLC CTLF L
+bash Petri/test/mcc/collect.sh <product stamp> CTLC CTLF L
 ```
 
 then a new set in `~/git/MCC-analysis/campaign/example.json`, rebuild the pages,
-archive, remove the folders from the cluster (`docs/CLUSTER.md` sections 4, 5).
-There is no CTL baseline of ours, so read it against the field (`report.py
---raw`, the pages against `ITS-Tools 2026` and `Tapaal 2026`): how many formulas
-the checker answers, how many only it had before the diagrams, any wrong verdict,
-and whether the companion costs anything where the diagrams won alone. Liveness
-takes the CTL path too and is not exposed to the LTSmin bug below.
+archive, free the cluster (`docs/CLUSTER.md` sections 4, 5). There is no CTL
+baseline of ours, so read it against the field (`report.py --raw`, the pages
+against `ITS-Tools 2026` and `Tapaal 2026`): how many formulas the checker
+answers, how many only it had before the diagrams, any wrong verdict, and
+whether the companion costs anything where the diagrams won alone. Liveness
+takes the CTL path too.
 
-**CI.** ITS-Tools `7f4113e0` puts `--no-V` back in the LTSmin runners; pushed,
-its product is due. Nothing on the cluster uses it -- the campaign holds
-`itstools/` -- so it lands in the next deploy.
+If a handful of instances fail once running, nothing needs redoing wholesale:
+`Petri/test/mcc/resubmit.sh <EXAM>` submits only what has no log, did not reach
+the teamcity suite close, or carries a closed world miss.
+
+**CI.** Two ITS-Tools commits are pushed and their product is due: `7f4113e0`
+puts `--no-V` back in the LTSmin runners, `fcdae5b8` registers the coloured
+`Sort[]`. The cluster runs neither yet.
 
 **The native image is now the launcher.** `runeclipse.sh` execs
 `its-tools-native` whenever the file is present, so the deploy decides it;
