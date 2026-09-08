@@ -36,7 +36,7 @@ without -p  : Accepting cycle FOUND!
 `--proviso=color` and `--proviso=stack` (the default here) both report empty,
 and `--pins-guards` changes nothing.
 
-## Where the unsoundness is
+## What we know, and what the `Visible groups: 0` line is not
 
 Every reduced run prints
 
@@ -44,32 +44,41 @@ Every reduced run prints
 Visible groups: 0 / 111, labels: 2 / 111
 ```
 
-LTSmin finds the two visible labels -- the atomic propositions the automaton
-reads -- and no visible transition group. A transition that changes an atomic
-proposition must be visible, or the reduction may drop the interleaving that
-exposes it; with nothing visible the reduction is free to prune the witness.
+That line is the obvious suspect and it is a trap. `pins2lts-seq.c` prints the
+`GBgetPorGroupVisibility` **array**, which only `pins_add_group_visible` ever
+writes. The POR layer derives its working set elsewhere: `init_visible_labels`
+(`pins2pins-por.c`) unions, for every visible label, the groups of that label's
+NES and NDS into `ctx->visible`, a separate `bms_t`. It is called from
+`por_init_transitions`, per state during exploration, so it runs long after the
+HOA layer has parsed the atomic propositions. A zero in the printed array is
+therefore consistent with POR having the right groups internally. We have not
+shown that visibility is empty where it matters.
 
-The matrices we emit do carry the information. `label_matrix` says label 107
-(`LTLAPp0`) reads state variables 12 and 28 and label 108 (`LTLAPp1`) reads 25;
-`write_matrix` has 22 groups writing one of those three:
+What is established is that the model we hand over carries the information:
 
-```
-[1, 2, 3, 6, 7, 28, 29, 30, 31, 32, 40, 46, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
-```
+* `label_matrix` gives label 107 (`LTLAPp0`) the state variables 12 and 28, and
+  label 108 (`LTLAPp1`) the variable 25.
+* `write_matrix` has 22 groups writing one of those three:
+  `[1, 2, 3, 6, 7, 28, 29, 30, 31, 32, 40, 46, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63]`.
+* `mayEnableAtom` and `mayDisableAtom`, the NES and NDS rows for those two
+  labels, list exactly those groups (20 for `p0`, 2 for `p1`) -- precisely what
+  `init_visible_labels` consumes.
 
-So the group visibility LTSmin reports as empty is derivable from what the model
-declares. Two checks rule out the obvious explanations on our side:
+And two candidate faults on our side are ruled out:
 
 * We register `GBsetDMInfoRead`, `GBsetDMInfoMustWrite` and `GBsetDMInfo`, never
-  `GBsetDMInfoMayWrite` (`Gal2PinsTransformerNext`, `PetriNet2PinsTransformer`).
-  Adding `GBsetDMInfoMayWrite(m, wm)` to `model.c` and rebuilding changes
-  nothing: still `Visible groups: 0`, still `Empty product`.
+  `GBsetDMInfoMayWrite` (`Gal2PinsTransformerNext`, `PetriNet2PinsTransformer`),
+  and POR's dependency pruning reads may-write. Adding
+  `GBsetDMInfoMayWrite(m, wm)` to `model.c` and rebuilding changes nothing.
+  LTSmin defaults may-write to the combined matrix anyway (`pins.c`), which is a
+  superset of the writes, so the pruning was never starved.
 * The property is genuinely stutter invariant, so partial order reduction is
-  legitimately applicable and the `-p` ITS-Tools passes is not the mistake.
-  Spot on the source formula: `properties: stutter-invariant very-weak weak
+  legitimately applicable and the `-p` ITS-Tools passes is not the mistake. Spot
+  on the source formula: `properties: stutter-invariant very-weak weak
   inherently-weak`.
 
-LTSmin's own LTL front end refuses the combination outright:
+The one asymmetry that is certain: LTSmin's own LTL front end refuses the
+combination outright,
 
 ```
 $B/pins2lts-seq-linux64 ./gal.so -p --pins-guards --when \
@@ -77,11 +86,18 @@ $B/pins2lts-seq-linux64 ./gal.so -p --pins-guards --when \
 ** error **: The neXt operator is not allowed in combination with --por
 ```
 
-and without `-p` that same front end finds the accepting cycle. The guard is
-syntactic -- it refuses any X, though this formula is stutter invariant -- and
-it only exists on the path where LTSmin parses the formula. Through `--hoa` it
-sees an automaton, the guard cannot fire, and the reduction runs with no visible
-group.
+while the same front end without `-p` finds the accepting cycle. That guard
+(`pins2pins-ltl.c`) is syntactic -- it refuses any X, though this formula is
+stutter invariant -- and it exists only on the path where LTSmin parses the
+formula. Through `--hoa` LTSmin sees an automaton, the guard cannot fire, and
+the reduction runs. `-m` also shows POR being set up before the automaton
+exists: `Initializing POR dependencies: labels 109, guards 107`, our raw
+counts, printed before `buchi has 3 states`.
+
+Finding where the reduction actually loses the witness needs an instrumented
+build -- print `ctx->visible` after `init_visible_labels` -- which
+`~/git/LTSmin-BinaryBuilds` can produce: it clones upstream
+`utwente-fmt/ltsmin` and already applies `patch/pins-impl.h`.
 
 ## What to do with it
 
