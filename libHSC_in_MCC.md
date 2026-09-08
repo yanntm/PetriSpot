@@ -273,3 +273,29 @@ net as an unlabelled Kripke structure (no transition labels in the temporal
 logics, no "t fired"), and only here does it ask for labelled edges, which is
 why the value is fragile under every transformation that touches the
 transition set.
+
+### Equal budget against ITS-Tools (300 s, same corpus and hardware)
+
+The baseline campaign `20260908-its` (`SS.itstools`, product 202609081701,
+the native image) beside ours, right answers by value:
+
+| value | libHSC | ITS-Tools |
+|---|---:|---:|
+| STATES | 1066 | 982 |
+| MAX_TOKEN_IN_PLACE | 1066 | 982 |
+| MAX_TOKEN_PER_MARKING | 779 | 982 |
+| TRANSITIONS | 681 | 0 |
+| **total right** | **3592** | **2946** |
+| wrong | 24 (all fixed since) | 0 |
+| runs at the wall | 668 | 367 |
+| wall hours | 60.5 | 45.9 |
+
+Two readings. We answer **84 more state counts** than the SDD engine at the
+same budget, and the arc count is ours alone (ITS-Tools prints
+`UNIQUE_TRANSITIONS`, a different metric). And we lose
+MAX_TOKEN_PER_MARKING 779 to 982, which is our own doing: we binary-search
+it with repeated `select`s over a sum spanning every place, a crossing atom,
+where the diagram engine reads it off in one pass. The fix is a query that
+folds the maximum of a sum over the diagram bottom-up, the same shape as
+`cardinal_as`, turning log(bound x P) symbolic searches into one traversal.
+That is the cheapest win visible in this table.
