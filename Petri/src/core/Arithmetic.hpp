@@ -1,11 +1,25 @@
 #ifndef ARITHMETICOPERATIONS_H_
 #define ARITHMETICOPERATIONS_H_
 
-#include <stdexcept> // for std::overflow_error
+#include <stdexcept>
+#include <utility>   // for std::in_range // for std::overflow_error
 #include <type_traits>
 
 namespace petri
 {
+
+// Narrow a wider integer into T, throwing when the value does not fit: a
+// shortening is a wrong number, not a smaller one.
+template<typename T, typename U>
+  T castExact (U v)
+  {
+    if constexpr (std::is_integral_v<T> && std::is_integral_v<U>) {
+      if (!std::in_range<T> (v)) {
+        throw std::overflow_error ("Value does not fit the target integer type");
+      }
+    }
+    return static_cast<T> (v);
+  }
 
 // Helper function to add two numbers with overflow checking
 template<typename T>
