@@ -100,6 +100,39 @@ needs `CFLAGS=-std=gnu17` under GCC 15, and because the build is configured
 `--disable-dependency-tracking` a `make clean` is required after re-running
 configure or the objects keep the old `config.h`.
 
+## Every reduction variant loses it, and the witness is shallow
+
+`--por` takes an algorithm and the search a proviso. Both working algorithms, on
+all three provisos, report the product empty:
+
+| `--por` | `--proviso` | verdict | reduced state space |
+| --- | --- | --- | --- |
+| heur | stack | Empty product | 8789 states, 25220 transitions |
+| heur | color | Empty product | 8789 states, 25220 transitions |
+| heur | closedset | Empty product | 8533 states, 24517 transitions |
+| del | stack | Empty product | 9125 states, 26045 transitions |
+| del | color | Empty product | 9125 states, 26045 transitions |
+| del | closedset | Empty product | 8869 states, 25342 transitions |
+
+(`tr` and `str` abort with "Undefined PC identification criteria", they want a
+transaction structure this model has none of.) So it is not a proviso quirk and
+not one stubborn set heuristic: every reduction here drops the cycle, while the
+unreduced search finds it in 5 ms, inside an SCC at depth 1039, and writes a
+70 step witness:
+
+```
+pins2lts-seq ./gal.so --when --hoa stateBased.hoa --buchi-type=spotba --trace=cex.gcf
+ltsmin-printtrace cex.gcf          # length of trace is 70
+```
+
+The automaton is weak, and the LTL layer says so:
+`Weak Buchi automaton detected, adding non-accepting as progress label`
+(`pins2pins-ltl.c`, `is_weak(ba)` for BA and SPOTBA types, adding
+`LTSMIN_STATE_LABEL_WEAK_LTL_PROGRESS` as label 110 beside accepting at 109).
+Our own labels stay at 107 and 108. That weak-automaton progress path is the
+next thing to look at, being the one piece of machinery specific to this shape
+of automaton.
+
 ## What to do with it
 
 Ours to work around, upstream to fix. Our side of the choice is
