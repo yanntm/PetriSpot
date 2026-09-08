@@ -778,3 +778,66 @@ carries an empty block.
    emitted, requiring the same number.
 3. The regression that matters: a net with no weights must give byte-identical
    answers to today's.
+
+## 15. Arcs under a fused free component (design, with the literature)
+
+### What the literature gives, and what it leaves
+
+Berthomieu, Le Botlan and Dal Zilio, *Petri net reductions for counting
+markings* (SPIN 2018, `~/git/Library` [BLD18]) is our subject exactly. Their
+`((k))(x) = C(x+k-1, k-1)`, "the number of ways to put x tokens into k
+slots", is the binomial of section 14, and their *loop agglomeration* — a
+cycle of places joined by simple moves, replaced by their sum — is our free
+component in the cyclic case; *chain agglomeration* is the acyclic one. They
+keep the reduction history as a system of equations with **two judgement
+forms**, `A ⊢ a = p + q` for an agglomeration and `R ⊢ a = b` for a
+redundancy, and Amat's Kong builds a DAG from them (the Token Flow Graph) to
+play a token game rather than enumerate. The general case is their polyhedral
+abstraction, where counting is counting lattice points (LattE).
+
+Two things follow. Our `PCOEF` is the single-`A` special case of that system:
+one sum, one level, hence a closed form and no solver. And **they count
+markings only** — agglomerations are introduced as rules that do *not*
+preserve the number of markings, which is why the equations exist; arcs are
+outside their scope. So the arc count after a fusion has no answer to borrow.
+
+### It has an answer in our framework
+
+Let a free component of K places be fused into a place `a`, and consider a
+marking of the fused net with `a = x`. Its fibre is the compositions of x
+into K parts, of size `((K))(x)`.
+
+* An **external** transition t consumed `w1, …, wj` from members of the
+  component. Over the fibre it is enabled in the compositions with `p_i ≥ w_i`
+  for each, and substituting `p_i' = p_i − w_i` counts them as
+  `((K))(x − Σ w_i)`. The sum `Σ w_i` is exactly the pre-arc weight t has on
+  `a` in the fused net, so **the shift is already in the net** and no
+  per-transition data is needed.
+* An **internal** move (one token from one member to another) is enabled in
+  the compositions with that member non-empty, `((K))(x − 1)`, the same for
+  every internal move by symmetry. So all of them together contribute
+  `E · ((K))(x − 1)` where `E` is how many internal moves the fusion removed
+  — one number per fused component, which is the only new datum.
+
+Checked by hand for K = 2: the fibre of `a = x` has `x + 1` markings, an
+internal move is enabled in `x` of them, and a transition consuming w from
+one member in `x − w + 1`.
+
+So the arc count of the original net is recoverable as a sum of *weighted*
+counts, one per transition, weighting the fused leaf by `((K))(v − w_t)`
+instead of `((K))(v)`, plus the internal term. Our weighted counter already
+takes a per-leaf weight; it needs a per-leaf **shift** as well, which is a
+small extension of section 14's algorithm and no change to the recursion.
+
+### What to record
+
+`PCOEF` gains nothing: the external shifts are the fused net's own arc
+weights. One new number per fused place, how many internal moves were
+removed, is all the arc side needs — a second column of `PCOEF`, or a block
+of its own. `TMULT` and this are then independent: a fusion no longer has to
+invalidate the arc count, it has to *shift* it.
+
+Honest boundary, unchanged: once the history is a nest of `A` and `R`
+equations rather than one sum per place, the fibre is a general polytope and
+this closed form stops applying. That is the polyhedral abstraction, and
+counting there is lattice-point counting, not a binomial.
