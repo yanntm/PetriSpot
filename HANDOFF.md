@@ -3,7 +3,7 @@
 Read this first, then the design file of the thread you pick up. This file is
 rewritten, never appended to: what is done leaves it (result in the README or
 the design file, history in git and `docs/HISTORY.md`). State as of
-2026-09-08, 04:10.
+2026-09-08, 05:05.
 
 ## Orientation
 
@@ -30,7 +30,7 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 | --- | --- |
 | campaign logs, collected | `/data/ythierry/MCC26run/<date>/<EXAM>/`, `csv/` beside them |
 | archived campaigns | `/data/ythierry/MCC26archive/<date>/` |
-| the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` (product `202609071637`) |
+| the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` (product `202609080208`) |
 | the cluster tree | `cluster.lip6.fr:~/MCC26/MCC-drivers/`, results only there |
 | result pages | `/data/ythierry/MCC26run/pages`, built by `~/git/MCC-analysis` |
 | collected tables, committed | `Petri/test/mcc/csv/<campaign>/` with a README each |
@@ -41,15 +41,27 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 
 ## In flight
 
-**The CTL examinations, blocked on one CI run.** The cluster is free (25 GB,
-inputs only; campaign 2026-09-07 archived and its result folders removed). The
-plan is CTLC, CTLF then Liveness at 1800 s, 4 cores, `tall%`, on the **native
-image**, by `Petri/test/mcc/submit-2026-09-08.sh` (5859 jobs, about 13 hours).
+**Campaign 202609080208, the first CTL examinations at scale.** Submitted
+2026-09-08 04:47 by `Petri/test/mcc/submit-2026-09-08.sh`: CTLC, CTLF then
+Liveness, 1800 s, 4 cores, `tall%`, on the **native image** of the product
+`202609080208`, 5859 jobs, about 13 hours. Collect into a folder named for the
+product:
 
-Waiting on the ITS-Tools CI for `d929bfc4` (the reachability metadata fix
-below). When it is green: reinstall the product in the deploy tree, check the
-stamp is later than `202609071637`, rsync `itstools/`, re-run the Airplane
-warmup and check that `SS` answers its three values, then submit.
+```
+BASELINE= bash Petri/test/mcc/collect.sh 202609080208 CTLC CTLF L
+```
+
+then a new set in `~/git/MCC-analysis/campaign/example.json`, rebuild the pages,
+archive, remove the folders from the cluster (`docs/CLUSTER.md` sections 4, 5).
+There is no CTL baseline of ours, so read it against the field (`report.py
+--raw`, the pages against `ITS-Tools 2026` and `Tapaal 2026`): how many formulas
+the checker answers, how many only it had before the diagrams, any wrong verdict,
+and whether the companion costs anything where the diagrams won alone. Liveness
+takes the CTL path too and is not exposed to the LTSmin bug below.
+
+**CI.** ITS-Tools `7f4113e0` puts `--no-V` back in the LTSmin runners; pushed,
+its product is due. Nothing on the cluster uses it -- the campaign holds
+`itstools/` -- so it lands in the next deploy.
 
 **The native image is now the launcher.** `runeclipse.sh` execs
 `its-tools-native` whenever the file is present, so the deploy decides it;
@@ -60,7 +72,8 @@ reached reflectively by the composite builder on the `-order META -manyOrder`
 path: StateSpace died there and the decision diagram engine answered nothing
 while the run looked healthy. Traced with
 `Petri/test/native-trace.sh`, verified by a local rebuild, pushed as ITS-Tools
-`d929bfc4`. The config had only ever been traced over AirplaneLD PT (OneSafe,
+`d929bfc4` and confirmed on the cluster: the Airplane warmup on `202609080208`
+is 16 examinations, 0 exceptions, `SS` answering. The config had only ever been traced over AirplaneLD PT (OneSafe,
 deadlock, LTLC, UB) and COL (LTLF, CTLF, RC); it now also covers StateSpace,
 Liveness, CTLCardinality, QuasiLiveness, StableMarking and
 ReachabilityFireability.
@@ -80,14 +93,17 @@ the report against the field (`report.py --raw`, the pages against
 many of those only it had before the diagrams, any wrong verdict (a soundness
 bug), and whether the companion costs anything where the diagrams won alone.
 
-### The LTSmin partial order soundness bug
+### The LTSmin partial order soundness bug (closed on our side)
 
-`StigmergyCommit-PT-02b-LTLCardinality-03` is answered TRUE where the field has
-FALSE, by `PARTIAL_ORDER EXPLICIT LTSMIN SAT_SMT`, and it was answered FALSE on
-2026-09-06 by the same technique on the same net. The knowledge step is what
-changed (four factoids that reduced the automaton 3 states/4 edges to 2/3 on
-09-06 reduce nothing on 09-07). Weaker knowledge must cost an answer, not
-produce a wrong one. Details in `Petri/test/mcc/csv/2026-09-07/README.md`.
+`--no-V` is back in both LTSmin runners (ITS-Tools `7f4113e0`). Without it the
+reduction reports an empty product where an accepting cycle exists, and we
+publish TRUE for a FALSE property: it did so once in 30 373 on LTLCardinality in
+the campaign of 2026-09-07. This is LTSmin issue 169, worked around in 2019 and
+commented out three days later; correct NES and NDS matrices do not make the
+default visibility proviso safe. The investigation and a two command
+reproduction are in `Petri/test/ltsmin-por-bug/`. What is left is upstream, and
+only if someone wants it: walk the 70 step witness against the stubborn set
+chosen at each of its states to find the first transition the reduction drops.
 
 ### CTL checker (`CTL_PLAN.md` section 9 has the list, 11 the design talk)
 
