@@ -98,7 +98,13 @@ bash Petri/test/mcc/collect.sh <date> SS.itstools   # the folder name, tag inclu
 ```
  Submit from the foreground and let it end (a few
 hundred `oarsub` take minutes; parallel submissions have brought the head
-down). For several examinations, one `run_oar.sh` after another in a detached
+down). **Never rewrite `run_oar.sh` (or any script a job or a loop is
+reading) while it runs**: bash reads a script as it goes, so an overwrite
+mid-loop makes it die on a syntax error at the changed offset, silently
+truncating a submission. Copy a new version up once the loop has ended, and
+check what actually got submitted (the `comm -3` recipe of `BENCH.md`,
+oracle list against the jobs in `oarstat -f -u` plus the logs already
+written). For several examinations, one `run_oar.sh` after another in a detached
 script, as `~/MCC26/MCC-drivers/submit-<date>.sh` does (a copy of the last
 one is `Petri/test/mcc/submit-2026-09-07.sh`).
 
