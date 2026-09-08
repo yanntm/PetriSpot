@@ -841,3 +841,55 @@ Honest boundary, unchanged: once the history is a nest of `A` and `R`
 equations rather than one sum per place, the fibre is a general polytope and
 this closed form stops applying. That is the polyhedral abstraction, and
 counting there is lattice-point counting, not a binomial.
+
+## 16. Take the equations, not the coefficients
+
+The scalar blocks of sections 10 to 15 are each a special case of something
+better known. [BLD18] keeps a reduction as a triple `(N1, Q, N2)` where `Q`
+is a *system of linear equations* relating the places of the original net to
+those of the reduced one, with two judgement forms, `A ⊢ a = p + q` and
+`R ⊢ a = b`; the reachable markings of `N1` are those extending a marking of
+`N2` to a solution of `Q`. Kong turns `Q` into a DAG and plays a token game
+on it. That is a more general answer than ours to both questions we care
+about, counting and traceability, and we should follow it rather than grow a
+private vocabulary.
+
+**Our blocks in their terms.** `PDROP` is a set of equations `p = c`.
+`PCOEF` is a single `A` node, `a = p1 + … + pK`. Duplicate places would be
+`R ⊢ p = q`. A redundant place removed by an invariant is
+`p = Σ λ_i q_i + c`, which no scalar of ours can express — that is where the
+private vocabulary runs out, and it is a rule ITS-Tools already has.
+
+**What we gain by carrying `Q`.** Every rule reports one equation instead of
+maintaining a block, which is the "report, do not interpret" discipline of
+section 12 in its natural form; composition is substitution, so there is no
+per-rule audit; and the same data answers *traceability*, lifting a witness
+of the reduced net to one of the original, which we cannot do today and
+which a contest trace needs.
+
+**What stays ours.** The equations relate markings, so arcs are outside them
+entirely: `TMULT`, the ghost contributors and the shifts of section 15 remain
+our own extension, and nothing in the literature covers them.
+
+**How it evaluates on a diagram.** Split `Q` into groups over disjoint
+variables. A group whose solution count is a function of one reduced
+variable gives exactly a per-leaf weight function, and our fold of section 14
+is then the right evaluator with the binomial replaced by that function — the
+mechanism is unchanged, only where the weight comes from. A group spanning
+several reduced variables needs a joint weight; when they are adjacent in the
+shape our fold can carry it, and in general this is the polyhedral case where
+counting is counting lattice points.
+
+**Format.** The system is sparse and integral, so it is KERS like everything
+else: a variables-by-equations coefficient matrix, a column of constants, and
+a column of kinds (`A` or `R`), as one or two named PNET blocks. Variables
+need an index space that survives the removals, which is the one real design
+question — their DAG names nodes, so ours would carry a name column or a
+stable numbering of dropped places.
+
+**Sequencing, without churn.** `PDROP`, `PCOEF` and `TMULT` work, are tested
+and cover the rules we have enabled; leave them. But add no further scalar
+block: the next accounting need — redundant places, nested agglomerations,
+chains with offsets — is the moment to introduce `Q` and derive the per-leaf
+weight functions from it, keeping the scalars as the fast path for the shapes
+they already cover. The arc side keeps its own blocks either way.
