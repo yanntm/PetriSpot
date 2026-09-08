@@ -3,7 +3,7 @@
 Read this first, then the design file of the thread you pick up. This file is
 rewritten, never appended to: what is done leaves it (result in the README or
 the design file, history in git and `docs/HISTORY.md`). State as of
-2026-09-08, 05:25.
+2026-09-08, 05:35.
 
 ## Orientation
 
@@ -41,22 +41,15 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 
 ## In flight
 
-**The CTL campaign, submitted then aborted, waiting on one CI run.** It went
-out at 04:47 on the product `202609080208` and was cancelled an hour later: the
-native image has a second closed world hole, `symmetricnet.terms.Sort[]`, which
-every coloured model that declares a product sort hits, answering nothing. All
-3067 jobs were deleted, the result folders removed, the cluster is clean and the
-queue empty. Nothing was kept: of the 177 CTLC logs only 67 had finished anyway.
-
-Waiting on the ITS-Tools CI for `fcdae5b8`. When it is green: reinstall in the
-deploy tree, rsync `itstools/`, warm up on AirplaneLD-PT-0010 **and
-BART-COL-002** (the instance that would have caught this), then resubmit
-`Petri/test/mcc/submit-2026-09-08.sh` unchanged -- CTLC, CTLF, L, 1800 s, 4
-cores, `tall%`, 5859 jobs, about 13 hours. Collect into a folder named for the
-product that runs:
+**Campaign 202609080313, the first CTL examinations at scale.** Running:
+launched 2026-09-08 05:33 by `Petri/test/mcc/submit-2026-09-08.sh`, CTLC then
+CTLF then Liveness, 1800 s, 4 cores, `tall%`, on the native image of the product
+`202609080313`, 5859 jobs, about 13 hours. That product carries both fixes of
+the night, `--no-V` and the coloured `Sort[]`. Collect into a folder named for
+it:
 
 ```
-bash Petri/test/mcc/collect.sh <product stamp> CTLC CTLF L
+bash Petri/test/mcc/collect.sh 202609080313 CTLC CTLF L
 ```
 
 then a new set in `~/git/MCC-analysis/campaign/example.json`, rebuild the pages,
@@ -67,13 +60,23 @@ answers, how many only it had before the diagrams, any wrong verdict, and
 whether the companion costs anything where the diagrams won alone. Liveness
 takes the CTL path too.
 
-If a handful of instances fail once running, nothing needs redoing wholesale:
+A first attempt went out at 04:47 on `202609080208` and was cancelled an hour
+later, all 3067 jobs deleted and the folders cleared: every coloured model
+declaring a product sort died on `symmetricnet.terms.Sort[]`, answering nothing.
+Should a handful fail this time, nothing needs redoing wholesale --
 `Petri/test/mcc/resubmit.sh <EXAM>` submits only what has no log, did not reach
 the teamcity suite close, or carries a closed world miss.
 
-**CI.** Two ITS-Tools commits are pushed and their product is due: `7f4113e0`
+The warmup before this launch covered AirplaneLD-PT-0010 **and BART-COL-002**,
+all 16 examinations, everything answering, no exception; CTLC 5 and CTLF 24
+verdicts tagged `CTL_WALK`. Keep the coloured instance in the warmup: Airplane
+alone passed the aborted campaign's warmup. Note also that the published image
+was byte for byte the same *size* as the broken one, so a native image is
+checked by running it, never by its size.
+
+**CI.** Both fixes are published and deployed in `202609080313`: `7f4113e0`
 puts `--no-V` back in the LTSmin runners, `fcdae5b8` registers the coloured
-`Sort[]`. The cluster runs neither yet.
+`Sort[]`.
 
 **The native image is now the launcher.** `runeclipse.sh` execs
 `its-tools-native` whenever the file is present, so the deploy decides it;
