@@ -217,3 +217,33 @@ order answered; the driver now prints the attribution on stdout. And the
 per-configuration memory split is untested under real pressure: with four
 configurations each holding a quarter of the confinement, a memory-bound
 instance may lose all four.
+
+### TRANSITIONS is exact before the reductions (2026-09-08, evening)
+
+Decisive measurement on BART-COL-002. Handed the *unreduced* unfolding that
+ITS-Tools produces (10865 places, 646 transitions, written as a PNET by
+`HscRunner` with `-Dhsc.debug=1`), `hsc-pn --states` answers
+
+```
+STATE_SPACE STATES 17424          (oracle 17424)
+STATE_SPACE TRANSITIONS 53328     (oracle 53328)
+```
+
+so the arc count is exact when we receive the net before the arc-destroying
+rules, and the `TMULT` block is all ones there, honestly. The campaign's
+44088 came from the harness path, where the reducer had already removed 302
+of those transitions. Consequences:
+
+* The harness path stays a defect for this value: the driver leaves
+  TRANSITIONS unanswered on a coloured input, and `MCC-drivers` needs no
+  further change.
+* `hsc-pn` now reports TRANSITIONS only with evidence that the net's arcs are
+  those of the net it came from: always on the PNML path, and on the PNET
+  path only when a `TMULT` block says the producer accounted for what it
+  dropped. Without evidence it prints the other three values and says why.
+* The way to answer it on coloured models is therefore ITS-Tools calling us
+  as a StateSpace back end on the unreduced unfolding.
+
+Note on a neighbouring metric: ITS-Tools prints `STATE_SPACE
+UNIQUE_TRANSITIONS`, which is not this value — it counts two transitions
+with the same effect and different read arcs once.
