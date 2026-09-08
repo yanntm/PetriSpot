@@ -543,3 +543,51 @@ TRANSITIONS 53328, the other three values unchanged), then -005 and -010;
 inside ITS-Tools assert Σ m(t) equals the number of bindings generated.
 (4) Only then promote the vector to the net contract with the audit above,
 and the file to a PNET named block.
+
+## 12. Placing the counting record: what it costs where
+
+**Producer side, least intrusive placement.** The reducer keeps deleting as
+it does today and *additionally* appends what it deleted to a counting
+record on the net. No rule has to honour a new kind of object, no index
+moves, the verification path is unchanged; the cost is bookkeeping in the
+three STATESPACE rules plus an accumulator, and default-invalidate leaves
+every unaudited rule alone. Flagging transitions "counting-only" inside the
+working net is the alternative and is worse: every consumer would then have
+to respect the flag.
+
+**KERS stays a dumb matrix codec — no flags there.** The framing belongs to
+PNET: a header flags bit says named blocks follow; each block is an 8-byte
+name, a uint32 length, then an ordinary KERS payload. Unknown names are
+skipped by length; a producer emits only what it can maintain, so absence is
+the staleness signal.
+
+**One file, not side files.** The record is not only per-object scalars: the
+dropped transitions carry pre-arc vectors, so those blocks reference place
+indices and are meaningful against one exact net. Side files express that by
+convention and fail silently when the pairing goes stale. Blocks make the
+coupling structural. Side files stay acceptable for the prototype, where one
+command produces net and record together.
+
+**Blocks (all ordinary KERS payloads).**
+
+| name | shape | content |
+|---|---|---|
+| `TMULT` | 1 column, T rows | weight − 1 per surviving transition (0 means 1) |
+| `PCOEF` | 1 column, P rows | K − 1 per surviving place (the free-SCC binomial) |
+| `PDROP` | 1 sparse column | constant markings of dropped token-holding places: their additive token contribution and their candidates for the per-place max |
+| `GHOSTPT` | P × G matrix | pre-arcs of transitions dropped but still contributing arcs |
+| `GHOSTMULT` | 1 column, G rows | their weights |
+
+**Loading versus using.** Read every block you understand, always, and make
+the weights part of the semantics of counting queries rather than an option:
+a query that silently ignores a present weight returns a wrong number. A
+caller wanting unweighted counts asks for raw explicitly — default-correct
+with an opt-out.
+
+**Staging.** Three of the four StateSpace values need no engine change:
+TRANSITIONS is arithmetic over enabled-state counts (surviving transitions
+and ghosts alike), the two token values arithmetic over `max-value` and the
+dropped constants. Only weighted STATES touches the calculus (a per-leaf
+weight in the counting fold), and it is also the only piece needing the
+weights to reach the surface language instead of staying out of band in
+`hsc-pn`.
