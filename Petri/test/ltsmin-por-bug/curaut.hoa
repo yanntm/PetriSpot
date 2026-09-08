@@ -1,0 +1,17 @@
+HOA: v1
+name: "StigmergyCommit-PT-02b-LTLCardinality-03"
+States: 3
+Start: 0
+AP: 2 "(LTLAPp0==true)" "(LTLAPp1==true)"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+properties: trans-labels explicit-labels trans-acc no-univ-branch stutter-invariant very-weak weak inherently-weak
+--BODY--
+State: 0
+[t] 0
+[!(0)] 1
+State: 1
+[!(0)] 2
+State: 2
+[!(0)&!(1)] 2 {0}
+--END--
