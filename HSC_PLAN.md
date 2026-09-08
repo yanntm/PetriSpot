@@ -459,3 +459,60 @@ reducer reports a fibre it cannot factor. It needs the ITS-Tools reducer to
 emit the weights, composed through chained reductions, and the surface to
 carry them (a leaf-weight declaration, so a `.hsc` file stays
 self-describing).
+
+## 11. The multiplicity contract (spec, before code)
+
+Evidence from one run (BART-COL-002, `--reduce-single STATESPACE`): the arc
+count is lost at three sites, not one.
+
+```
+Unfolded HLPN to a Petri net with 10865 places and 646 transitions
+Reduce places removed 10281 places and 212 transitions
+Drop transitions (Redundant composition of simpler transitions.) removed 70 transitions
+Reduce places removed 28 places and 20 transitions
+```
+
+Hence the counters belong to the `SparsePetriNet` contract, not to the
+unfolder: every modifier inherits the obligation.
+
+**Fields.** `tmult` per transition, `pmult` per place, each with a validity
+flag. Values stored as weight minus one, so an all-ones vector is empty and
+sparse (no element can weigh 0). Semantics: how many elements of the
+*baseline* net this one stands for, the baseline being the net when the
+counters were created (the full unfolding).
+
+**Obligation, three options.** Maintain, invalidate, or — for any rule
+nobody has audited — invalidate by default. That default is what makes the
+feature safe to land incrementally: an unaudited rule costs an unanswered
+value, never a wrong one.
+
+* Maintainable exactly: fusing identical transitions (additive); dropping a
+  transition proven never enabled (no-op, it contributes no arcs);
+  renumbering (permutation).
+* Provably not maintainable for arc counting: "redundant composition of
+  simpler transitions" (the removed transition's arcs come from the states
+  where *it* was enabled, which is no survivor's enabling set), the
+  agglomerations, transition splitting. These clear the flag.
+* Places: constant-place removal is arc-neutral but changes STATES;
+  free-SCC agglomeration is the factorisable fibre (binomial weight,
+  section 10); anything invariant-tied clears the flag (Berthomieu).
+
+**Consequence for StateSpace.** TRANSITIONS is answerable only on a net that
+escaped the arc-destroying rules, while STATES and the two token values
+survive the STATESPACE reductions (this campaign). So: a reduced run for
+three values, an unreduced run for the fourth; the driver is a portfolio
+already.
+
+**Format.** PNET keeps its three blocks; a flags bit says named blocks
+follow. Each: 8-byte ASCII name, uint32 byte length (an unknown block is
+skipped without parsing), then a KERS block. `TMULT`, `PMULT` to start.
+Absence is the staleness signal, so no validity bit in the format: a
+producer that cannot maintain omits the block.
+
+**Prototype, in this order.** (1) Weights in the unfolder only, on an
+unreduced unfold, written as a standalone one-column KERS. (2) `hsc-pn
+--mult FILE` weights its TRANSITIONS sum. (3) Test: BART-COL-002 (oracle
+TRANSITIONS 53328, the other three values unchanged), then -005 and -010;
+inside ITS-Tools assert Σ m(t) equals the number of bindings generated.
+(4) Only then promote the vector to the net contract with the audit above,
+and the file to a PNET named block.
