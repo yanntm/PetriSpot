@@ -200,6 +200,14 @@ they stream, the runner is interrupted when everything is answered. Both
 flags together run both engines side by side, which is how the comparison
 is made. CTL and LTL stay on its-ctl and its-ltl.
 
+Feature request found by the first campaign
+(`libHSC_in_MCC.md`, 2026-09-08): the unfolder fuses symmetric bindings
+without reporting their multiplicity, so an arc count over the unfolded net
+undercounts the coloured semantics. A per-transition multiplicity `m(t)`
+(a tool-specific annotation, or a companion file beside the unfolded net)
+would make the MCC `TRANSITIONS` value answerable on coloured instances as
+`Σ_t m(t) · |{s ∈ R : s enables t}|`.
+
 Measurement: the `itstools` MCC driver (`~/git/MCC-drivers/itstools/`) with
 `-hsc` in place of `-its` on the reachability examinations of the 2026
 corpus, collected with the campaign scripts of `Petri/test/mcc/`, read
