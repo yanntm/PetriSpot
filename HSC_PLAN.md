@@ -391,6 +391,32 @@ block (a header flags bit saying it is there, old readers unaffected) or a
 sibling `.kers` file does it. Sparse by nature: on P/T instances every
 coefficient is 1 and the block is empty.
 
+**Where the count is lost, measured on BART-COL-002.** The harness runs
+`its-tools -pnfolder . -examination StateSpace --reduce-single STATESPACE`;
+the log reports "Unfolded HLPN to a Petri net with 10865 places and 646
+transitions" and no reduction rule, so the arcs went in the unfolder's
+**unique tables**, which never keep a duplicate binding. Three collapse
+points, all exact to instrument where they happen:
+`fuseEqualParameters` (parameters the guard forces equal: nothing lost, no
+coefficient), the `i<j` canonicalisation of symmetric parameters (orbit
+size is a closed-form multinomial over the repeated values; not applied
+under `ReductionType.STATESPACE`), and the unique table (on a hit, add the
+incoming weight to the surviving entry — one line, given a table that
+reports the hit).
+
+The cost is plumbing, not arithmetic: `dropTransitions` (13 call sites in
+`StructuralReduction`) renumbers, so permuting the weight vector there
+covers most rules cheaply, while rules that *create* transitions get the
+stale bit rather than an invented composed weight. Carried on
+`SparsePetriNet` as the user's design: default all ones, stored as
+weight-1 so 0 means 1 and an unmodified net is an empty sparse vector (no
+transition can weigh 0); a marker naming what the weights are relative to
+(the full unfolding), because chained transformations otherwise make them
+meaningless; separate staleness bits for place and transition weights,
+which different rules preserve. Check that costs nothing: a debug flag
+disabling the unique table, then assert Σ m(t) equals the transition count
+of the un-interned unfolding on a few COL models.
+
 **Places.** A merged place standing for K places over which tokens travel
 freely (a free SCC) is *not* a scalar factor: a state with m tokens there
 represents C(m+K-1, K-1) real states, so the count is a sum over reachable
