@@ -199,15 +199,21 @@ above says otherwise: our NES and NDS rows are correct, POR reads exactly the 22
 groups from them, and the default V proviso still loses the cycle. Issue 169 was
 never fixed upstream, only worked around, and the workaround was dropped.
 
-## What to do with it
+## Done
 
-Ours to work around, upstream to fix. Our side of the choice is
-`LTSminRunner.checkProperty`, where `if (doPOR && isStutterInvariant(pbody))`
-adds `-p`: the condition is right in theory and the reduction is wrong in
-practice, so the workarounds are to withhold `-p` when the formula carries an X
-(what LTSmin does for itself on the `--ltl` path), or to trust a witness over an
-emptiness claim when the two engines disagree. The reproduction folder built from the MCC archive is
+`--no-V` is back in both LTSmin runners (ITS-Tools `7f4113e0`), with the reason
+written beside it so the next refactoring does not drop it a second time. The
+X-refusal that LTSmin applies to itself, and trusting a witness over an emptiness
+claim, were the other two candidate workarounds; neither is needed now.
+
+The reproduction folder built from the MCC archive is
 `bench/models/Stigmergy-f03/` (git ignored), made by
-`Petri/test/extract_property.py`; `Petri/test/logs/stig-dbg-1.log` is a full
-run that takes the wrong branch, `Petri/test/logs/stigmergy-f03-debug.log` one
-that answers FALSE by `STUTTER_TEST` before LTSmin is reached.
+`Petri/test/extract_property.py`; `Petri/test/logs/stig-dbg-1.log` is a full run
+that takes the wrong branch, `Petri/test/logs/stigmergy-f03-debug.log` one that
+answers FALSE by `STUTTER_TEST` before LTSmin is reached.
+
+Still open upstream: issue 169 itself. Should someone want to finish it, the
+instrumentation that got this far is one `Warning` after the NES and NDS union in
+`init_visible_labels`, and the next step is to walk the 70 step witness against
+the stubborn set chosen at each of its states, to find the first transition the
+reduction drops.
