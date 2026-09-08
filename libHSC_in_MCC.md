@@ -114,3 +114,14 @@ collide with ones upstream now tracks); move them aside, then pull.
 3. Sweep: `BK_TOOL=hsc ./run_oar.sh "oracle/*-SS.out"` on the cluster after
    the Airplane warmup, collected with `mcclogs2csv.py`; the contest's
    StateSpace table gives the comparison with ITS-Tools and TEDD.
+
+## 2026-09-08, evening: superseded
+
+Items 1 and 2 of "Next session" are done: exact `count` (GMP), static
+binaries from the libHSC CI (`HSC-Linux`), `hsc-pn` answering RC, RF, RD, UB,
+StateSpace (four values) and OneSafe on PNML + MCC XML or PNET +
+s-expressions, the driver `MCC-drivers/hsc/` rewritten on it, and ITS-Tools
+plugins with `-hsc` / `-hscBench`. Design and decisions: `HSC_PLAN.md`;
+the campaign spec (item 3 and beyond): `HSC_EXPERIMENTS.md`; current state
+and next actions: libHSC `handoff_mcc.md`. New measurements go in dated
+sections below this one.

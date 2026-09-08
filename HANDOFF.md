@@ -14,7 +14,7 @@ the design file, history in git and `docs/HISTORY.md`). State as of
 | the CTL checker | `CTL_PLAN.md` sections 9, 11 | `Petri/src/ctl/`, `cli/CtlDriver.h` |
 | the state equation, LP hints | `Petri/src/lp/algorithm.md` | `Petri/src/lp/` |
 | the campaigns, the harness | `BENCH.md`, `Petri/test/mcc/README.md`, `TOTAL_QUERIES.md` | `Petri/test/mcc/` |
-| libHSC as a competitor | `libHSC_in_MCC.md` | `~/git/MCC-drivers/hsc/` |
+| libHSC as a competitor and companion | `HSC_PLAN.md`, `HSC_EXPERIMENTS.md`, `libHSC_in_MCC.md`; state in libHSC `handoff_mcc.md` | `~/git/MCC-drivers/hsc/`, ITS-Tools `hsc/`, `interop/` |
 | operating guides: cluster, CI chain, local builds | `docs/CLUSTER.md`, `docs/CI.md`, `docs/BUILD.md` | |
 
 Repositories: this one; `~/git/ITStools` (origin `lip6/ITStools`, the Java

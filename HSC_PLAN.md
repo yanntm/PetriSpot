@@ -1,10 +1,11 @@
 # libHSC in the ITS-Tools chain: plan
 
-Design document, revision 1 (2026-09-08). Companion of `libHSC_in_MCC.md`
-(what `hsc` answers today on contest models) and `INTEROP.md` (the
-tool-to-tool protocol ITS-Tools speaks with PetriSpot). This file carries the
-plan; libHSC documents what it integrates (`doc/ci.md`, the folder READMEs)
-before coding it, as its own discipline asks.
+Design document, revision 2 (2026-09-08, end of the first session).
+Companion of `libHSC_in_MCC.md` (measurements), `INTEROP.md` (the
+tool-to-tool protocol) and `HSC_EXPERIMENTS.md` (the campaign spec). The
+**current state and next actions live in libHSC's `handoff_mcc.md`**; this
+file carries the design and the decisions. Phases 0 to 4 of section 5 are
+done; what remains is the campaign and the shape work of sections 7 to 9.
 
 Goal: make libHSC a subprocess of ITS-Tools the way PetriSpot is, on the same
 protocol, so that the symbolic engine replaces its-reach on the Petri net
@@ -18,32 +19,39 @@ decomposition path written in Java is part of the point.
 
 * libHSC (`~/git/libHSC`): `hsc` runs `.hsc` models (surface s-expressions,
   saturation, `select` with linear atoms, sums and weighted sums included,
-  `count`, `max-value`, `states`), `nupn2hsc` imports PNML P/T nets with the
-  vendored PetriSpot loader and emits `.hsc`, `hsc-mcc` answers StateSpace
-  and OneSafe in MCC format. Shape choices: the NUPN unit tree, FORCE
-  reordering, Louvain decomposition; no configuration dominates
-  (`libHSC_in_MCC.md`), the driver runs a portfolio.
-* CI (done, this session): `build_hsc.sh`, workflows on `ubuntu-24.04` and
-  `macos-15`, static binaries `hsc`, `hsc-mcc`, `nupn2hsc`, `dve2hsc`,
-  `fsp2hsc` deployed to the branches `HSC-Linux` and `HSC-OSX` of
-  `yanntm/libHSC`; the test suite is the gate. `libHSC/doc/ci.md`.
+  `count` with an `exact` GMP variant, `max-value`, exact `states`);
+  `hsc-pn` (section 2, done) answers Petri net properties on both input
+  pairs; `nupn2hsc` and `hsc-mcc` remain until the driver no longer needs
+  them. Shape choices: the NUPN unit tree, FORCE reordering, Louvain
+  decomposition; no configuration dominates (`libHSC_in_MCC.md`), the
+  driver runs a portfolio.
+* CI (done): `build_hsc.sh`, workflow on `ubuntu-24.04` (an `macos-15` one
+  exists, not maintained this session), static binaries `hsc`, `hsc-pn`,
+  `hsc-mcc`, `nupn2hsc`, `dve2hsc`, `fsp2hsc` deployed to the branch
+  `HSC-Linux` of `yanntm/libHSC`; the test suite is the gate; GMP from the
+  runner's packages. `libHSC/doc/ci.md`.
+* Vendoring (done): PetriSpot's `core/`, `parse/` (MCC XML with CTL,
+  s-expressions), `expr/`, `io/` as byte-exact copies under
+  `include/hsc/petri/`, `vendor.sh` re-copies and checks; the edits they
+  needed are upstream here (section 9).
 * PetriSpot: the protocol of `INTEROP.md`: PNET binary net, s-expression
   properties over indices (`reach`, `invariant`, `deadlock`, `bound`, `ctl`
   forms), `FORMULA` lines on stdout; the MCC XML property parser
   (`parse/mcc/`, CTL included) and the s-expression reader
   (`parse/sexpr/`), printers for both syntaxes (`expr/SexprPrinter.h`).
-* ITS-Tools: `petrispot/fr.lip6.move.petrispot.runner` writes PNET
-  (`PNETFormatIO`) and properties (`SexprPropertyPrinter`) from the reduced
-  `ISparsePetriNet` and reads the `FORMULA` stream (`PetriSpotWalker`);
-  `fr.lip6.petrispot.binaries` downloads the binaries at Maven build time and
-  `BinaryToolsPlugin` locates them at run time. its-reach is driven by
-  `ITSRunner` on a GAL export; the engines are chosen in `Application` by
-  flags (`-its`, `-smt`, `-ltsmin`) and run as `IRunner`s in a portfolio
-  feeding `DoneProperties`.
+* ITS-Tools (sections 3 and 4 done, pushed to `lip6/ITSTools`): the shared
+  formats live in `interop/fr.lip6.move.gal.interop` (`KERSFormatIO`,
+  `PNETFormatIO`, `SexprPropertyPrinter`), used by the PetriSpot runner and
+  by `hsc/fr.lip6.move.hsc.runner` (`HscRunner`); `hsc/fr.lip6.hsc.binaries`
+  downloads `hsc-pn` at Maven build time. In the MCC application `-hsc`
+  starts `HscSolverRunner` beside the decision diagrams, `-hscBench` /
+  `-hscBenchReduce` run it alone right after the model is read (verified
+  against the oracle on Raft-PT-02 RC, RD, UB and Angiogenesis-PT-05 RC).
+  its-reach stays on `ITSRunner` over GAL for CTL and LTL.
 
 ---
 
-## 2. One tool: `hsc-pn`
+## 2. One tool: `hsc-pn` (done; the reference is libHSC `tools/README.md`)
 
 One binary that eats either the contest inputs or the tool-to-tool inputs,
 then does the same thing: build the model, ask the questions, print the
@@ -64,8 +72,8 @@ hsc-pn (-i model.pnml | --net model.pnet) [--props FILE] [options]
 | `--shape nupn|flat|louvain` | the hierarchy: the unit tree (flat when absent), a flat spine, Louvain clustering |
 | `--force` | FORCE reordering after the shape |
 | `--bound N` | leaf domain `[0, N)` (default the max initial marking plus one, at least 2) |
-| `--states` | print the `STATE_SPACE STATES` line of the reachable set |
-| `--max-tokens` | print `MAX_TOKEN_IN_PLACE` |
+| `--states` | the four `STATE_SPACE` lines of the MCC examination |
+| `--max-tokens` | the `MAX_TOKEN_IN_PLACE` line alone (OneSafe) |
 | `--deadlock NAME` | a deadlock query without a property file |
 | `--totalTime S` | wall-clock budget; unanswered properties are reported `UNKNOWN` at exit when `--printUnknown` |
 | `--export-hsc FILE` | write the model (and the queries) as `.hsc`, the debugging path; what `nupn2hsc` does today |
@@ -199,29 +207,29 @@ against the `-its` baseline on the same product: answered, wrong, time.
 
 ---
 
-## 5. Plan of attack
+## 5. Plan of attack (phases 0 to 4 done; the campaign is `HSC_EXPERIMENTS.md`)
 
 Each phase ends with something that runs and is checked.
 
 ### Phase 0 (done): CI
-Binaries on `HSC-Linux` and `HSC-OSX`; `MCC-drivers/hsc/install.sh` downloads
-them instead of copying a local build.
+Binaries on `HSC-Linux`; `MCC-drivers/hsc/install.sh` downloads them
+instead of copying a local build.
 
-### Phase 1: vendoring and exact count (libHSC)
+### Phase 1 (done): vendoring and exact count (libHSC)
 The files of 2.2 item 1 under `include/hsc/petri/`, README updated; exact
 `count`. Check: the suite; Vasy2003 STATES equals the oracle.
 
-### Phase 2: `hsc-pn` (libHSC)
+### Phase 2 (done): `hsc-pn` (libHSC)
 Items 3 and 4 of 2.2, the `examples/mcc` property files and the double
 check of 2.2 item 5; `--states`, `--max-tokens`, deadlock. Check: every
 oracle value of `examples/mcc` on both input paths; the MCC driver rewritten
 on `hsc-pn` passes `run_test.pl` as the prototype did (`libHSC_in_MCC.md`).
 
-### Phase 3: plugins (ITS-Tools)
+### Phase 3 (done): plugins (ITS-Tools)
 Section 3. Check: the local product runs `hsc-pn` on Airplane through
 `HscRunner` from a small main, PNET byte-identical to `hsc-pn`'s own export.
 
-### Phase 4: `-hsc` (ITS-Tools)
+### Phase 4 (done, `-hsc` and `-hscBench`): ITS-Tools
 Section 4. Check: `its-tools -pnfolder . -examination ReachabilityCardinality
 -hsc` answers Airplane and Angiogenesis like `-its`; then the harness
 campaign.
@@ -230,8 +238,9 @@ campaign.
 
 ## 6. Decisions taken
 
-* Branches `HSC-Linux`, `HSC-OSX`; Windows later. C++23 kept, the build
-  machine is constrained, not the client (static link).
+* Branch `HSC-Linux` (OSX and Windows later). C++23 kept, the build
+  machine is constrained, not the client (static link). GMP accepted as a
+  library dependency for exact counts; the double stays the default.
 * One tool `hsc-pn` for both input pairs; MCC protocol is the wrapper's.
 * Shared Java formats in a new `interop` plugin, used by both companions.
 * No GAL frontend.
