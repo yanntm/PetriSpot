@@ -322,3 +322,31 @@ not), paid for today. Knobs: property-aware clustering (keeps frequent sums
 local, at the price of a net-unnatural shape), and a case engine that
 treats a sum constraint as a weighted-count sub-shape, the semiflow idea
 from the other side. Measure before choosing.
+
+## 9. Who depends on whom
+
+By content the arrow is libHSC → PetriSpot: libHSC consumes the net layer
+(`core/`, `parse/`, `expr/`, `io/`), PetriSpot consumes one small reader.
+"PetriSpot depends on libHSC" is a product decision (one binary that also
+saturates), which is fusion under another name and would create a cycle
+through the vendored files. Fusion is not wanted: symbolic and explicit
+have different performance disciplines, tests and failure modes; the
+shared philosophy is in the formats, which are small.
+
+A third project would carry PetriSpot minus `walk/`, `ctl/`, `lp/`,
+`cli/`: the net, the formats, the parsers, `invariants/` (the shape work
+wants semiflows), about 4000 header-only lines on expat alone. The Java
+`fr.lip6.move.gal.interop` plugin is its other side; `KERS.md` and
+`INTEROP.md` are its docs. It does not need its own repository or CI now.
+
+Duplication is disciplined: one direction, byte-identical, scripted with
+an identity check, edits upstream first. Guards to add: record the
+PetriSpot commit of the snapshot in `vendor.sh`, and have the libHSC CI
+fetch PetriSpot at that commit and run the check, so a patched copy fails
+the build; script the reverse copy (`parse/sexpr/Sexpr.h` from libHSC's
+`surface/sexpr.hh`) the same way.
+
+When `invariants/` is needed inside libHSC, switch to a real dependency
+without a new repository: PetriSpot exposes `Petri/src` as an INTERFACE
+library target, libHSC fetches PetriSpot at a pinned commit at configure
+time as it does sparsehash. Same arrow, no copies, no new CI.
