@@ -133,6 +133,54 @@ Our own labels stay at 107 and 108. That weak-automaton progress path is the
 next thing to look at, being the one piece of machinery specific to this shape
 of automaton.
 
+## It is the V proviso, and `--no-V` avoids it
+
+POR keeps hidden switches for its provisos. Swapping the visibility proviso
+restores the right answer with the reduction still on:
+
+| `--por` | flags | verdict |
+| --- | --- | --- |
+| heur | (default) | Empty product -- wrong |
+| heur | `--no-L12`, `--no-mc`, `--no-mcnds` | Empty product -- wrong |
+| heur | `--no-V` | Accepting cycle FOUND |
+| heur | `--weak` | Accepting cycle FOUND |
+| del | any of the above | Empty product -- wrong |
+
+`--no-V` replaces LTSmin's own visibility proviso with Peled's; `--weak` swaps
+the stubborn set theory. Both make this case sound, which puts the defect in the
+default V proviso. The deletion algorithm `--por=del` is wrong under every
+combination and should not be used at all.
+
+What it costs, measured on a product that really is empty so the whole space is
+walked (`--hoa curaut.hoa --buchi-type=tgba`):
+
+| setting | states | transitions |
+| --- | ---: | ---: |
+| default | 8789 | 25220 |
+| `--no-V` | 10099 | 30013 |
+| `--weak` | 12146 | 38176 |
+| no POR | 12183 | 39656 |
+
+So `--no-V` keeps most of the reduction, a sixth off the unreduced space, while
+`--weak` gives up nearly all of it. `LTSminRunner.checkProperty` already carries
+the line commented out beside the `-p` it passes:
+
+```java
+ltsmin.addArg("-p");
+ltsmin.addArg("--pins-guards");
+//ltsmin.addArg("--no-V");
+```
+
+Uncommenting it is the fix on our side, and needs no patched LTSmin. It is not a
+proof of soundness everywhere -- Peled's proviso is the textbook one and LTSmin's
+optimised replacement is what misbehaves here -- but it turns a wrong answer into
+a correct one at a measured cost.
+
+Ruled out along the way, none of them the cause: the weak Buchi progress label
+(`ctx->is_weak` forced false changes nothing), the `SAFETY` flag (set after
+visibility, and every use is `SAFETY || PINS_LTL` with PINS_LTL true), the cycle
+proviso choice, `--no-mc`, `--no-mcnds`, and the may-write matrix.
+
 ## What to do with it
 
 Ours to work around, upstream to fix. Our side of the choice is
