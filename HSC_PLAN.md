@@ -397,7 +397,11 @@ the log reports "Unfolded HLPN to a Petri net with 10865 places and 646
 transitions" and no reduction rule, so the arcs went in the unfolder's
 **unique tables**, which never keep a duplicate binding. Three collapse
 points, all exact to instrument where they happen:
-`fuseEqualParameters` (parameters the guard forces equal: nothing lost, no
+`fuseEqualParameters` (two parameters constrained `x = y` are iterated as
+one: unconditional and load bearing, since the alternative enumerates the
+full product to keep only its diagonal — multiplicity-neutral, because the
+bindings it never generates have an unsatisfiable guard: they are not
+fused transitions, they do not exist, so this rule must never carry a
 coefficient), the `i<j` canonicalisation of symmetric parameters (orbit
 size is a closed-form multinomial over the repeated values; not applied
 under `ReductionType.STATESPACE`), and the unique table (on a hit, add the
