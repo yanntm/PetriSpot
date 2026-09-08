@@ -591,3 +591,40 @@ dropped constants. Only weighted STATES touches the calculus (a per-leaf
 weight in the counting fold), and it is also the only piece needing the
 weights to reach the surface language instead of staying out of band in
 `hsc-pn`.
+
+## 13. PNET named blocks: framing and impact radius (measured on the code)
+
+**What the code already gives.** The C++ reader validates `version == 1`
+*and* `flags == 0` (`io/PNETIO.h`), so setting a flags bit makes every
+existing reader fail loudly instead of silently ignoring a weight — the
+failure mode that matters, since an ignored weight is a wrong count, not a
+degraded one. It is stream-based and reads exactly three KERS blocks, and
+`SparseMatrixIO::read` already reads one block from a stream, so blocks
+compose with no change to KERS. On the Java side PNET is **write-only** and
+`KERSFormatIO` is stream-based too: there is no read path to extend.
+
+**Framing** (symmetric with the two existing 16-byte headers): 8 bytes
+zero-padded ASCII name, 1 flags byte (bit 0 = required), 3 bytes padding,
+uint32 payload length, then the ordinary KERS payload. Blocks follow the
+three mandatory ones, append-only, each name at most once, canonical order
+so bytes stay reproducible. Row counts validated per name against P or T
+with the `expect` helper already there, which catches a stale pairing at
+once. Header flags bit 0 = "named blocks follow"; a producer with nothing
+to declare leaves it 0 and its files stay byte-identical to today's.
+
+**Impact radius, two files:**
+
+| where | change | size |
+|---|---|---|
+| PetriSpot `io/PNETIO.h` (vendored into libHSC by `vendor.sh`) | write blocks; read them into a small extras struct; one new overload keeping both existing entry points | ~80 lines |
+| ITS-Tools `PNETFormatIO.java` | optional record argument, same framing, lengths via a byte buffer | ~40 lines |
+| `SparseMatrixIO.h`, `KERSFormatIO.java`, every existing call site | untouched | 0 |
+
+`kersconv --decode-net` can dump the blocks in ~15 lines. Docs: the framing
+table into `KERS.md` / `INTEROP.md` §3.
+
+**Decision to confirm before code.** Fail-loud (the header flags bit) over
+silent append: a pre-extension reader refuses a net carrying weights, and a
+new reader refuses only unknown blocks marked required, skipping the rest by
+length. Cost: the producer must know whether its consumer understands
+blocks, which the driver already decides when it picks a tool.
