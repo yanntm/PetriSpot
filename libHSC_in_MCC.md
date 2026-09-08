@@ -247,3 +247,29 @@ of those transitions. Consequences:
 Note on a neighbouring metric: ITS-Tools prints `STATE_SPACE
 UNIQUE_TRANSITIONS`, which is not this value — it counts two transitions
 with the same effect and different read arcs once.
+
+### The StateSpace back end answers all four on a coloured model (2026-09-08)
+
+`its-tools -pnfolder BART-COL-002 -examination StateSpace -hscBench -timeout 240`
+now calls `HscRunner.runStateSpace` on the net as the StateSpace branch builds
+it, before the rules that remove transitions:
+
+| value | ours | oracle |
+|---|---:|---:|
+| STATES | 17424 | 17424 |
+| MAX_TOKEN_IN_PLACE | 1 | 1 |
+| MAX_TOKEN_PER_MARKING | 274 | 274 |
+| TRANSITIONS | 53328 | 53328 |
+
+All four right, in 120 s of a 240 s budget. This is what removes the arc-count
+penalty from a diagram run: the examination, or that one value, can be
+delegated. The cost is the unreduced net — the diagram path answers the other
+three in 13 s on the reduced one — so the production shape is a reduced run
+for the three cheap values beside an unreduced run for the arcs, which a
+portfolio can do in parallel.
+
+The metric deserves its reputation: everywhere else the contest reads a Petri
+net as an unlabelled Kripke structure (no transition labels in the temporal
+logics, no "t fired"), and only here does it ask for labelled edges, which is
+why the value is fragile under every transformation that touches the
+transition set.
