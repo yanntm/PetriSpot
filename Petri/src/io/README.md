@@ -2,6 +2,9 @@
 
 * `SparseMatrixIO.h` — KERS binary sparse matrix format (see `KERS.md`); file
   and stream overloads, the stream ones read or write one block.
+* `PNET.md` — the container specification: header, the three mandatory KERS
+  blocks, and the optional named blocks with their semantics. Vendored into
+  libHSC beside the reader.
 * `PNETIO.h` — PNET binary net: header plus three KERS blocks (flowPT,
   flowTP, marking); the tool-to-tool net format of `INTEROP.md`.
 * `MatrixExporter.h` — ASCII sparse matrix export.

@@ -117,9 +117,11 @@ All integers little-endian.
 | | | KERS | `flowTP`, `P` rows x `T` columns (post-arcs) |
 | | | KERS | initial marking, `P` rows x 1 column |
 
-After those three blocks a net may carry optional **named blocks**. Their
-framing and semantics are specified once, in `KERS.md`, section "PNET named
-blocks".
+After those three blocks a net may carry optional **named blocks**, which
+say what the producer knows about the net's provenance (how many objects of
+its own input each object here stands for, and what it dropped). The
+container, the framing and the semantics of each block are specified in
+`Petri/src/io/PNET.md`, beside the reader and writer.
 
 Places and transitions are identified by their index in this file, on both
 sides, for properties and traces. The loaded net names them `p<i>` and
