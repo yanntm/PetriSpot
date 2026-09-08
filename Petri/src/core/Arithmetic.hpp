@@ -59,7 +59,7 @@ template<typename T1, typename T2>
 #include <iomanip>
 
 namespace std {
-std::ostream& operator<<(std::ostream& out, __uint128_t n) {
+inline std::ostream& operator<<(std::ostream& out, __uint128_t n) {
   // decimal conversion by repeated division; a 128-bit value has at most 39 digits
   char buf[40];
   size_t pos = sizeof(buf);
