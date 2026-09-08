@@ -3,7 +3,7 @@
 Read this first, then the design file of the thread you pick up. This file is
 rewritten, never appended to: what is done leaves it (result in the README or
 the design file, history in git and `docs/HISTORY.md`). State as of
-2026-09-07, 21:30.
+2026-09-08, 04:10.
 
 ## Orientation
 
@@ -30,73 +30,64 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 | --- | --- |
 | campaign logs, collected | `/data/ythierry/MCC26run/<date>/<EXAM>/`, `csv/` beside them |
 | archived campaigns | `/data/ythierry/MCC26archive/<date>/` |
-| the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` (product `202609071016` + local spotutil in `itstools/`) |
+| the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` (product `202609071637`) |
 | the cluster tree | `cluster.lip6.fr:~/MCC26/MCC-drivers/`, results only there |
 | result pages | `/data/ythierry/MCC26run/pages`, built by `~/git/MCC-analysis` |
 | collected tables, committed | `Petri/test/mcc/csv/<campaign>/` with a README each |
-| local ITS-Tools products | `/data/ythierry/itstools-local-ctl/` (this session's build, master petri64 copied in), `/data/ythierry/itstools-ci-check/` (the published product) |
-| native image material | `/data/ythierry/MCC26deploy/flat-test*/`, `cluster.lip6.fr:MCC26/flat-test/` |
-| development models | `bench/models/<model>/` (git-ignored; Airplane, Angiogenesis, Bridge, Erlangen, CloudDeployment-2a, CloudOpsManagement 2, 5, 10, 20, 40) |
+| local ITS-Tools products | `/data/ythierry/itstools-ci-check/` (the published product) |
+| native image material | `~/git/ITStools/ITS-commandline/native/`, `cluster.lip6.fr:MCC26/flat-test/`, local test image `/data/ythierry/MCC26deploy/its-tools-native-test` |
+| GraalVM for a local image build | `/data/ythierry/graal/graalvm-jdk-25.0.4+7.1` |
+| development models | `bench/models/<model>/` (git-ignored) |
 
 ## In flight
 
-**Campaign 2026-09-07** (RD, QLA, LTLC, LTLF; 1800 s, 4 cores, `tall%`,
-the classic product, submitted 14:37 CEST). At 18:35: RD complete and
-collected (1953 logs, 0 wrong, variance against 06c), QLA 1681 of 1953, LTLC
-1222, LTLF not started, 111 jobs running, 2686 waiting. Collect QLA, LTLC and
-LTLF when they end: `rsync -rz --exclude='*.stderr' cluster.lip6.fr:MCC26/MCC-drivers/{QLA,LTLC,LTLF} /data/ythierry/MCC26run/2026-09-07/`
-(never `--delete`), then `mcclogs2csv.py LTLC LTLF -o csv`,
-`totallogs2csv.py QLA -o csv`, `report.py csv --baseline
-Petri/test/mcc/csv/2026-09-06-baseline` for LTL (the question: did the Effort
-glean bring LTL back to the contest-like ITS-Tools? Airplane says yes) and
-`csv/2026-09-06c` for QLA; point `ITS-Tools latest` in
-`~/git/MCC-analysis/campaign/example.json` at the folder, rebuild the pages,
-archive, remove from the cluster. Expect about 5 Eclipse fatals per
-examination; check the `failure` column before believing a one second miss.
+**The CTL examinations, blocked on one CI run.** The cluster is free (25 GB,
+inputs only; campaign 2026-09-07 archived and its result folders removed). The
+plan is CTLC, CTLF then Liveness at 1800 s, 4 cores, `tall%`, on the **native
+image**, by `Petri/test/mcc/submit-2026-09-08.sh` (5859 jobs, about 13 hours).
 
-**CI.** PetriSpot `Inv-Linux` carries the CTL checker (deployed from 16cb816);
-the published ITS-Tools product `202609071619` bundles that binary (checksum
-verified) and the CTL plug. ITS-Tools 715a2036 (a message fix) is pushed and
-its product is due; nothing on the cluster uses either yet (the campaign
-holds `itstools/`).
+Waiting on the ITS-Tools CI for `d929bfc4` (the reachability metadata fix
+below). When it is green: reinstall the product in the deploy tree, check the
+stamp is later than `202609071637`, rsync `itstools/`, re-run the Airplane
+warmup and check that `SS` answers its three values, then submit.
 
-**Cluster bench jobs** 1365883 (tall) and 1365884 (small) time the three
-launchers (Eclipse, flat, native image), queued behind the campaign.
+**The native image is now the launcher.** `runeclipse.sh` execs
+`its-tools-native` whenever the file is present, so the deploy decides it;
+`docs/CLUSTER.md` section 1 says how to tell and how to choose. The image is
+AVX2, hence `tall%` only. Its closed world was missing
+`fr.lip6.move.gal.InstanceDecl[]` and `fr.lip6.move.gal.Synchronization[]`,
+reached reflectively by the composite builder on the `-order META -manyOrder`
+path: StateSpace died there and the decision diagram engine answered nothing
+while the run looked healthy. Traced with
+`Petri/test/native-trace.sh`, verified by a local rebuild, pushed as ITS-Tools
+`d929bfc4`. The config had only ever been traced over AirplaneLD PT (OneSafe,
+deadlock, LTLC, UB) and COL (LTLF, CTLF, RC); it now also covers StateSpace,
+Liveness, CTLCardinality, QuasiLiveness, StableMarking and
+ReachabilityFireability.
 
 ## Next actions, by thread
 
-### First: the CTL examinations on the cluster, once campaign 2026-09-07 has drained
+### First: the CTL examinations (the campaign above)
 
-The explicit CTL checker (`CTL_PLAN.md`) is built, plugged into ITS-Tools
-beside `its-ctl` and published by both CIs; it has never run at scale. The
-campaign holds `itstools/` on the cluster, so wait for `cluster_status.sh` to
-show LTLF complete and the queue empty, collect and archive (`docs/CLUSTER.md`
-sections 4 and 5), then:
+The explicit CTL checker (`CTL_PLAN.md`) has never run at scale. Through the
+native image the Airplane warmup gives CTLC 5 of 16 and CTLF 11 of 16 verdicts
+tagged `CTL_WALK`, all right, 0 exceptions -- the local numbers exactly.
 
-1. Deploy the published product (`docs/CLUSTER.md` section 1): fresh
-   `install_itstools.sh` in the deploy tree, check that the product's bundled
-   `petri64 -h` lists `--ctlSteps` and that its stamp is `202609071619` or
-   later (`docs/CI.md`), rsync the `itstools/` subtree.
-2. Warm up on `oracle/AirplaneLD-PT-0010-*.out`; in the CTLC and CTLF logs
-   look for `CTL check beside the decision diagrams` and verdicts tagged
-   `CTL_WALK` (locally: CTLF 11 of 16, CTLC 5 of 16 by the checker, all 32
-   right, `Petri/test/logs/its-airplane-ctl{c,f}.log`).
-3. Submit CTLC and CTLF, 1800 s, 4 cores, `tall%`, one after the other
-   (`submit-<date>.sh` pattern, `Petri/test/mcc/submit-2026-09-07.sh`), and
-   Liveness after them if time allows: it takes the same path
-   (`GlobalPropertySolver` states it as `AG EF fireable` per transition) and
-   the campaign of 09-05 had it at 48 % of its wall time in the diagram tail.
-4. Collect with `collect.sh <date> CTLC CTLF`; there is no complete CTL
-   baseline of ours (the 09-06 CTL runs were deleted), so read the report
-   against the field (`report.py --raw` for the tool board, the pages against
-   `ITS-Tools 2026`, `Tapaal 2026`): the questions are how many formulas the
-   checker answers (`grep -c CTL_WALK` over the logs, and how many of them
-   only the checker had before the diagrams), any wrong verdict (a soundness
-   bug; the oracle script found two locally, none remain), and whether the
-   companion costs anything on the instances the diagrams solved alone.
-5. Optionally, the stand-alone measurement: the `petrispot` tool of
-   MCC-drivers gets CTLC and CTLF (below), 300 s confinement for a first
-   sweep.
+Collect with `collect.sh 202609071637 CTLC CTLF L` (the run folder is named
+after the product stamp). There is no complete CTL baseline of ours, so read
+the report against the field (`report.py --raw`, the pages against
+`ITS-Tools 2026`, `Tapaal 2026`): how many formulas the checker answers, how
+many of those only it had before the diagrams, any wrong verdict (a soundness
+bug), and whether the companion costs anything where the diagrams won alone.
+
+### The LTSmin partial order soundness bug
+
+`StigmergyCommit-PT-02b-LTLCardinality-03` is answered TRUE where the field has
+FALSE, by `PARTIAL_ORDER EXPLICIT LTSMIN SAT_SMT`, and it was answered FALSE on
+2026-09-06 by the same technique on the same net. The knowledge step is what
+changed (four factoids that reduced the automaton 3 states/4 edges to 2/3 on
+09-06 reduce nothing on 09-07). Weaker knowledge must cost an answer, not
+produce a wrong one. Details in `Petri/test/mcc/csv/2026-09-07/README.md`.
 
 ### CTL checker (`CTL_PLAN.md` section 9 has the list, 11 the design talk)
 
@@ -129,13 +120,12 @@ sections 4 and 5), then:
 
 ### Native image (ITS-Tools)
 
-After the campaign: `install_itstools.sh` in a fresh `itstools/` on the
-cluster (or the image dropped beside `its-tools`), the Airplane warmup
-through `run_oar.sh`, read the logs for closed-world misses (named
-exceptions), then one examination. If `small` refuses the image, `-march` in
-`build-native.sh`. Open: `--exact-reachability-metadata` for loud misses on
-a sweep; stripping the 20 signed jars at install (a 25 % start-up gain for
-the flat launcher).
+`-march`: the image refuses to start on `small%` (no AVX2) and answers nothing
+rather than failing loudly, so half the cluster is out of reach. Open too:
+`--exact-reachability-metadata` for loud misses on a sweep, and stripping the
+20 signed jars at install (a 25 % start-up gain for the flat launcher). More
+closed-world misses should be expected on the corpus; the recipe is
+`Petri/test/native-trace.sh` then a rebuild.
 
 ### libHSC as a competitor (a dedicated session)
 
@@ -148,3 +138,5 @@ StateSpace sweep (`libHSC_in_MCC.md`).
 and in our runs, TRUE for smpt, TAPAAL and 2025-gold; the `CPN_APPROX`
 skeleton over-approximation of the coloured net, deterministic, not the
 walker.
+
+StateSpace answers three values, not four: no `TRANSITIONS`. Normal.
