@@ -5,7 +5,37 @@
 #include <unordered_map>    // Replaced ext_hash_map.hh with standard header
 #include <expat.h>
 #include <stack>
+
+#include "core/Arithmetic.hpp"
 #include <iostream>
+
+/**
+ * Parse a PNML integer (an initial marking or an arc weight) into T. A value
+ * that does not fit the build's integer width is junk for this build, not
+ * something to truncate: it throws, like the colour check does. Unparsable
+ * text keeps the historical fallback (the caller's default).
+ */
+template<typename T>
+  static T parsePnmlInt (const std::string &text, const char *what, T fallback)
+  {
+    long long v;
+    try {
+      v = std::stoll (text);
+    } catch (const std::out_of_range &e) {
+      throw std::overflow_error (
+          std::string (what) + " '" + text
+              + "' does not fit this build's integer width");
+    } catch (const std::exception &e) {
+      return fallback;  // unparsable text: the historical default
+    }
+    try {
+      return petri::castExact<T> (v);
+    } catch (const std::overflow_error &e) {
+      throw std::overflow_error (
+          std::string (what) + " " + std::to_string (v)
+              + " does not fit this build's integer width");
+    }
+  }
 
 template<typename T>
   class PTNetHandler
@@ -224,16 +254,11 @@ template<typename T>
         if (DEBUG) std::cout << "  Disabling text/int parsing" << std::endl;
       } else if ("initialMarking" == baliseName) {
         size_t p = reinterpret_cast<size_t> (tthis->stack.top ());
-        try {
-          tthis->lastint = std::stol (tthis->textBuffer); // Convert accumulated text to int
-          if (DEBUG) std::cout << "  Parsed initialMarking from '"
-              << tthis->textBuffer << "' -> lastint = " << tthis->lastint
-              << std::endl;
-        } catch (const std::exception &e) {
-          if (DEBUG) std::cout << "  Failed to parse initialMarking from '"
-              << tthis->textBuffer << "': " << e.what () << std::endl;
-          tthis->lastint = 0; // Default to 0 on error
-        }
+        tthis->lastint = parsePnmlInt<T> (tthis->textBuffer, "initialMarking",
+                                          (T) 0);
+        if (DEBUG) std::cout << "  Parsed initialMarking from '"
+            << tthis->textBuffer << "' -> lastint = " << tthis->lastint
+            << std::endl;
         tthis->net->setMarking (p, (T) tthis->lastint);
         if (DEBUG) std::cout << "Initial marking for place " << p << " = "
             << tthis->net->getPnames ()[p] << " is " << tthis->lastint
@@ -246,16 +271,11 @@ template<typename T>
             << std::endl;
       } else if ("inscription" == baliseName) {
         arc_t *arc = static_cast<arc_t*> (tthis->stack.top ());
-        try {
-          tthis->lastint = std::stol (tthis->textBuffer); // Convert accumulated text to int
-          if (DEBUG) std::cout << "  Parsed inscription from '"
-              << tthis->textBuffer << "' -> lastint = " << tthis->lastint
-              << std::endl;
-        } catch (const std::exception &e) {
-          if (DEBUG) std::cout << "  Failed to parse inscription from '"
-              << tthis->textBuffer << "': " << e.what () << std::endl;
-          tthis->lastint = 1; // Default to 1 on error (arc weight)
-        }
+        tthis->lastint = parsePnmlInt<T> (tthis->textBuffer, "inscription",
+                                          (T) 1);
+        if (DEBUG) std::cout << "  Parsed inscription from '"
+            << tthis->textBuffer << "' -> lastint = " << tthis->lastint
+            << std::endl;
         arc->second = tthis->lastint;
         tthis->readint = false;
         tthis->textBuffer.clear ();
