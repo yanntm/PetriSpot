@@ -26,10 +26,9 @@ for m in $models ; do
 	log="$OUT/$m.log"
 	rm -f /tmp/graph*
 	timeout $((TIMEOUT * 3)) "$PROD"/its-tools -pnfolder "$IN/$m" -examination "$EXAM" -louvainBench -order META -timeout "$TIMEOUT" > "$log" 2>&1
-	line=$(grep -m1 "^Louvain input : " "$log")
-	vars=$(echo "$line" | sed -n 's/.*: \([0-9]*\) variables.*/\1/p')
-	cstrs=$(echo "$line" | sed -n 's/.*, \([0-9]*\) constraints.*/\1/p')
-	maxc=$(echo "$line" | sed -n 's|.*sizes [0-9]*/[0-9]*/\([0-9]*\).*|\1|p')
+	vars=$(sed -n 's/^Louvain bench : \([0-9]*\) variables,.*/\1/p' "$log" | head -1)
+	cstrs=$(sed -n 's/^Louvain bench : \([0-9]*\) constraints inducing.*/\1/p' "$log" | head -1)
+	maxc=$(sed -n 's/^Louvain bench : .* support [0-9]* median \([0-9]*\) max.*/\1/p' "$log" | head -1)
 	decomp=$(sed -n 's/^Louvain bench : decomposition took \([0-9]*\) ms/\1/p' "$log" | tail -1)
 	edges=0 ; bytes=0 ; conv=0 ; louv=0 ; comms=0
 	for txt in /tmp/graph*.txt ; do
