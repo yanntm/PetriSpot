@@ -42,6 +42,37 @@ rsync -rlptD --no-g --chmod=Dg+s --delete /data/ythierry/MCC26deploy/MCC-drivers
 `--chmod=Dg+s` and `--no-g` are load bearing (the quota group, `BENCH.md`).
 Do not touch a tool folder while a campaign that uses it is running.
 
+### Which launcher a campaign gets
+
+`install_itstools.sh` downloads the product **and** `its-tools-native`, and
+`runeclipse.sh` execs the native image whenever that file is present. A fresh
+install therefore switches the launcher of the next campaign without saying so.
+Decide it deliberately: keep the file for the native image, delete it from the
+deploy tree before the rsync for the Eclipse launcher.
+
+The image is compiled for AVX2, so it runs on `tall%` only. On `small%` it
+prints `The current machine does not support all of the following CPU features`
+and exits having answered nothing -- a silent zero-`FORMULA` log, not a crash.
+Until `build-native.sh` gets an `-march`, a campaign on the image is `tall%`.
+
+What actually ran is in the job's `.stderr` (`runeclipse.sh` traces with
+`set -x`), not in the log:
+
+```
+grep -m1 'exec .*its-tools-native' <EXAM>/OAR.<jobid>.stderr    # native, else the Eclipse launcher
+```
+
+Startup on `tall11`, OneSafe on AirplaneLD-PT-0010, cold then warm
+(`~/MCC26/flat-test/flatbench.sh`): Eclipse 3094 then ~1000 ms, flat 930 then
+~620 ms, native 596 then ~25 ms; a bare JVM starts in 45 ms. Against an 1800 s
+timeout the saving is noise; the image is worth it for short examinations.
+
+The image carries a closed world: a class reached by reflection that the
+tracing agent never recorded is a `MissingReflectionRegistrationError` at run
+time, and the engine that hit it answers nothing while the rest of the run
+looks healthy. The recipe (trace the failing run, rebuild) is in
+`~/git/ITStools/ITS-commandline/native/README.md`.
+
 ## 2. Warm up, then submit
 
 Always one small instance first: it catches a broken install in a minute.
