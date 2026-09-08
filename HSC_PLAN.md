@@ -408,6 +408,18 @@ under `ReductionType.STATESPACE`), and the unique table (on a hit, add the
 incoming weight to the surviving entry — one line, given a table that
 reports the hit).
 
+**The counter composes part by part.** Unfolding binds one parameter at a
+time, so a partially bound `HLTrans` carries a weight starting at 1: a step
+that skips values on a false guard contributes nothing, a step that
+collapses an orbit multiplies by its size, and `transformHLtoPT`
+accumulates into the surviving entry instead of overwriting, so a unique
+table hit adds. Product under composition, sum over alternatives: a
+counting semiring, no global bookkeeping. 64-bit, and stale on overflow
+rather than wrap (the final sum is GMP anyway). Places need none of this:
+the same log shows 10865 places for 646 transitions, so places unfold in
+full and place weights are purely a reduction-side notion (free-SCC
+agglomeration), not a decolouring one.
+
 The cost is plumbing, not arithmetic: `dropTransitions` (13 call sites in
 `StructuralReduction`) renumbers, so permuting the weight vector there
 covers most rules cheaply, while rules that *create* transitions get the
