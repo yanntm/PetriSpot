@@ -2,6 +2,7 @@
 #define RATIONAL_H
 
 #include <iostream>
+#include <numeric>
 
 template<typename T>
 class Rational {
