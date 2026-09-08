@@ -20,6 +20,12 @@ COL="$IN/AirplaneLD-COL-0010"
 # coloured model with one were never recorded: BART-COL died on
 # fr.lip6.move.pnml.symmetricnet.terms.Sort[] in the campaign of 2026-09-08.
 BART="$IN/BART-COL-002"
+# Neither Airplane nor BART carries an XML comment, so the Axiom node the PNML
+# framework builds for one was never instantiated: the COL models the GreatSPN
+# Editor exported (Sudoku, LastZero, FileSystem, UtilityControlRoom, VehicularWifi)
+# all died at 11 ms on org.apache.axiom.om.impl.llom.OMCommentImpl in the campaign
+# of 2026-09-08, 58 instances answering nothing.
+SUDOKU="$IN/Sudoku-COL-AN01"
 run() {
 	echo "===== trace $2 on $(basename $1)"
 	"$NATIVE/trace-agent.sh" "$PROD" "$1" "$2" > /dev/null 2>&1 || echo "  (exit $?, traced anyway)"
@@ -32,6 +38,9 @@ for e in StateSpace Liveness CTLCardinality ; do
 done
 for e in CTLCardinality CTLFireability ReachabilityCardinality LTLFireability ; do
 	run "$BART" "$e"
+done
+for e in CTLCardinality CTLFireability ; do
+	run "$SUDOKU" "$e"
 done
 echo "===== done; config entries now:"
 python3 -c "import json;d=json.load(open('$NATIVE/config/reachability-metadata.json'));print({k:len(v) for k,v in d.items()})"
