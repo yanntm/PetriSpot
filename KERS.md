@@ -93,6 +93,24 @@ loaded net names them `p<i>` and `t<i>`.
 | 14 | 2 | | Padding (zero) |
 | 16 | | KERS | `flowPT`, then `flowTP`, then the marking |
 
+After those three blocks a net may carry optional **named blocks**, each a
+12-byte framing followed by an ordinary KERS payload:
+
+| Offset | Size | Type | Description |
+|--------|------|------|-------------|
+| 0 | 8 | char[8] | Name, ASCII, zero-padded (e.g. `TMULT`) |
+| 8 | 4 | uint32 | Payload length in bytes |
+| 12 | | KERS | The payload |
+
+A reader that does not ask for them never reads them; an unknown name is
+skipped by its length; a producer emits only what it has, so the absence of a
+block is how "not available" is said, and extensibility is by new names rather
+than by changing the framing. In use: `TMULT`, one column of T rows holding a
+transition multiplicity minus one (0, hence an absent entry, means 1) — how
+many transitions of the producer's original net this one stands for, so a
+consumer counting arcs of the reachability graph multiplies by it. See
+`HSC_PLAN.md` sections 10 to 13.
+
 The block dimensions must agree with the header. Size is about
 `12 x arcs + 8 x transitions` bytes: the 59k-transition, 1.26M-arc
 ErlangenMainframe net is 16 MB against 66 MB of PNML and loads in 40 ms.

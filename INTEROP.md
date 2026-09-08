@@ -117,6 +117,24 @@ All integers little-endian.
 | | | KERS | `flowTP`, `P` rows x `T` columns (post-arcs) |
 | | | KERS | initial marking, `P` rows x 1 column |
 
+After those three blocks a net may carry optional **named blocks**, each a
+12-byte framing followed by an ordinary KERS payload:
+
+| Offset | Size | Type | Description |
+|--------|------|------|-------------|
+| 0 | 8 | char[8] | Name, ASCII, zero-padded (e.g. `TMULT`) |
+| 8 | 4 | uint32 | Payload length in bytes |
+| 12 | | KERS | The payload |
+
+A reader that does not ask for them never reads them; an unknown name is
+skipped by its length; a producer emits only what it has, so the absence of a
+block is how "not available" is said, and extensibility is by new names rather
+than by changing the framing. In use: `TMULT`, one column of T rows holding a
+transition multiplicity minus one (0, hence an absent entry, means 1) — how
+many transitions of the producer's original net this one stands for, so a
+consumer counting arcs of the reachability graph multiplies by it. See
+`HSC_PLAN.md` sections 10 to 13.
+
 Places and transitions are identified by their index in this file, on both
 sides, for properties and traces. The loaded net names them `p<i>` and
 `t<i>`. Values are int64 in the file as in KERS; `petri32` warns and
