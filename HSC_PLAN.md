@@ -497,11 +497,38 @@ value, never a wrong one.
   free-SCC agglomeration is the factorisable fibre (binomial weight,
   section 10); anything invariant-tied clears the flag (Berthomieu).
 
-**Consequence for StateSpace.** TRANSITIONS is answerable only on a net that
-escaped the arc-destroying rules, while STATES and the two token values
-survive the STATESPACE reductions (this campaign). So: a reduced run for
-three values, an unreduced run for the fourth; the driver is a portfolio
-already.
+**What STATESPACE actually applies** (`StructuralReduction.reduce`, the
+`rt == STATESPACE` branch, "pretty basic stuff only"): constant-place
+removal, no-effect transition removal (`flowPT == flowTP`), redundant
+compositions. Two gates are the point: a constant place *holding tokens* is
+skipped, and `ensureUnique` (duplicate fusion) is not run at all. Those
+refusals exist because the consumer cannot interpret the result otherwise —
+the same post-interpretation of simplified results that ITS-Tools does by
+hand for the token values, historically a source of bugs.
+
+**Ghost contributors make TRANSITIONS survive reductions.** For arcs a
+transition need not survive: what is needed is its enabling predicate and
+its multiplicity. A transition dropped as no-effect or as a redundant
+composition can be kept as a ghost contributor (its pre-arc vector plus a
+weight) and evaluated against the reachable set at the end, so its arcs are
+counted exactly though it is gone from the net. Likewise a removed constant
+place holding `c` tokens is an additive `c` in token sums and a candidate
+`c` in the per-place maximum. This *lifts* the reducer's gates instead of
+working around them: StateSpace can then be answered on a more reduced net,
+not a less reduced one. (It supersedes the earlier conclusion here that
+TRANSITIONS forces an unreduced run.)
+
+**One vocabulary for all four values.** Each place carries three functions
+of its value: multiplicative count weight, additive token contribution, max
+contribution. Each transition carries a multiplicity. The net carries ghost
+contributors and constants. Then STATES is the weighted count,
+MAX_TOKEN_PER_MARKING the max of a weighted sum, MAX_TOKEN_IN_PLACE the max
+over per-place functions, TRANSITIONS the weighted sum over surviving and
+ghost contributors — four folds over one diagram, with the producer stating
+what each object stands for instead of the consumer guessing. A closed
+vocabulary of kinds (identity, constant, affine, binomial-in-K) keeps
+serialisation to a kind tag plus one or two integers per object, hence a
+named KERS block per kind.
 
 **Format.** PNET keeps its three blocks; a flags bit says named blocks
 follow. Each: 8-byte ASCII name, uint32 byte length (an unknown block is
