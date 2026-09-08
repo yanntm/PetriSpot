@@ -489,6 +489,33 @@ there, maintain it, else skip this code". No flag travels through the rules,
 nothing is allocated for a run that does not track (the field is null), and
 a consumer weights its counts when the blocks are present.
 
+**Where the code lives (2026-09-08).** Net code says only what it did to its
+own objects; every decision about what that means for a record is in one new
+file, `NetBlocks`, behind a four-method `Holder` interface both net classes
+already satisfied. `NetBlock` stays a pure enum carrying the contract. The
+core sites are one call each: "these duplicates were fused, here are their
+survivors", "these transitions went, for this reason", "may I drop the ones
+with no effect?". Presence is an O(1) field test made once before a loop,
+never inside it, and a net that tracks nothing calls nothing. No observer
+machinery for one consumer.
+
+**Fusing duplicates is maintained, and it pays.** 282 logs of the ITS-Tools
+StateSpace campaign report fusing duplicate transitions, 1934710 of them in
+all, so an arc count over such a net is meaningless without the record. The
+survivor now takes the dropped weights (chain-resolved for three or more
+identical transitions, re-indexed for the deletions), and the rule that
+removes transitions with *no effect* asks `NetBlocks.mayDropNoEffect` and
+keeps them while a record exists: their arcs are self-loops nothing else
+carries, and a consumer pays nothing for them, since a transition that
+cannot change the marking adds nothing to a fixpoint.
+
+Measured on AutonomousCar-PT-01a (35 transitions, 9 duplicates, oracle
+STATES 227 and TRANSITIONS 654), through `its-tools -examination StateSpace
+-hscBenchReduce`: the reductions keep the 2 no-effect transitions, fuse the
+9 duplicates to 26 transitions, and libHSC answers all four values with
+TRANSITIONS 654. A plain run without the HSC flags still removes all 11
+transitions, unchanged.
+
 **Java side, implemented (2026-09-08).** `SparsePetriNet` carries optional
 named matrices (`getExtra`/`putExtra`/`getExtras`/`clearExtras`, null until
 something is attached, copied by the copy constructor);
