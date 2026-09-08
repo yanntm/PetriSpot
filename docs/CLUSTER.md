@@ -18,7 +18,7 @@ jobs write are read back from the head.
 | where | what |
 | --- | --- |
 | `cluster.lip6.fr:~/MCC26/MCC-drivers/` | the harness: `run_oar.sh`, `oracle/`, `INPUTS/`, one folder per tool (`itstools/`, `petrispot/`, `hsc/`...) |
-| `.../MCC-drivers/<EXAM>/` | the results of one examination: `OAR.<jobid>.stdout` (the log) and `.stderr` (the `time -p` trailer); they exist only on the cluster until collected |
+| `.../MCC-drivers/<EXAM>/` | the results of one examination: `OAR.<jobid>.stdout` (the log) and `.stderr` (the `time -p` trailer); they exist only on the cluster until collected. `<EXAM>.<tag>/` when the submission carried `TAG` (one tool, or one setting, per folder) |
 | `cluster.lip6.fr:~/MCC26/flat-test/` | the launcher bench (Eclipse, flat, native image) |
 | `/data/ythierry/MCC26deploy/MCC-drivers/` | the local deploy tree, built here and rsynced up, one subtree at a time |
 | `/data/ythierry/MCC26run/<date>/<EXAM>/` | collected logs, `csv/` beside them |
@@ -86,7 +86,17 @@ TIMEOUT=1800 WALLTIME=0:45:0 CORES=4 HOSTS="tall%" BK_TOOL=itstools ./run_oar.sh
 
 `TIMEOUT` is the budget `run_test.pl` gives the tool, `WALLTIME` the OAR
 limit (comfortably above), `HOSTS` `tall%` for the current hardware (`small%`
-is the old nodes, no AVX2). Submit from the foreground and let it end (a few
+is the old nodes, no AVX2). `TAG=<name>` qualifies the result folder
+(`SS.hsc`, `RC.itstools`), so two tools, or two settings of one tool, run
+the same examination side by side without mixing logs; `collect.sh` takes
+the qualified name as its examination argument and the collectors read the
+examination from the log, not from the folder:
+
+```
+TIMEOUT=300 WALLTIME=0:10:0 CORES=4 HOSTS="tall%" TAG=itstools BK_TOOL=itstools ./run_oar.sh 'oracle/*-SS.out'
+bash Petri/test/mcc/collect.sh <date> SS.itstools   # the folder name, tag included
+```
+ Submit from the foreground and let it end (a few
 hundred `oarsub` take minutes; parallel submissions have brought the head
 down). For several examinations, one `run_oar.sh` after another in a detached
 script, as `~/MCC26/MCC-drivers/submit-<date>.sh` does (a copy of the last
