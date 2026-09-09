@@ -29,9 +29,6 @@ namespace petri::walk
 using sched::Slice;
 using sched::SliceReport;
 using sched::Task;
-using sched::Scheduler;
-using sched::SchedulerSpec;
-using sched::Decision;
 
 /** What one task reports at the end: its strategy, counters and claims. */
 struct ThreadReport
