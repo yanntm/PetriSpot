@@ -28,13 +28,20 @@
 #include <vector>
 
 #include "core/SparseArray.h"
-#include "walk/Scheduler.h"
+#include "sched/Scheduler.h"
 #include "walk/SharedPool.h"
-#include "walk/Task.h"
+#include "sched/Task.h"
 #include "walk/WalkTask.h"
 
 namespace petri::walk
 {
+// The scheduler's types, as walk sees them (they live in sched/).
+using sched::Slice;
+using sched::SliceReport;
+using sched::Task;
+using sched::Scheduler;
+using sched::SchedulerSpec;
+using sched::Decision;
 
 struct CoordinatorSpec
 {

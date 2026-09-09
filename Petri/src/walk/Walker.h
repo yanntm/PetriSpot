@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "walk/EnabledSet.h"
-#include "walk/Task.h"
+#include "sched/Task.h"
 #include "walk/Knowledge.h"
 #include "walk/Marking.h"
 #include "walk/NoveltyTracker.h"
@@ -34,6 +34,13 @@
 
 namespace petri::walk
 {
+// The scheduler's types, as walk sees them (they live in sched/).
+using sched::Slice;
+using sched::SliceReport;
+using sched::Task;
+using sched::Scheduler;
+using sched::SchedulerSpec;
+using sched::Decision;
 
 struct WalkStats
 {

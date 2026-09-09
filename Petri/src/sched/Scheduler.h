@@ -1,5 +1,5 @@
 /*
- * Scheduler.h
+ * sched/Scheduler.h
  *
  * Time sharing of many tasks over a few runner threads. Runnable tasks wait
  * in one queue ordered by virtual time; each runner pops the task with the
@@ -14,8 +14,8 @@
  * The policy (shares, parking, spawning) lives in the Coordinator; this file
  * is the queue and the runners. See WALK_PLAN.md sections 10.11 and 10.12.
  */
-#ifndef PETRI_WALK_SCHEDULER_H_
-#define PETRI_WALK_SCHEDULER_H_
+#ifndef PETRI_SCHED_SCHEDULER_H_
+#define PETRI_SCHED_SCHEDULER_H_
 
 #include <algorithm>
 #include <atomic>
@@ -28,9 +28,9 @@
 #include <thread>
 #include <vector>
 
-#include "walk/Task.h"
+#include "sched/Task.h"
 
-namespace petri::walk
+namespace petri::sched
 {
 
 struct SchedulerSpec
@@ -205,6 +205,6 @@ public:
   }
 };
 
-} // namespace petri::walk
+} // namespace petri::sched
 
-#endif /* PETRI_WALK_SCHEDULER_H_ */
+#endif /* PETRI_SCHED_SCHEDULER_H_ */

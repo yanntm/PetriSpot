@@ -1169,10 +1169,10 @@ and keep a step `O(1)` where the exact figure is not worth its price.
 **Shape of the code.**
 
 ```
-walk/Task.h        Slice (steps, deadline), SliceReport (steps, claims, novelty, micros, capped, finished),
+sched/Task.h       Slice (steps, deadline), SliceReport (steps, claims, novelty, micros, capped, finished),
                    Task (label, kind, share, vruntime, budget, state; run(slice), finish(), report())
 walk/WalkTask.h    a Task over a Walker and its strategy bundle: today's thread body, resumable
-walk/Scheduler.h   the queue, the runners, the shares and their update, the summary per kind
+sched/Scheduler.h  the queue, the runners, the shares and their update, the summary per kind
 walk/Walker.h      run(budget) split into begin(budget), runSlice(steps, deadline), finish();
                    the loop's locals become members
 walk/Portfolio.h   builds the initial tasks from the specs and hands them to the Scheduler;

@@ -581,9 +581,9 @@ no progress). What that side asks of ours, so that the types can be shared
 by vendoring and later by one process:
 
 * a home for `Task`, `Slice`, `SliceReport`, `Scheduler` that is not
-  `walk/` — a `sched/` folder and namespace; `walk/` keeps the strategies;
-* a memory footprint in the report, or a side channel the coordinator
-  reads: memory is the budget the symbolic side always meets first (the
+  `walk/` — done: `Petri/src/sched/`, namespace `petri::sched`; `walk/`
+  keeps the strategies and imports the names;
+* a memory footprint in the report (done: `SliceReport::memoryBytes`) — memory is the budget the symbolic side always meets first (the
   cluster nodes cap a one-core job at about 6 GB), and parking there means
   dropping caches, not killing;
 * steps understood as coarse (already: `capped`), with the report's

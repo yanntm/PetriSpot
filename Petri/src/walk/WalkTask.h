@@ -20,11 +20,18 @@
 
 #include "core/SparseArray.h"
 #include "walk/NoveltyTracker.h"
-#include "walk/Task.h"
+#include "sched/Task.h"
 #include "walk/Walker.h"
 
 namespace petri::walk
 {
+// The scheduler's types, as walk sees them (they live in sched/).
+using sched::Slice;
+using sched::SliceReport;
+using sched::Task;
+using sched::Scheduler;
+using sched::SchedulerSpec;
+using sched::Decision;
 
 /** What one task reports at the end: its strategy, counters and claims. */
 struct ThreadReport

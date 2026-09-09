@@ -1,7 +1,8 @@
 /*
- * Task.h
+ * sched/Task.h
  *
- * An exploration task for the Scheduler: a resumable unit of work with a
+ * A task for the Scheduler — an exploration walk, or any other resumable unit
+ * of work (a symbolic fixpoint: libHSC sched/algorithm.md): a resumable unit of work with a
  * label, a strategy kind, a share of the runners' time, a virtual clock and
  * its statistics. `run(slice)` advances it by at most `slice.steps` steps or
  * until `slice.deadline`, whichever comes first, and returns what the slice
@@ -9,14 +10,14 @@
  * is owned by one runner at a time, so nothing in it locks. See
  * WALK_PLAN.md section 10.11.
  */
-#ifndef PETRI_WALK_TASK_H_
-#define PETRI_WALK_TASK_H_
+#ifndef PETRI_SCHED_TASK_H_
+#define PETRI_SCHED_TASK_H_
 
 #include <chrono>
 #include <cstdint>
 #include <string>
 
-namespace petri::walk
+namespace petri::sched
 {
 
 struct Slice
@@ -35,6 +36,7 @@ struct SliceReport
   uint64_t micros = 0;     // running time of the slice
   bool capped = false;     // the deadline ended the slice before the steps did
   bool finished = false;   // the task has nothing left to do
+  uint64_t memoryBytes = 0; // the task's footprint after the slice, when it knows it (symbolic tasks do): the budget they meet first
 };
 
 class Task
@@ -69,6 +71,6 @@ public:
   }
 };
 
-} // namespace petri::walk
+} // namespace petri::sched
 
-#endif /* PETRI_WALK_TASK_H_ */
+#endif /* PETRI_SCHED_TASK_H_ */

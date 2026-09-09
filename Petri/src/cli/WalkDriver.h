@@ -230,7 +230,7 @@ template<typename T>
     std::function<void (const petri::walk::Claim<T>&)> onClaim = [&] (const petri::walk::Claim<T> &c) {
       printFormula (o, targets, c);
     };
-    petri::walk::SchedulerSpec sched;
+    petri::sched::SchedulerSpec sched;
     sched.sliceSteps = o.slice;
     sched.sliceMillis = o.sliceMs;
     petri::walk::CoordinatorSpec coord;

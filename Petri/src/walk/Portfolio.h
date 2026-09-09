@@ -44,12 +44,19 @@
 #include "walk/RestartPolicy.h"
 #include "walk/TargetSet.h"
 #include "walk/Coordinator.h"
-#include "walk/Scheduler.h"
+#include "sched/Scheduler.h"
 #include "walk/WalkTask.h"
 #include "walk/Walker.h"
 
 namespace petri::walk
 {
+// The scheduler's types, as walk sees them (they live in sched/).
+using sched::Slice;
+using sched::SliceReport;
+using sched::Task;
+using sched::Scheduler;
+using sched::SchedulerSpec;
+using sched::Decision;
 
 struct StrategySpec
 {
