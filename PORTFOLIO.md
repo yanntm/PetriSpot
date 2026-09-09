@@ -566,6 +566,40 @@ revise an item. Revisit once G1 says where the time goes.
   restart states, remembers which heuristics ran fast or slow here, and focuses
   on the parts of the system that are hard to get into.
 
+## Tasks beyond walkers: the symbolic side (2026-09-09)
+
+libHSC wants in: its fixpoints as tasks of this scheduler, under this
+budget arithmetic, feeding this pool (`~/git/libHSC/include/hsc/sched/`,
+`algorithm.md` there is the counterpart of this note). The fit is close
+because a symbolic fixpoint is a continuation kept as data one level above a
+walk — between two rounds its state is the current set and the memo, and an
+interruption loses nothing if no partial value enters a cache (libDDD's
+discipline: a flag raised once, every loop unwinds at its round boundary
+without inserting, the root marks the set partial, the interval between
+interruptions grows geometrically because a saturation without caches makes
+no progress). What that side asks of ours, so that the types can be shared
+by vendoring and later by one process:
+
+* a home for `Task`, `Slice`, `SliceReport`, `Scheduler` that is not
+  `walk/` — a `sched/` folder and namespace; `walk/` keeps the strategies;
+* a memory footprint in the report, or a side channel the coordinator
+  reads: memory is the budget the symbolic side always meets first (the
+  cluster nodes cap a one-core job at about 6 GB), and parking there means
+  dropping caches, not killing;
+* steps understood as coarse (already: `capped`), with the report's
+  progress fields read off the returned set — states gained, subshapes
+  that gained nothing — never counted inside the run;
+* kinds that are shape configurations: the four shapes the hsc driver runs
+  today as four processes become four tasks of one, the memory accounted
+  once, the losers parked.
+
+Everything else — shares following results, parking on a window without
+progress, spawning as a bandit over (state, tool), budgets conserving down a
+spawn tree, facts closing goals in the pool — applies unchanged; a symbolic
+reachable set, once it exists, is the oracle that tells the coordinator
+which targets are unreachable and stops the walkers spending on them, and a
+walker's best marking is a seed a symbolic task can search backward from.
+
 ## Still open
 
 1. Where the "few enough goals" threshold sits, per examination.
