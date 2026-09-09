@@ -14,6 +14,12 @@ those logs into tables we can analyse.
   campaign drains. The procedure is `docs/CLUSTER.md`.
 * `submit-<date>.sh` — a copy of the submission script of that campaign as
   run on the cluster head.
+* `warmup_check.sh DEST FOLDER...` — rsync the named result folders down and
+  print, per folder, logs, trailers, regression lines, failure signatures,
+  answers: the read of a warmup before a campaign is submitted.
+* `watch_drain.sh LOG [INTERVAL] [MAXLOOKS]` — `cluster_status.sh` every
+  INTERVAL seconds (600) into LOG until none of our jobs is left; exits 0
+  when drained. What waits between the batches of a campaign.
 * `mcclogs2csv.py` — the collector. Takes examination directories, writes
   `runs.csv` (one row per log) and `verdicts.csv` (one row per formula).
 * `totallogs2csv.py` — the collector of the total examinations
