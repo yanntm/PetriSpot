@@ -54,6 +54,55 @@ The image is compiled for AVX2, so it runs on `tall%` only. On `small%` it
 prints `The current machine does not support all of the following CPU features`
 and exits having answered nothing -- a silent zero-`FORMULA` log, not a crash.
 Until `build-native.sh` gets an `-march`, a campaign on the image is `tall%`.
+The recorded failure is `cluster.lip6.fr:~/MCC26/flat-test/run-native.log`,
+and it names the whole demand:
+
+```
+[CX8, CMOV, FXSR, MMX, SSE, SSE2, SSE3, SSSE3, SSE4_1, SSE4_2,
+ POPCNT, LZCNT, AVX, AVX2, BMI1, BMI2, FMA, F16C]
+```
+
+`small%` has everything up to `POPCNT` and none of `LZCNT, AVX, AVX2, BMI1,
+BMI2, FMA, F16C`. The setting that covers both classes in one image is
+`-march=x86-64-v2`, which is exactly what a Westmere provides; `-march=
+compatibility` (v1) is the fallback that cannot fail. One flag, one rebuild.
+
+### 1a. The `small%` nodes
+
+24 nodes, 576 cores, and the only class we can count on while other users
+hold `tall%` with whole-node jobs. Measured on `small1`:
+
+| | |
+| --- | --- |
+| CPU | Intel Xeon **E5645 @ 2.40 GHz** (Westmere-EP, 2010), 2 sockets x 6 cores x 2 threads = 24 logical |
+| RAM | **64 GB** |
+| cache | L3 24 MiB (2 x 12), L2 3 MiB, L1d/L1i 384 KiB; 2 NUMA nodes |
+| ISA | SSE4.2, AES, PCLMULQDQ, POPCNT -- **no AVX at all**, not merely no AVX2 |
+| `gcc -march=native` on the node | **`westmere`** (gcc, g++ and cc are installed on the compute nodes) |
+
+Two consequences for a campaign.
+
+**Memory.** 64 GB over 24 logical CPUs is 2.7 GB a core. A job budgeted at
+the usual 6 GB packs about **10 to a node, not 24**; oversubscribing gets
+the SIGKILL of `BENCH.md`'s RAM rule, recorded as `status=memory`, rc 137.
+
+**Portability.** A statically linked tool is not automatically safe here:
+GMP tunes its assembly at configure time. PetriSpot's own static build
+handles it (`build.sh`: `./configure --enable-cxx --enable-fat
+--build=westmere-pc-linux-gnu`). libHSC does not need the equivalent --
+its CI links Ubuntu's `libgmp-dev`, a fat build that dispatches at run
+time, and the deployed `hsc-pn` answers correctly on `small1`. Test a tool
+on the class before a campaign rather than reasoning about its flags: one
+`oarsub` on one instance is the whole check.
+
+To take a node by hand:
+
+```
+oarsub -I -l /nodes=1/core=4,walltime=2:00:00 -p "(host like 'small%')"
+```
+
+The nodes are on standby when idle; the first job on a sleeping node waits
+for it to wake.
 
 What actually ran is in the job's `.stderr` (`runeclipse.sh` traces with
 `set -x`), not in the log:
