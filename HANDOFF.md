@@ -33,7 +33,6 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 | the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` (product `202609080208`) |
 | the cluster tree | `cluster.lip6.fr:~/MCC26/MCC-drivers/`, results only there |
 | result pages | `/data/ythierry/MCC26run/pages`, built by `~/git/MCC-analysis` |
-| collected tables, committed | `Petri/test/mcc/csv/<campaign>/` with a README each |
 | local ITS-Tools products | `/data/ythierry/itstools-ci-check/` (the published product) |
 | native image material | `~/git/ITStools/ITS-commandline/native/`, `cluster.lip6.fr:MCC26/flat-test/`, local test image `/data/ythierry/MCC26deploy/its-tools-native-test` |
 | GraalVM for a local image build | `/data/ythierry/graal/graalvm-jdk-25.0.4+7.1` |
