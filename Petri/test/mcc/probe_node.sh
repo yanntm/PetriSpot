@@ -34,9 +34,17 @@ sec "memory"
 free -g | head -2
 echo "ulimit -v: $(ulimit -v)  ulimit -m: $(ulimit -m)"
 echo "cgroups of this shell:"; cat /proc/self/cgroup
+# the limit may sit on any ancestor of the shell's cgroup (OAR's job slice)
 for cg in $(cut -d: -f3 /proc/self/cgroup | sort -u); do
-  for f in /sys/fs/cgroup$cg/memory.max /sys/fs/cgroup$cg/memory.high /sys/fs/cgroup/memory$cg/memory.limit_in_bytes /sys/fs/cgroup/memory$cg/memory.soft_limit_in_bytes /sys/fs/cgroup$cg/cpuset.cpus /sys/fs/cgroup/cpuset$cg/cpuset.cpus; do
-    [ -f "$f" ] && echo "$f: $(cat $f)"
+  d=$cg
+  while [ -n "$d" ]; do
+    for f in memory.max memory.high memory.swap.max cpuset.cpus cpuset.cpus.effective cpu.max; do
+      [ -f "/sys/fs/cgroup$d/$f" ] && echo "$d $f: $(cat /sys/fs/cgroup$d/$f)"
+    done
+    for f in memory/memory.limit_in_bytes cpuset/cpuset.cpus; do
+      [ -f "/sys/fs/cgroup/${f%/*}$d/${f#*/}" ] && echo "$d $f: $(cat /sys/fs/cgroup/${f%/*}$d/${f#*/})"
+    done
+    d=${d%/*}
   done
 done
 if command -v python3 > /dev/null; then
