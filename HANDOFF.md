@@ -96,8 +96,10 @@ The three wrong verdicts are the open item, none backed by another tool:
 | `FileSystem-COL-N02I10B10-CTLFireability-2024-05` | TRUE | FALSE | 767 |
 
 Two are TRUE for a FALSE property and one the converse, so no single
-direction of unsoundness explains them. The csv of this campaign is not yet
-committed to `Petri/test/mcc/csv/`.
+direction of unsoundness explains them; `FileSystem-COL` is coloured, which
+puts the skeleton approximation on the list of suspects for that one alone.
+Three wrong in 49 565 answers. The tables are committed at
+`Petri/test/mcc/csv/202609080313/`, its README the read.
 
 ### The native image (ITS-Tools)
 
