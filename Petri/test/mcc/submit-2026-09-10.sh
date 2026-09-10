@@ -1,46 +1,24 @@
 #! /bin/bash
-# Campaign of 2026-09-10, three legs, one examination per batch, the queue
-# drained between batches (never more than one examination's jobs queued):
-#   1. itstools  RC, RF        1800 s  the unvalidated ITS-Tools / PetriSpot changes,
-#                                      on the deployed product (no libHSC in that chain)
-#   2. hsc       CTLC, CTLF    1800 s  libHSC's CTL checker alone, four shapes, P/T only
-#   3. hscapprox RC, RF         300 s  libHSC with the over-approximation first, P/T only
-# libHSC binaries: the HSC-Linux build of 24c28ad (hsc/bin, shared by hscapprox).
+# Campaign of 2026-09-10: libHSC alone (the hsc tool folder, hsc-pn from libHSC
+# 142fd4b: a stopped closure decides nothing, a partial reachable set answers only
+# what stands, a deadline is never an error) on the CTL examinations of the PT
+# nets, the only ones the tool declares -- the first CTL run of hsc-pn since the
+# order sweep found its wrong verdicts. On small% at 6 cores: the nodes are
+# x86-64-v2 (no AVX, no native image needed here) and OAR caps a job's memory at
+# the node's RAM per core times the cores asked, 6 cores being 16 GB on small.
+# 600 s like the hsc600 campaign, the tag hsc as it writes CTLC.hsc / CTLF.hsc.
+# One run_oar.sh after another, never in parallel; the warmup folders of the
+# same day are moved aside first.
 # Runs on the cluster head from ~/MCC26/MCC-drivers, detached:
 #   setsid nohup ./submit-2026-09-10.sh > submit-2026-09-10.log 2>&1 &
-# Warmups (AirplaneLD-PT-0010 and a handful of instances per leg) were run
-# and read before this script was started.
-cd ~/MCC26/MCC-drivers || exit 1
-
-drained() {  # wait until none of our jobs is queued or running; 10 minutes between looks
-	while true ; do
-		n=$(oarstat -u 2>/dev/null | tail -n +3 | grep -c .)
-		if [ "$n" -eq 0 ] ; then return 0 ; fi
-		echo "$(date) $n jobs still in the queue"
-		sleep 600
-	done
-}
-
-batch() {  # tool exam pattern timeout walltime [tag]
-	local tool=$1 ex=$2 pat=$3 to=$4 wt=$5 tag=${6:-}
+cd ~/MCC26/MCC-drivers
+EXAMS="CTLC CTLF"
+for ex in $EXAMS ; do
+	if [ -d $ex.hsc ] ; then mv $ex.hsc $ex.hsc-warmup-2026-09-10 ; fi
+done
+for ex in $EXAMS ; do
 	date
-	echo "== $tool $ex ($pat) timeout $to tag '$tag'"
-	TAG=$tag TIMEOUT=$to WALLTIME=$wt HOSTS=tall% CORES=4 RUNATEST=./runatest_cluster.sh BK_TOOL=$tool ./run_oar.sh "$pat"
-	sleep 120
-	drained
-}
-
-for ex in RC RF ; do
-	if [ -d $ex ] ; then mv $ex $ex-before-2026-09-10 ; fi
-	batch itstools $ex "oracle/*-$ex.out" 1800 0:45:00
-done
-for ex in CTLC CTLF ; do
-	if [ -d $ex.hsc ] ; then mv $ex.hsc $ex.hsc-before-2026-09-10 ; fi
-	batch hsc $ex "oracle/*-PT-*-$ex.out" 1800 0:45:00 hsc
-done
-for ex in RC RF ; do
-	if [ -d $ex.hscapprox ] ; then mv $ex.hscapprox $ex.hscapprox-before-2026-09-10 ; fi
-	batch hscapprox $ex "oracle/*-PT-*-$ex.out" 300 0:10:00 hscapprox
+	TIMEOUT=600 WALLTIME=0:15:0 HOSTS=small% CORES=6 TAG=hsc BK_TOOL=hsc ./run_oar.sh "oracle/*-PT-*-$ex.out"
 done
 date
 echo SUBMISSION DONE
