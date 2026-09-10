@@ -28,7 +28,7 @@ under about 15 s and redirect long output to `Petri/test/logs/`.
 ## ITS-Tools
 
 ```
-cd ~/git/ITStools/fr.lip6.move.gal.parent && mvn -o install -DskipTests > /data/ythierry/itstools-mvn-<tag>.log 2>&1
+cd ~/git/ITStools/fr.lip6.move.gal.parent && mvn -o install -DskipTests > ~/git/PetriSpot/Petri/test/logs/itstools-mvn-<tag>.log 2>&1   # read, then rm
 ```
 
 About 1:30 min offline once the Tycho cache is warm (`-o`); the product
@@ -39,9 +39,9 @@ The build fetches `petri64` from `Inv-Linux`, so a local product carries the
 a local product:
 
 ```
-rm -rf /data/ythierry/itstools-local && mkdir -p /data/ythierry/itstools-local
-tar -xzf ~/git/ITStools/ITS-commandline/fr.lip6.move.gal.itscl.product/target/products/fr.lip6.move.gal.itscl.product-linux.gtk.x86_64.tar.gz -C /data/ythierry/itstools-local
-cp ~/git/PetriSpot/build/petri64 /data/ythierry/itstools-local/plugins/fr.lip6.petrispot.binaries_*/bin/petri64
+P=/data/ythierry/MCC26deploy/products/itstools-local && rm -rf $P && mkdir -p $P   # a local product lives under MCC26deploy/products/, never at the top of /data/ythierry
+tar -xzf ~/git/ITStools/ITS-commandline/fr.lip6.move.gal.itscl.product/target/products/fr.lip6.move.gal.itscl.product-linux.gtk.x86_64.tar.gz -C $P
+cp ~/git/PetriSpot/build/petri64 $P/plugins/fr.lip6.petrispot.binaries_*/bin/petri64
 ```
 
 (or the JVM property `-Dpetrispot.bin=<path>`, read by `PetriSpotWalker`).
@@ -52,8 +52,8 @@ the files you changed, never `git add -A`.
 
 ```
 cd bench/models/AirplaneLD-PT-0010
-/data/ythierry/itstools-local/its-tools -pnfolder . -examination CTLFireability -its -smt -timeout 120 > log 2>&1
-/data/ythierry/itstools-local/its-tools-flat.sh -pnfolder . -examination LTLCardinality -its -timeout 120     # no Equinox, faster start
+$P/its-tools -pnfolder . -examination CTLFireability -its -smt -timeout 120 > log 2>&1
+$P/its-tools-flat.sh -pnfolder . -examination LTLCardinality -its -timeout 120     # no Equinox, faster start
 ```
 
 The examination names are the MCC ones (`ReachabilityCardinality`,

@@ -1,14 +1,14 @@
 #! /bin/bash
 # Does the decomposition survive, and what does the run answer?
 #
-#   PROD=/data/ythierry/itstools-local bash Petri/test/louvain-hierarchy.sh [model...]
+#   PROD=/data/ythierry/MCC26deploy/products/itstools-local bash Petri/test/louvain-hierarchy.sh [model...]
 #
 # Per model and examination, through -louvainBench (the decomposition on its own, then the
 # symbolic engine on what it produced): the GAL types the hierarchy holds -- one means it was
 # fused back, libits reading a sum or a comparison within one component -- the time the
 # decomposition took, and the verdicts the run answered. Logs in Petri/test/logs/louvain-hierarchy/.
 set -u
-PROD=${PROD:-/data/ythierry/itstools-local}
+PROD=${PROD:-/data/ythierry/MCC26deploy/products/itstools-local}
 IN=${IN:-/data/ythierry/MCC26deploy/MCC-drivers/INPUTS}
 LIMIT=${LIMIT:-/data/ythierry/MCC26deploy/MCC-drivers/limit_time.pl}
 TIMEOUT=${TIMEOUT:-60}

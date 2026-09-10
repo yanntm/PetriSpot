@@ -20,9 +20,14 @@ jobs write are read back from the head.
 | `cluster.lip6.fr:~/MCC26/MCC-drivers/` | the harness: `run_oar.sh`, `oracle/`, `INPUTS/`, one folder per tool (`itstools/`, `petrispot/`, `hsc/`...) |
 | `.../MCC-drivers/<EXAM>/` | the results of one examination: `OAR.<jobid>.stdout` (the log) and `.stderr` (the `time -p` trailer); they exist only on the cluster until collected. `<EXAM>.<tag>/` when the submission carried `TAG` (one tool, or one setting, per folder) |
 | `cluster.lip6.fr:~/MCC26/flat-test/` | the launcher bench (Eclipse, flat, native image) |
-| `/data/ythierry/MCC26deploy/MCC-drivers/` | the local deploy tree, built here and rsynced up, one subtree at a time |
-| `/data/ythierry/MCC26run/<date>/<EXAM>/` | collected logs, `csv/` beside them |
-| `/data/ythierry/MCC26archive/<date>/` | finished campaigns, moved out of `MCC26run` |
+| `/data/ythierry/MCC26deploy/MCC-drivers/` | the local deploy tree, built here and rsynced up, one subtree at a time; its `oracle/` is the only oracle copy outside `pnmcc-models-2026` |
+| `/data/ythierry/MCC26deploy/products/`, `native-v2/` | the published product unzipped for a check (`docs/CI.md`), the x86-64-v2 image and the product it was built from |
+| `/data/ythierry/MCC26logs/<tool>/<build>/<EXAM>/` | collected logs, `csv/` beside them (its `README.md` is the rule and the index); `_local/<name>/` a local experiment's files, `_shared/` the pages and the total-examination work |
+
+Nothing is written at the top of `/data/ythierry` (`CLAUDE.md`): no loose log,
+no unpacked model, no oracle copy. A model is unpacked by the harness under
+`INPUTS/` or by hand under the repo's git-ignored `bench/models/`, and deleted
+after use anywhere else.
 
 Examination folder names: `RC RF RD UB L QL SM OS SS LTLC LTLF CTLC CTLF`
 and the total examinations `QLA SMA UBA` (`TOTAL_QUERIES.md`).
@@ -194,8 +199,9 @@ worth less than a few dozen instances can be read from one run.
 
 The pages (`~/git/MCC-analysis/campaign/`, its README) are built from
 `campaign/example.json`: one *set* per campaign, `"logs":
-["/data/ythierry/MCC26logs/itstools/<build>/*"]`; the oracle and the `out`
-folder point into `MCC26logs/_shared/`. A new campaign is a new set at the
+["/data/ythierry/MCC26logs/itstools/<build>/*"]`; the oracle is the deploy
+tree's (`MCC26deploy/MCC-drivers/oracle`), the `out` folder points into
+`MCC26logs/_shared/`. A new campaign is a new set at the
 top of the list (copy the previous block, rename it).
 
 ```

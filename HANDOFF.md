@@ -28,12 +28,11 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 
 | what | where |
 | --- | --- |
-| campaign logs, collected | `/data/ythierry/MCC26run/<date>/<EXAM>/`, `csv/` beside them |
-| archived campaigns | `/data/ythierry/MCC26archive/<date>/` |
+| campaign logs, collected | `/data/ythierry/MCC26logs/<tool>/<build>/<EXAM>/`, `csv/` beside them; `_local/<name>/` a local experiment's files |
 | the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` (product `202609080208`) |
 | the cluster tree | `cluster.lip6.fr:~/MCC26/MCC-drivers/`, results only there |
-| result pages | `/data/ythierry/MCC26run/pages`, built by `~/git/MCC-analysis` |
-| local ITS-Tools products | `/data/ythierry/itstools-ci-check/` (the published product) |
+| result pages | `/data/ythierry/MCC26logs/_shared/pages`, built by `~/git/MCC-analysis` |
+| the published product, unzipped for a check | `/data/ythierry/MCC26deploy/products/itstools-ci-check/` |
 | native image material | `~/git/ITStools/ITS-commandline/native/`, `cluster.lip6.fr:MCC26/flat-test/`, local test image `/data/ythierry/MCC26deploy/its-tools-native-test` |
 | GraalVM for a local image build | `/data/ythierry/graal/graalvm-jdk-25.0.4+7.1` |
 | development models | `bench/models/<model>/` (git-ignored) |
@@ -153,7 +152,7 @@ chosen at each of its states to find the first transition the reduction drops.
 
 `-march`: `build-native.sh` takes `NATIVE_MARCH` (ITS-Tools `1305abfb`,
 committed, not pushed; unset keeps the CI's default). The `x86-64-v2` image
-built from the deployed product is `/data/ythierry/MCC26deploy/its-tools-native-v2`
+built from the deployed product is `/data/ythierry/MCC26deploy/native-v2/its-tools-native-v2`
 and `cluster.lip6.fr:MCC26/flat-test/its-tools-native-v2`, tested on `small10`
 and `big12` (`docs/CLUSTER.md` section 1). Open: how the deploy picks it
 (`runeclipse.sh` could exec the v2 file when `/proc/cpuinfo` lacks `avx2`),

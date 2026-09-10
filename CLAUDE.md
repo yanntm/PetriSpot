@@ -89,6 +89,15 @@ editing files in a folder. Maintain these docs in sync with code.
 - Test often, but let the user guide how much; too many unit tests are churn on
   a fast-moving code base. Probes longer than about 5 lines go in `Petri/test/`
   as a file (rm after use if one-shot, else commit).
+- **`/data/ythierry` is not a scratch space.** Writing a file at its top
+  level is prohibited: everything goes under `/data/ythierry/MCC26logs/`
+  (campaign logs, records, `_local/<name>/` for a local experiment's files)
+  or `/data/ythierry/MCC26deploy/` (the deploy tree, products taken from the
+  CI, images built from them). Copies of MCC models and of oracles exist only
+  in `~/git/pnmcc-models-2026` and in the deploy tree: an unpacked model is
+  deleted after use, never kept. A `.log` is one-shot: it goes in the repo's
+  `test/logs/` and is removed when read, or it is a campaign log in
+  `MCC26logs`. Folders there from before 2026-09-04 are left alone.
 - Logs, campaign tables and benchmark models are not part of the repo. They
   live on `/data` beside the runs that produced them and are read through
   the MCC-analysis pages; the repo keeps the scripts that produce them.

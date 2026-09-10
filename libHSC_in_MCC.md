@@ -32,7 +32,7 @@ off by one (Vasy2003: 9794739147610899087360 for …361, the count is a
 `double`); 5 timeouts: Philosophers-000020, ParamProductionCell-0, Sudoku-AN04,
 FMS-00500, Angiogenesis-10.
 
-The directives change everything, in both directions (`/data/ythierry/hsc-exp/`):
+The directives change everything, in both directions (`/data/ythierry/MCC26logs/_local/hsc-exp/`):
 
 | model | NUPN shape (default) | FORCE | Louvain | Louvain+FORCE |
 |---|---|---|---|---|

@@ -1,7 +1,7 @@
 #! /bin/bash
 # What the Louvain decomposition is handed and what it costs, on a ladder of instances.
 #
-#   PROD=/data/ythierry/itstools-local bash Petri/test/louvain-bench.sh [model...]
+#   PROD=/data/ythierry/MCC26deploy/products/itstools-local bash Petri/test/louvain-bench.sh [model...]
 #
 # Needs a local product built with the -louvainBench flag (Application) and GraphBuilder
 # DEBUG >= 2: the flag parses the model and its properties, runs the decomposition alone --
@@ -12,7 +12,7 @@
 # Per model: the variables and constraints handed to the graph, the edges those induce, the
 # graph written, and the time convert and louvain need on it. Logs in Petri/test/logs/louvain-bench/.
 set -u
-PROD=${PROD:-/data/ythierry/itstools-local}
+PROD=${PROD:-/data/ythierry/MCC26deploy/products/itstools-local}
 IN=${IN:-/data/ythierry/MCC26deploy/MCC-drivers/INPUTS}
 EXAM=${EXAM:-ReachabilityCardinality}
 TIMEOUT=${TIMEOUT:-60}

@@ -53,7 +53,7 @@ exit 109"). Check the pair:
 
 ```
 curl -sIL https://lip6.github.io/ITSTools/fr.lip6.move.gal.itscl.product-linux.gtk.x86_64.zip | grep -i last-modified
-cd /data/ythierry/itstools-ci-check && rm -rf * && wget -q https://lip6.github.io/ITSTools/fr.lip6.move.gal.itscl.product-linux.gtk.x86_64.zip && unzip -q *.zip
+cd /data/ythierry/MCC26deploy/products/itstools-ci-check && rm -rf * && wget -q https://lip6.github.io/ITSTools/fr.lip6.move.gal.itscl.product-linux.gtk.x86_64.zip && unzip -q *.zip
 sha256sum plugins/fr.lip6.petrispot.binaries_*/bin/petri64 /tmp/p     # same hash as the Inv-Linux binary
 ls plugins/fr.lip6.move.gal.application.pnmcc_*.jar                     # the product's build stamp, yyyyMMddHHmm
 ```
