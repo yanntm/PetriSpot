@@ -17,6 +17,9 @@ those logs into tables we can analyse.
 * `warmup_check.sh DEST FOLDER...` — rsync the named result folders down and
   print, per folder, logs, trailers, regression lines, failure signatures,
   answers: the read of a warmup before a campaign is submitted.
+* `flatbench.sh` — startup comparison on one node: the Eclipse launcher, the
+  flat class path and the native image, OneSafe on a small net; copied to
+  `~/MCC26/flat-test/` on the cluster and run as a job.
 * `probe_node.sh` — what a compute node offers a job, run as a job from the
   harness root: CPU model and instruction sets (the x86-64 level), cores and
   the memory the cgroup grants, a large allocation, the Java found, then each
@@ -116,4 +119,4 @@ The vector oracles a campaign produces are merged into the published ones with
 disagreement is reported, never overwritten).
 
 Logs are not kept in this repository: they are rsynced from the cluster into
-`/data/ythierry/MCC26run/`, the CSVs are what we commit.
+`/data/ythierry/MCC26logs/<tool>/<build>/`, the CSVs beside them.

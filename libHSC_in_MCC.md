@@ -32,7 +32,7 @@ off by one (Vasy2003: 9794739147610899087360 for …361, the count is a
 `double`); 5 timeouts: Philosophers-000020, ParamProductionCell-0, Sudoku-AN04,
 FMS-00500, Angiogenesis-10.
 
-The directives change everything, in both directions (`/data/ythierry/MCC26logs/_local/hsc-exp/`):
+The directives change everything, in both directions (`/data/ythierry/MCC26logs/local/hsc-exp/`):
 
 | model | NUPN shape (default) | FORCE | Louvain | Louvain+FORCE |
 |---|---|---|---|---|
@@ -132,7 +132,7 @@ sections below this one.
 (binaries from the libHSC CI branch `HSC-Linux`; driver: four configurations
 in parallel, the memory confinement split among them). Read at 163
 collected logs while the campaign drains; collected into
-`/data/ythierry/MCC26run/20260908-hsc/` (`csv/REPORT.md`), on the pages as
+`/data/ythierry/MCC26logs/hsc/20260908/` (`csv.20260908-hsc/REPORT.md`), on the pages as
 the set `libHSC 20260908 SS`.
 
 | | |

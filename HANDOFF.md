@@ -28,12 +28,11 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 
 | what | where |
 | --- | --- |
-| campaign logs, collected | `/data/ythierry/MCC26logs/<tool>/<build>/<EXAM>/`, `csv/` beside them; `_local/<name>/` a local experiment's files |
+| campaign logs, collected | `/data/ythierry/MCC26logs/<tool>/<build>/<EXAM>/`, `csv/` beside them; `local/<name>/` a local experiment's files |
 | the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` (product `202609080208`) |
 | the cluster tree | `cluster.lip6.fr:~/MCC26/MCC-drivers/`, results only there |
-| result pages | `/data/ythierry/MCC26logs/_shared/pages`, built by `~/git/MCC-analysis` |
-| the published product, unzipped for a check | `/data/ythierry/MCC26deploy/products/itstools-ci-check/` |
-| native image material | `~/git/ITStools/ITS-commandline/native/`, `cluster.lip6.fr:MCC26/flat-test/`, local test image `/data/ythierry/MCC26deploy/its-tools-native-test` |
+| result pages | `/data/ythierry/MCC26logs/web/campaign`, built by `~/git/MCC-analysis`; `web/order-sweep` the libHSC sweep's |
+| native image material | `~/git/ITStools/ITS-commandline/native/`, `cluster.lip6.fr:MCC26/flat-test/`, the x86-64-v2 image `/data/ythierry/MCC26deploy/native-v2/` |
 | GraalVM for a local image build | `/data/ythierry/graal/graalvm-jdk-25.0.4+7.1` |
 | development models | `bench/models/<model>/` (git-ignored) |
 
