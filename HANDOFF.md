@@ -3,18 +3,19 @@
 Read this first, then the design file of the thread you pick up. This file is
 rewritten, never appended to: what is done leaves it (result in the README or
 the design file, history in git and `docs/HISTORY.md`). State as of
-2026-09-08, 05:35.
+2026-09-10, 14:30.
 
 ## Orientation
 
 | thread | read | code |
 | --- | --- | --- |
-| the walk engine (reachability) | `WALK_PLAN.md` sections 9, 10 | `Petri/src/walk/` |
+| the walk engine (reachability) | `WALK_PLAN.md` sections 9, 10 | `Petri/src/walk/`, `Petri/src/sched/` |
 | the solving loop, walker budgets | `PORTFOLIO.md`, `INTEROP.md` | `cli/WalkDriver.h`, ITS-Tools `PetriSpotWalker` |
 | the CTL checker | `CTL_PLAN.md` sections 9, 11 | `Petri/src/ctl/`, `cli/CtlDriver.h` |
 | the state equation, LP hints | `Petri/src/lp/algorithm.md` | `Petri/src/lp/` |
 | the campaigns, the harness | `BENCH.md`, `Petri/test/mcc/README.md`, `TOTAL_QUERIES.md` | `Petri/test/mcc/` |
 | libHSC as a competitor and companion | `HSC_PLAN.md`, `HSC_EXPERIMENTS.md`, `libHSC_in_MCC.md`; state in libHSC `handoff_mcc.md` | `~/git/MCC-drivers/hsc/`, ITS-Tools `hsc/`, `interop/` |
+| the libHSC order sweep | libHSC `experiments/order/SWEEP.md` §9, `handoff_order.md` | libHSC `include/hsc/order/` |
 | operating guides: cluster, CI chain, local builds | `docs/CLUSTER.md`, `docs/CI.md`, `docs/BUILD.md` | |
 
 Repositories: this one; `~/git/ITStools` (origin `lip6/ITStools`, the Java
@@ -28,11 +29,11 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 
 | what | where |
 | --- | --- |
-| campaign logs, collected | `/data/ythierry/MCC26run/<date>/<EXAM>/`, `csv/` beside them |
-| archived campaigns | `/data/ythierry/MCC26archive/<date>/` |
-| the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` (product `202609080208`) |
+| collected campaign logs | `/data/ythierry/MCC26logs/<tool>/<build>/`, `csv.<build>/` beside them |
+| the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` |
 | the cluster tree | `cluster.lip6.fr:~/MCC26/MCC-drivers/`, results only there |
-| result pages | `/data/ythierry/MCC26run/pages`, built by `~/git/MCC-analysis` |
+| the order sweep on the cluster | `cluster.lip6.fr:~/MCC26/hsc-sweep/`, reaped to `MCC26logs/hsc/sweep1/` |
+| result pages | `/data/ythierry/MCC26logs/_shared/pages`, built by `~/git/MCC-analysis` |
 | collected tables, committed | `Petri/test/mcc/csv/<campaign>/` with a README each |
 | local ITS-Tools products | `/data/ythierry/itstools-ci-check/` (the published product) |
 | native image material | `~/git/ITStools/ITS-commandline/native/`, `cluster.lip6.fr:MCC26/flat-test/`, local test image `/data/ythierry/MCC26deploy/its-tools-native-test` |
@@ -41,84 +42,86 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 
 ## In flight
 
-**Campaign 202609080313, the first CTL examinations at scale.** Running:
-launched 2026-09-08 05:33 by `Petri/test/mcc/submit-2026-09-08.sh`, CTLC then
-CTLF then Liveness, 1800 s, 4 cores, `tall%`, on the native image of the product
-`202609080313`, 5859 jobs, about 13 hours. That product carries both fixes of
-the night, `--no-V` and the coloured `Sort[]`. Collect into a folder named for
-it:
+**Nothing runs on the cluster and our queue is empty.** The 2651 waiting
+jobs of the libHSC order sweep were cancelled on 2026-09-10: every `tall`
+node is held by other users' whole-node jobs and the scheduler's estimate
+for our next job was four days out. `tall%` is still full; `small%` (24
+nodes, 576 cores) and `big%` are idle, and `docs/CLUSTER.md` §1a says what
+`small%` is and what runs there.
 
-```
-bash Petri/test/mcc/collect.sh 202609080313 CTLC CTLF L
-```
-
-then a new set in `~/git/MCC-analysis/campaign/example.json`, rebuild the pages,
-archive, free the cluster (`docs/CLUSTER.md` sections 4, 5). There is no CTL
-baseline of ours, so read it against the field (`report.py --raw`, the pages
-against `ITS-Tools 2026` and `Tapaal 2026`): how many formulas the checker
-answers, how many only it had before the diagrams, any wrong verdict, and
-whether the companion costs anything where the diagrams won alone. Liveness
-takes the CTL path too.
-
-A first attempt went out at 04:47 on `202609080208` and was cancelled an hour
-later, all 3067 jobs deleted and the folders cleared: every coloured model
-declaring a product sort died on `symmetricnet.terms.Sort[]`, answering nothing.
-Should a handful fail this time, nothing needs redoing wholesale --
-`Petri/test/mcc/resubmit.sh <EXAM>` submits only what has no log, did not reach
-the teamcity suite close, or carries a closed world miss.
-
-The warmup before this launch covered AirplaneLD-PT-0010 **and BART-COL-002**,
-all 16 examinations, everything answering, no exception; CTLC 5 and CTLF 24
-verdicts tagged `CTL_WALK`. Keep the coloured instance in the warmup: Airplane
-alone passed the aborted campaign's warmup. Note also that the published image
-was byte for byte the same *size* as the broken one, so a native image is
-checked by running it, never by its size.
-
-**CI.** Both fixes are published and deployed in `202609080313`: `7f4113e0`
-puts `--no-V` back in the LTSmin runners, `fcdae5b8` registers the coloured
-`Sort[]`.
-
-**The native image is now the launcher.** `runeclipse.sh` execs
-`its-tools-native` whenever the file is present, so the deploy decides it;
-`docs/CLUSTER.md` section 1 says how to tell and how to choose. The image is
-AVX2, hence `tall%` only. Its closed world was missing
-`fr.lip6.move.gal.InstanceDecl[]` and `fr.lip6.move.gal.Synchronization[]`,
-reached reflectively by the composite builder on the `-order META -manyOrder`
-path: StateSpace died there and the decision diagram engine answered nothing
-while the run looked healthy. Traced with
-`Petri/test/native-trace.sh`, verified by a local rebuild, pushed as ITS-Tools
-`d929bfc4` and confirmed on the cluster: the Airplane warmup on `202609080208`
-is 16 examinations, 0 exceptions, `SS` answering. The config had only ever been traced over AirplaneLD PT (OneSafe,
-deadlock, LTLC, UB) and COL (LTLF, CTLF, RC); it now also covers StateSpace,
-Liveness, CTLCardinality, QuasiLiveness, StableMarking and
-ReachabilityFireability.
+**The campaign of 2026-09-10 is ready and unsubmitted.** Everything is
+deployed, pushed and warmup-tested locally; the plan, the legs and what was
+tested are in `Petri/test/mcc/campaign-2026-09-10.md`, the script is
+`Petri/test/mcc/submit-2026-09-10.sh`. Legs 2 and 3 (`hsc` CTLC/CTLF at
+1800 s, `hscapprox` RC/RF at 300 s) can go to `small%` today: `hsc-pn` runs
+there unmodified. Leg 1 (`itstools` RC/RF) needs `tall%` until the native
+image is rebuilt at `-march=x86-64-v2`.
 
 ## Next actions, by thread
 
-### First: the CTL examinations (the campaign above)
+### First: a verdict off a partial reachable set is unsound (libHSC)
 
-The explicit CTL checker (`CTL_PLAN.md`) has never run at scale. Through the
-native image the Airplane warmup gives CTLC 5 of 16 and CTLF 11 of 16 verdicts
-tagged `CTL_WALK`, all right, 0 exceptions -- the local numbers exactly.
+The order sweep found it before it found anything about shapes
+(libHSC `experiments/order/SWEEP.md` §9.1, `handoff_ctl.md` item 0). The
+CTL checker answers from a truncated `R`: on `FMS-PT-10000` under `louvain`
+the run prints `R partial`, `partial=1`, `reach_states=8764`, then answers
+`FALSE` on a `TRUE` formula. Across the sweep, 545 of the 559 wrong CTLC
+verdicts come from a run whose `R` was partial, and **47 % of every answer
+given on a partial `R` was wrong**. It was invisible until now because
+every earlier CTL measurement closed `R`. This invalidates the "0 wrong" of
+every budgeted libHSC CTL run, and it must be fixed before leg 2 of the
+campaign means anything.
 
-Collect with `collect.sh 202609071637 CTLC CTLF L` (the run folder is named
-after the product stamp). There is no complete CTL baseline of ours, so read
-the report against the field (`report.py --raw`, the pages against
-`ITS-Tools 2026`, `Tapaal 2026`): how many formulas the checker answers, how
-many of those only it had before the diagrams, any wrong verdict (a soundness
-bug), and whether the companion costs anything where the diagrams won alone.
+Separately, 14 wrong verdicts sit on a *complete* `R` (§9.2) — a shape
+changed an answer on a full state space, which nothing excuses. Six
+instances, listed there.
+
+### The CTL examinations at scale (ITS-Tools) — collected and read
+
+Campaign `202609080313`, 1954 instances each at 1800 s, in
+`/data/ythierry/MCC26logs/itstools/202609080313/`:
+
+| | answered | ok | wrong | bonus |
+| --- | ---: | ---: | ---: | ---: |
+| CTLCardinality | 26069 | 25051 | **1** | 1017 |
+| CTLFireability | 23682 | 22579 | **2** | 1101 |
+| Liveness | 1814 | 1811 | 0 | 3 |
+
+The three wrong verdicts are the open item, none backed by another tool:
+
+| formula | oracle | ours | run s |
+| --- | --- | --- | ---: |
+| `ShieldIIPs-PT-002A-CTLCardinality-2024-07` | FALSE | TRUE | 307 |
+| `ClientsAndServers-PT-N0020P1-CTLFireability-2024-09` | FALSE | TRUE | 1801 |
+| `FileSystem-COL-N02I10B10-CTLFireability-2024-05` | TRUE | FALSE | 767 |
+
+Two are TRUE for a FALSE property and one the converse, so no single
+direction of unsoundness explains them. The csv of this campaign is not yet
+committed to `Petri/test/mcc/csv/`.
+
+### The native image (ITS-Tools)
+
+`build-native.sh` needs `-march=x86-64-v2`, which covers `tall%` and
+`small%` in one image; `-march=compatibility` is the fallback that cannot
+fail. The failure is recorded at `cluster.lip6.fr:~/MCC26/flat-test/run-native.log`
+and quoted in `docs/CLUSTER.md` §1. This is the one flag between us and
+half the cluster. Open too: `--exact-reachability-metadata` for loud misses
+on a sweep, and stripping the 20 signed jars at install (a 25 % start-up
+gain for the flat launcher). More closed-world misses should be expected on
+the corpus; the recipe is `Petri/test/native-trace.sh` then a rebuild.
 
 ### The LTSmin partial order soundness bug (closed on our side)
 
-`--no-V` is back in both LTSmin runners (ITS-Tools `7f4113e0`). Without it the
-reduction reports an empty product where an accepting cycle exists, and we
-publish TRUE for a FALSE property: it did so once in 30 373 on LTLCardinality in
-the campaign of 2026-09-07. This is LTSmin issue 169, worked around in 2019 and
-commented out three days later; correct NES and NDS matrices do not make the
-default visibility proviso safe. The investigation and a two command
-reproduction are in `Petri/test/ltsmin-por-bug/`. What is left is upstream, and
-only if someone wants it: walk the 70 step witness against the stubborn set
-chosen at each of its states to find the first transition the reduction drops.
+`--no-V` is back in both LTSmin runners (ITS-Tools `7f4113e0`). Without it
+the reduction reports an empty product where an accepting cycle exists, and
+we publish TRUE for a FALSE property: it did so once in 30 373 on
+LTLCardinality in the campaign of 2026-09-07. This is LTSmin issue 169,
+worked around in 2019 and commented out three days later; correct NES and
+NDS matrices do not make the default visibility proviso safe. The
+investigation and a two command reproduction are in
+`Petri/test/ltsmin-por-bug/`. What is left is upstream, and only if someone
+wants it: walk the 70 step witness against the stubborn set chosen at each
+of its states to find the first transition the reduction drops.
 
 ### CTL checker (`CTL_PLAN.md` section 9 has the list, 11 the design talk)
 
@@ -148,15 +151,6 @@ chosen at each of its states to find the first transition the reduction drops.
 4. Watch UpperBounds and QuasiLiveness wall times: `--escalate` makes a walk
    spend its whole `--totalTime`; the knob is the `--escalate` argument in
    `PetriSpotWalker.runReachability` / `runBounds`.
-
-### Native image (ITS-Tools)
-
-`-march`: the image refuses to start on `small%` (no AVX2) and answers nothing
-rather than failing loudly, so half the cluster is out of reach. Open too:
-`--exact-reachability-metadata` for loud misses on a sweep, and stripping the
-20 signed jars at install (a 25 % start-up gain for the flat launcher). More
-closed-world misses should be expected on the corpus; the recipe is
-`Petri/test/native-trace.sh` then a rebuild.
 
 ### libHSC as a competitor (a dedicated session)
 
