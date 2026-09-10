@@ -89,7 +89,11 @@ editing files in a folder. Maintain these docs in sync with code.
 - Test often, but let the user guide how much; too many unit tests are churn on
   a fast-moving code base. Probes longer than about 5 lines go in `Petri/test/`
   as a file (rm after use if one-shot, else commit).
-- Large model files (hundreds of MB PNML) are never committed.
+- Logs, campaign tables and benchmark models are not part of the repo. They
+  live on `/data` beside the runs that produced them and are read through
+  the MCC-analysis pages; the repo keeps the scripts that produce them.
+  Where they live and how they are collected is `docs/CLUSTER.md`'s
+  business.
 
 ## Working style (how the user wants me to operate)
 
@@ -103,6 +107,9 @@ editing files in a folder. Maintain these docs in sync with code.
 - **No manual process management.** Never `kill`/`pkill`, no `&`/`nohup`.
   For long self-terminating runs use Bash `run_in_background` and wait on
   completion.
+- The cluster head node runs nothing: `oarsub`/`oarstat`/`oardel`, and
+  rsync — the deploy tree up, the logs down. Anything to run is a job;
+  anything to analyse is rsynced here first.
 - **Sparse is the substrate.** Transitions touch a handful of places out of
   tens of thousands; every data structure in the hot path is sparse
   (`SparseArray`, `MatrixCol`). Do not introduce dense per-place or
