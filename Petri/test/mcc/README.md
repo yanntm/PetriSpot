@@ -17,6 +17,11 @@ those logs into tables we can analyse.
 * `warmup_check.sh DEST FOLDER...` — rsync the named result folders down and
   print, per folder, logs, trailers, regression lines, failure signatures,
   answers: the read of a warmup before a campaign is submitted.
+* `probe_node.sh` — what a compute node offers a job, run as a job from the
+  harness root: CPU model and instruction sets (the x86-64 level), cores and
+  the memory the cgroup grants, a large allocation, the Java found, then each
+  deployed tool on AirplaneLD-PT-0010 through the harness. One job per
+  (node class, core count) compares them; the header says how to submit.
 * `watch_drain.sh LOG [INTERVAL] [MAXLOOKS]` — `cluster_status.sh` every
   INTERVAL seconds (600) into LOG until none of our jobs is left; exits 0
   when drained. What waits between the batches of a campaign.
