@@ -3,7 +3,7 @@
 Read this first, then the design file of the thread you pick up. This file is
 rewritten, never appended to: what is done leaves it (result in the README or
 the design file, history in git and `docs/HISTORY.md`). State as of
-2026-09-08, 05:35.
+2026-09-10, 18:30.
 
 ## Orientation
 
@@ -38,38 +38,45 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 
 ## In flight
 
-**Campaign 202609080313, the first CTL examinations at scale.** Running:
-launched 2026-09-08 05:33 by `Petri/test/mcc/submit-2026-09-08.sh`, CTLC then
-CTLF then Liveness, 1800 s, 4 cores, `tall%`, on the native image of the product
-`202609080313`, 5859 jobs, about 13 hours. That product carries both fixes of
-the night, `--no-V` and the coloured `Sort[]`. Collect into a folder named for
-it:
+**Campaign hsc/20260910: libHSC alone on CTLC and CTLF, PT nets, small%.**
+Submitted 2026-09-10 18:28 from the cluster head by
+`Petri/test/mcc/submit-2026-09-10.sh` (detached, its log
+`~/MCC26/MCC-drivers/submit-2026-09-10.log` ends with `SUBMISSION DONE`):
+CTLC then CTLF over `oracle/*-PT-*-<EXAM>.out`, 1681 jobs each, 600 s,
+6 cores, `HOSTS=small%`, `TAG=hsc`, results in `CTLC.hsc` and `CTLF.hsc`.
+The tool is `hsc-pn` from libHSC `142fd4b`, the first CTL run since the
+three defects the order sweep exposed were fixed (a stopped closure decides
+nothing, a partial reachable set answers only what stands, a deadline is
+never an error; libHSC `c20f91f`..`142fd4b`). Six cores because OAR caps a
+job's memory at the node's RAM per core times the cores asked, and 6 of
+small's 24 hyper-threads are 16 GB (`docs/CLUSTER.md` section 1). The
+warmup (AirplaneLD-PT-0010, the eight examinations the tool declares) is in
+`/data/ythierry/MCC26logs/hsc/20260910/_warmup/`: every one answered on
+`small10`, no regression line, no failure. The cluster also holds
+`CTLC.hsc600` and `CTLF.hsc600`, one Airplane warmup log each from the hsc600 campaign.
+
+Watch, collect, read:
 
 ```
-bash Petri/test/mcc/collect.sh 202609080313 CTLC CTLF L
+bash Petri/test/mcc/cluster_status.sh CTLC.hsc CTLF.hsc
+bash Petri/test/mcc/collect.sh hsc/20260910 CTLC.hsc CTLF.hsc --pages
 ```
 
-then a new set in `~/git/MCC-analysis/campaign/example.json`, rebuild the pages,
-archive, free the cluster (`docs/CLUSTER.md` sections 4, 5). There is no CTL
-baseline of ours, so read it against the field (`report.py --raw`, the pages
-against `ITS-Tools 2026` and `Tapaal 2026`): how many formulas the checker
-answers, how many only it had before the diagrams, any wrong verdict, and
-whether the companion costs anything where the diagrams won alone. Liveness
-takes the CTL path too.
+then the README of `MCC26logs/hsc/20260910/` and its line in the
+`MCC26logs/README.md` table, and free the cluster (`docs/CLUSTER.md`
+sections 4, 5). What to read: the wrong verdicts first (the sweep had 559 on
+CTLC, 97 % off a partial set; the fix must bring that to 0), then how many
+formulas the checker answers against the hsc600 and the ITS-Tools CTL
+campaigns on the pages. A wrong verdict now is a new bug, not the old one.
 
-A first attempt went out at 04:47 on `202609080208` and was cancelled an hour
-later, all 3067 jobs deleted and the folders cleared: every coloured model
-declaring a product sort died on `symmetricnet.terms.Sort[]`, answering nothing.
-Should a handful fail this time, nothing needs redoing wholesale --
-`Petri/test/mcc/resubmit.sh <EXAM>` submits only what has no log, did not reach
-the teamcity suite close, or carries a closed world miss.
-
-The warmup before this launch covered AirplaneLD-PT-0010 **and BART-COL-002**,
-all 16 examinations, everything answering, no exception; CTLC 5 and CTLF 24
-verdicts tagged `CTL_WALK`. Keep the coloured instance in the warmup: Airplane
-alone passed the aborted campaign's warmup. Note also that the published image
-was byte for byte the same *size* as the broken one, so a native image is
-checked by running it, never by its size.
+**Campaign 202609080313, the first CTL examinations at scale (ITS-Tools,
+tall%)**, is collected: `MCC26logs/itstools/202609080313/` (CTLC, CTLF, L,
+5862 logs). Its reading is still to do, against the field (`report.py
+--raw`, the pages against `ITS-Tools 2026` and `Tapaal 2026`): how many
+formulas the explicit checker answers, how many only it had before the
+diagrams, any wrong verdict. Its companion `hsc-pn` was the pre-fix binary,
+so its `-hsc` verdicts on CTL carry the partial-set bug: a wrong one there
+is explained before it is investigated.
 
 **CI.** Both fixes are published and deployed in `202609080313`: `7f4113e0`
 puts `--no-V` back in the LTSmin runners, `fcdae5b8` registers the coloured
@@ -93,18 +100,13 @@ ReachabilityFireability.
 
 ## Next actions, by thread
 
-### First: the CTL examinations (the campaign above)
+### First: the CTL examinations (the two campaigns above)
 
-The explicit CTL checker (`CTL_PLAN.md`) has never run at scale. Through the
-native image the Airplane warmup gives CTLC 5 of 16 and CTLF 11 of 16 verdicts
-tagged `CTL_WALK`, all right, 0 exceptions -- the local numbers exactly.
-
-Collect with `collect.sh 202609071637 CTLC CTLF L` (the run folder is named
-after the product stamp). There is no complete CTL baseline of ours, so read
-the report against the field (`report.py --raw`, the pages against
-`ITS-Tools 2026`, `Tapaal 2026`): how many formulas the checker answers, how
-many of those only it had before the diagrams, any wrong verdict (a soundness
-bug), and whether the companion costs anything where the diagrams won alone.
+Read `hsc/20260910` when it lands, then `itstools/202609080313`. The
+ITS-Tools product still bundles the pre-fix `hsc-pn`: the ITS-Tools CI was
+pushed (`1305abfb`, the `NATIVE_MARCH` knob) after libHSC's `HSC-Linux`
+carried the fix, so the next product has it; check the pair as `docs/CI.md`
+says before an ITS-Tools CTL campaign with `-hsc`.
 
 ### The LTSmin partial order soundness bug (closed on our side)
 
