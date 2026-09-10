@@ -50,10 +50,40 @@ install therefore switches the launcher of the next campaign without saying so.
 Decide it deliberately: keep the file for the native image, delete it from the
 deploy tree before the rsync for the Eclipse launcher.
 
-The image is compiled for AVX2, so it runs on `tall%` only. On `small%` it
-prints `The current machine does not support all of the following CPU features`
-and exits having answered nothing -- a silent zero-`FORMULA` log, not a crash.
-Until `build-native.sh` gets an `-march`, a campaign on the image is `tall%`.
+The CI image is compiled for x86-64-v3 (native-image's default, AVX2), so it
+runs on `tall%` only. On `small%` and `big%` it prints `The current machine
+does not support all of the following CPU features` and exits having answered
+nothing -- a silent zero-`FORMULA` log, not a crash. An image for those nodes
+is built locally, `NATIVE_MARCH=x86-64-v2` to `build-native.sh` on the deployed
+product (40 s, 10 GB), and put in the deploy tree as `its-tools-native`
+before the rsync; it runs everywhere (v2 is a subset of v3). Tested on
+`small10` and `big12` on AirplaneLD-PT-0010, OneSafe, CTLCardinality and
+ReachabilityCardinality answering, the external binaries found through
+`plugins/`. Nothing else in the tree minds the nodes: `petri64`, `hsc-pn` (the
+CI's static GMP is Ubuntu's fat build) and the Eclipse launcher on the nodes'
+Java 21 all run on `small%`.
+
+### The node classes, and what a job gets
+
+Probed with `Petri/test/mcc/probe_node.sh` (one job per class and core count):
+
+| class | nodes | CPU | cores (threads) | RAM | x86-64 | RAM per core |
+| --- | --- | --- | --- | --- | --- | --- |
+| `small%` | 24 | 2 x Xeon E5645, 2.4 GHz (Westmere, 2010) | 24 (12 physical, HTT) | 62 GiB | v2, no AVX | 2.6 GiB |
+| `big%` | 26 | 2 x Xeon X5690, 3.47 GHz (Westmere) | 24 (12 physical, HTT) | 141 GiB | v2, no AVX | 5.9 GiB |
+| `tall%` | 20 | current, AVX2 | 64 | | v3 | |
+
+OAR grants no CPU time limit but **a memory cap proportional to the cores
+requested**: `memory.max` on the job's systemd slice
+(`/sys/fs/cgroup/oar.slice/oar-<uid>.slice/oar-<uid>-j<job>.slice`) is the
+node's RAM divided by its cores, times the cores of the job; the shell's own
+scope shows `max`, the slice above it holds the number. Measured on `small10`:
+3 cores 7.9 GiB, 6 cores 15.7 GiB; 1 core cannot hold 4 GB, 12 cores hold 28.
+So a job that needs the 16 GB of an MCC run asks for **6 cores on `small%`**
+(a quarter of the node, 3 physical cores) and 3 on `big%`; a core is a
+hyper-thread there, so the count is not the parallelism it reads as.
+The `small` nodes sit in standby (`oarnodes`: `Absent (standby)`) and wake for
+a job in about a minute.
 
 What actually ran is in the job's `.stderr` (`runeclipse.sh` traces with
 `set -x`), not in the log:
@@ -86,7 +116,8 @@ TIMEOUT=1800 WALLTIME=0:45:0 CORES=4 HOSTS="tall%" BK_TOOL=itstools ./run_oar.sh
 
 `TIMEOUT` is the budget `run_test.pl` gives the tool, `WALLTIME` the OAR
 limit (comfortably above), `HOSTS` `tall%` for the current hardware (`small%`
-is the old nodes, no AVX2). `TAG=<name>` qualifies the result folder
+and `big%` are the old nodes, x86-64-v2: the node table above says what runs
+there and how many cores 16 GB take). `TAG=<name>` qualifies the result folder
 (`SS.hsc`, `RC.itstools`), so two tools, or two settings of one tool, run
 the same examination side by side without mixing logs; `collect.sh` takes
 the qualified name as its examination argument and the collectors read the

@@ -79,8 +79,9 @@ puts `--no-V` back in the LTSmin runners, `fcdae5b8` registers the coloured
 
 **The native image is now the launcher.** `runeclipse.sh` execs
 `its-tools-native` whenever the file is present, so the deploy decides it;
-`docs/CLUSTER.md` section 1 says how to tell and how to choose. The image is
-AVX2, hence `tall%` only. Its closed world was missing
+`docs/CLUSTER.md` section 1 says how to tell and how to choose. The CI image
+is AVX2, hence `tall%` only; a `NATIVE_MARCH=x86-64-v2` build runs on `small%`
+and `big%` (`docs/CLUSTER.md` section 1, the node table). Its closed world was missing
 `fr.lip6.move.gal.InstanceDecl[]` and `fr.lip6.move.gal.Synchronization[]`,
 reached reflectively by the composite builder on the `-order META -manyOrder`
 path: StateSpace died there and the decision diagram engine answered nothing
@@ -150,8 +151,15 @@ chosen at each of its states to find the first transition the reduction drops.
 
 ### Native image (ITS-Tools)
 
-`-march`: the image refuses to start on `small%` (no AVX2) and answers nothing
-rather than failing loudly, so half the cluster is out of reach. Open too:
+`-march`: `build-native.sh` takes `NATIVE_MARCH` (ITS-Tools `1305abfb`,
+committed, not pushed; unset keeps the CI's default). The `x86-64-v2` image
+built from the deployed product is `/data/ythierry/MCC26deploy/its-tools-native-v2`
+and `cluster.lip6.fr:MCC26/flat-test/its-tools-native-v2`, tested on `small10`
+and `big12` (`docs/CLUSTER.md` section 1). Open: how the deploy picks it
+(`runeclipse.sh` could exec the v2 file when `/proc/cpuinfo` lacks `avx2`),
+and a `small%` campaign at 6 cores. The tall probe job `1387749` is queued
+until tomorrow; its log in `MCC26/MCC-drivers/probe/` gives tall's RAM per
+core for the table. Open too:
 `--exact-reachability-metadata` for loud misses on a sweep, and stripping the
 20 signed jars at install (a 25 % start-up gain for the flat launcher). More
 closed-world misses should be expected on the corpus; the recipe is
