@@ -89,6 +89,11 @@ template<typename T>
     {
       PTNetHandler<T> *tthis = (PTNetHandler<T>*) userData;
       if (tthis->inOpaqueToolSpecific) {
+        // the NUPN structure element declares one-safety; the rest is opaque
+        if (std::string ("structure") == name) {
+          for (int i = 0; atts[i] && atts[i + 1]; i += 2)
+            if (std::string ("safe") == atts[i] && std::string ("true") == atts[i + 1]) tthis->net->setSafe (true);
+        }
         return;
       }
 

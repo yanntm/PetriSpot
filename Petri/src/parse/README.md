@@ -1,7 +1,7 @@
 # `parse/` — input parsers
 
 * `PTNetHandler.h` — expat SAX handler for PNML P/T nets (places, transitions,
-  weighted arcs, initial markings; `toolspecific` is skipped as opaque).
+  weighted arcs, initial markings; `toolspecific` is opaque except the NUPN `structure` element, whose `safe="true"` marks the net one-safe).
 * `PTNetLoader.h` — `loadXML(filename)`: drives expat over a file and returns
   a `SparsePetriNet<T>`.
 
