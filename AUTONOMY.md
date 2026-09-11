@@ -1,9 +1,12 @@
 # Standing alone: examinations, procedures, and the loop
 
-A design, to comment, written 2026-09-11 evening. The subject is the next
-big step: PetriSpot answering an MCC examination from raw inputs to the last
-FORMULA line without ITS-Tools, with the same ideas ITS-Tools carries but
-built as one framework rather than inherited as one `Application.java`.
+A design, to comment, written 2026-09-11 evening, first comments folded in.
+The subject is the next big step: PetriSpot answering an MCC examination
+from raw inputs to the last FORMULA line without ITS-Tools, with the ideas
+ITS-Tools carries but built as one framework rather than inherited as one
+`Application.java`. Not a competitor: the same author, the version written
+knowing what ten years of ITS-Tools taught, with the engineering done
+properly this time. ITS-Tools keeps its specificities and strengths.
 Vocabulary follows `PORTFOLIO.md` (fact, goal, cohort, strategy, profile);
 what is new here is how examinations, procedures and the classification of a
 property fit together, and where the symbolic engine lives.
@@ -78,15 +81,22 @@ it. This is `PORTFOLIO.md`'s goal, renamed to avoid the clash with the
 reduction goal.
 
 **Kind.** What the formula's shape says it is, after simplification, and
-nothing else. The lattice, from cheapest to most general:
+nothing else. The kinds form a partial order, not a chain: what one kind
+observes decides which reductions are sound for it, and CTL and LTL observe
+different things. CTL sees the next step (`EX`, `AX`) and branching; LTL
+sees infinite paths under an implicit universal quantifier and never the
+next step of one branch, so the stutter-insensitive reductions serve LTL
+and the stutter-insensitive CTL fragment, the branching-preserving ones
+serve CTL, and neither set contains the other.
 
 ```
 constant  <  initial-state decidable  <  invariant / reachability of a state predicate
           <  reachability with fireability atoms  <  bound  <  deadlock
-          <  CTL without next (stutter-insensitive)  <  CTL  <  LTL
+          <  CTL without next (stutter-insensitive)  <  CTL
+    and, apart:  LTL (stutter-insensitive by construction; its own engine, section 6)
 ```
 
-Kinds only ever move *down* the lattice, by rewriting: `EF p` is a
+Kinds only ever move *down*, by rewriting: `EF p` is a
 reachability question, `AG p` an invariant, `E[p U q]` with `p` false at
 the initial marking is `q` at the initial marking, an until whose right side
 is constant false is constant false. `expr/InitialState.h` does these today,
@@ -135,9 +145,21 @@ schedule of procedures by cost, its budget, and the output format. It is a
 configuration, not code with branches: what `Application.java` does by `if
 ("StateSpace".equals(examination))` becomes one table row per examination.
 
-**Cohort, round, budget.** As in `PORTFOLIO.md`: the open questions of one
-examination on one instance, the model generations they live on, and the
-clock they share. A round is one pass over the schedule at a cost level.
+**Cohort, conjoined goal, subgoal.** As in `PORTFOLIO.md`: the open
+questions of one examination on one instance, the model generations they
+live on, and the clock they share. The cohort starts as one **conjoined
+goal**: every open question attacked together, on one model reduced for
+their union support, by procedures that answer many at once (the
+multi-target walks, one symbolic set, one state equation with many
+targets); the flood of QuasiLiveness queries is the case that makes this
+mandatory. When the conjoined goal is stuck, the portfolio **isolates**: a
+question, or a few sharing a support, becomes a subgoal with its own model
+(reduced on its support alone, where the metrics say the reduction pays),
+its own budget, and every procedure of its class, its kind degrading as it
+learns. Isolation is gated by memory: reduction applicability is a
+model-wide fact, so a rule that found nothing on the conjoined model is not
+retried on every subgoal. A round is one pass over the schedule at a cost
+level, over the conjoined goal and the live subgoals.
 
 ## 4. Examinations as configurations
 
@@ -179,6 +201,12 @@ round k   reduce the model for the open kinds and the union support (record when
 stop      no open question, or the clock
 ```
 
+The portfolio's job is the alternation: an hour of budget, time sliced
+between the conjoined goal and the subgoals, between cheap and dear
+procedures, between explicit, linear and symbolic engines, each share
+following what it earned in the previous round. That alternation is where
+the state of the art is beaten, not in any one engine.
+
 What is new against the Java loop:
 
 * **Reclassification is a step**, run after every batch of facts, and it
@@ -200,6 +228,11 @@ What is new against the Java loop:
 * **Threads share knowledge, not models.** A procedure runs on its own copy
   of a generation; facts go to the knowledge structure; the loop reads it
   between steps. The pool of `PORTFOLIO.md` is the scheduler.
+* **A procedure's model comes with a set of initial states**, the initial
+  marking being the singleton case. An explicit engine takes a marking, a
+  symbolic one a set; a subgoal spawned from inside a search (section 8)
+  hands over where it stands. This is the one generalisation the
+  interfaces of section 7 carry from the start.
 
 ## 6. `Application.java`, mapped
 
@@ -212,15 +245,21 @@ What is new against the Java loop:
 | `DoneProperties` | knowledge | to build, small |
 | `GlobalPropertySolver` | the generated questions of the total examinations | the walks exist (`TOTAL_QUERIES.md`), the generator to move |
 | `UpperBoundsSolver.applyReductions` | bound questions with intervals, bounds dominance rule | rule exists unscheduled |
-| `LTLPropertySolver`, stutter and knowledge tests | procedures over facts, once Spot is a dependency | later |
+| `LTLPropertySolver`, stutter and knowledge tests | procedures over facts, on our own LTL engine: the canonical syntactic omega-semigroup of the formula as a computed transition matrix, a few accepting pairs and entry points per letter, in place of a Büchi automaton (the local `LTLToBuchi` work) | later, and better than Spot's path |
 | `MultiOrderRunner.runMultiITS`, `startHsc` | the symbolic procedures in `symbolic/`, in process | hsc-pn `--reduce` is the prototype |
 | the examination `if` chain | the table of section 4 | to build |
 
 Migration order, each step retiring one Java flow: StateSpace (the
 symbolic count is ours already), then the reachability family with
-UpperBounds, then the total examinations, then CTL; LTL and coloured nets
-last, each a dependency question (Spot; the unfolder) rather than a design
-one.
+UpperBounds, then the total examinations, then CTL. The **unfolder** comes
+right after the procedure catalogue exists: porting it accurately is about
+one session, the skeleton-based decisions another, and the coloured
+strategies are then written on top of the catalogue rather than beside it.
+**LTL** comes last and on its own engine, not on Spot: the semigroup
+construction above is why it waits, and why it will not be a port. **SMT**:
+the LP is the native, dependency-free prototype and it stands; when the
+refiners want a real solver, one that people have spent years on is
+plugged behind the same `lp/` interface rather than grown here.
 
 ## 7. Code organisation
 
@@ -264,7 +303,9 @@ model for a procedure's reporting.
 
 ## 8. What "a CTL AG gets the love it deserves" means concretely
 
-Today the CTL examination runs `prepare`, which requalifies `AG p` to an
+Two different things, and the design keeps them apart.
+
+At the top, classification: today the CTL examination runs `prepare`, which requalifies `AG p` to an
 invariant kind, then hands the remaining properties to the CTL driver,
 which decides by kind whether to walk or to check. That is the edge-case
 shape: the kind is known, the driver is CTL's. In the design above the
@@ -277,6 +318,15 @@ question the walks and the state equation left open can be handed to the
 symbolic set or the CTL checker, since their predicates accept the lower
 kinds too, at their cost level.
 
+Inside a search, subgoals: a CTL checker deciding `E[p U AG q]` meets `AG q`
+at some state, or in the symbolic engine at a set of states, and must
+handle it internally: an invariant question from that state or set. Whether
+the checker spawns such subgoals into the cohort, to be attacked by the
+invariant procedures under their own budget with the set as initial states
+(section 5), or keeps them as internal searches, is **open in this
+architecture**; the interfaces allow both, since a procedure takes a set of
+initial states. `CTL_PLAN.md` section 11 is where that question continues.
+
 ## 9. Plan of attack
 
 1. `loop/`: questions, kinds, reclassification, knowledge; `prepare`
@@ -288,14 +338,19 @@ kinds too, at their cost level.
    2026-09-11.
 3. `symbolic/`: hsc-pn's Petri net side moved here, libHSC as a linked
    library, `-hsc`; hsc-pn in libHSC becomes a thin example client or goes.
-4. The total examinations and UpperBounds as rows; then CTL, with the
-   checker as the dear procedure of the CTL kind.
-5. ITS-Tools' `PetriSpotWalker` call sites replaced by one call per
-   examination; the Java flows retired one by one, LTL and COL last.
+4. The total examinations and UpperBounds as rows, the conjoined goal and
+   the isolation of subgoals measured on the QuasiLiveness flood; then
+   CTL, with the checker as the dear procedure of the CTL kind.
+5. The unfolder ported into `parse/` or a `coloured/` folder, then the
+   skeleton decisions as procedures; the coloured strategies as rows.
+6. ITS-Tools' `PetriSpotWalker` call sites replaced by one call per
+   examination; the Java flows retired one by one; LTL last, on the
+   semigroup engine.
 
-Risks, named: the LTL dependency on Spot; the coloured unfolder is a large
-piece of Java with subtle semantics; the SMT reductions' parity (implicit
-places) needs the LP refiners and an exact checker before a rule removes a
-place on a floating-point verdict; and the loop's tuning is a campaign
+Risks, named: the coloured unfolder has subtle semantics and the port must
+be checked against the Java on the corpus; the SMT reductions' parity
+(implicit places) needs the LP refiners and an exact checker before a rule
+removes a place on a floating-point verdict, and a real solver behind
+`lp/` when the refiners ask for one; and the loop's tuning is a campaign
 question, not a design one, so every step above ends with a cluster run
 read against the pages, honestly.
