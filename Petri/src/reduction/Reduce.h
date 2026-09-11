@@ -15,13 +15,18 @@ template<class T> struct Result {
 
 /** `counting` is the record of the input net, attached under STATESPACE only:
  * the identity when the input vouches for itself, the blocks it carried
- * otherwise (Counting.h). Any other goal ignores it. Trace/image
- * reconstruction is not accepted by this interface yet. */
+ * otherwise (Counting.h). Any other goal ignores it. `knownDead` are
+ * transitions a caller proved never enabled (an outside test): retired
+ * first, as dead, so the rules start from what that proof exposes.
+ * Trace/image reconstruction is not accepted by this interface yet. */
 template<class T, class Trace>
 Result<T> reduce(SparsePetriNet<T> net, Configuration config,
                  std::vector<bool> observed, Trace& trace,
-                 std::optional<Counting<T>> counting = std::nullopt) {
+                 std::optional<Counting<T>> counting = std::nullopt,
+                 std::vector<size_t> knownDead = {}) {
   Workspace<T> workspace(std::move(net), config, std::move(observed));
+  for (size_t t : knownDead) if (t >= workspace.transitions.size()) throw std::invalid_argument("Known dead transition out of range");
+  workspace.retireDeadTransitions(std::move(knownDead));
   if (config.goal == Goal::STATESPACE) {
     if (!counting) counting = Counting<T>::identity(workspace.places.size(), workspace.transitions.size());
     if (counting->pcoef.size() != workspace.places.size()
@@ -41,8 +46,8 @@ Result<T> reduce(SparsePetriNet<T> net, Configuration config,
 
 template<class T>
 Result<T> reduce(SparsePetriNet<T> net, Configuration config, std::vector<bool> observed = {},
-                 std::optional<Counting<T>> counting = std::nullopt) {
+                 std::optional<Counting<T>> counting = std::nullopt, std::vector<size_t> knownDead = {}) {
   NoTrace trace;
-  return reduce(std::move(net), config, std::move(observed), trace, std::move(counting));
+  return reduce(std::move(net), config, std::move(observed), trace, std::move(counting), std::move(knownDead));
 }
 }
