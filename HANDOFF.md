@@ -9,6 +9,7 @@ the design file, history in git and `docs/HISTORY.md`). State as of
 
 | thread | read | code |
 | --- | --- | --- |
+| standing alone: examinations, procedures, the loop | `AUTONOMY.md` (design, to comment) | none yet |
 | native structural reductions | `PS_REDUCTIONS.md`, `Petri/src/reduction/README.md`, `Petri/src/reduction/algorithm.md` | `Petri/src/reduction/`, `Petri/test/reduction/` |
 | the walk engine (reachability) | `WALK_PLAN.md` sections 9, 10 | `Petri/src/walk/` |
 | the solving loop, walker budgets | `PORTFOLIO.md`, `INTEROP.md` | `cli/WalkDriver.h`, ITS-Tools `PetriSpotWalker` |
