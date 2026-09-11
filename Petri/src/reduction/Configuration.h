@@ -36,6 +36,8 @@ struct Configuration {
   size_t futureBucketLimit = 10000;
   size_t maxNameBytes = 1024;
   size_t implicitDepth = 5;
+  long deadMs = 3000;        // state-equation dead transition tests, over the whole reduction; 0 disables
+  size_t deadPivots = 20000; // per solve of that test
   std::chrono::milliseconds timeLimit {15000};
 };
 

@@ -19,7 +19,7 @@ namespace petri::reduction {
  * io/PNET.md), for a consumer such as hsc-pn --states. */
 template<class T> int reduceCommand(int argc, char** argv) {
   std::string pnml, pnet, propertyFile, syntax = "auto", output, goal;
-  long query = -1, milliseconds = 15000;
+  long query = -1, milliseconds = 15000, deadMs = 3000;
   bool noAgglo = false;
   CLI::App app("Reduce a P/T net and its formulas; write a matched pair without solving.");
   auto* input = app.add_option("-i", pnml, "Input PNML net.");
@@ -31,6 +31,7 @@ template<class T> int reduceCommand(int argc, char** argv) {
   app.add_option("--output", output, "New directory for model.pnet, properties.sexpr and names.sexpr.")->required();
   app.add_option("--reductionMs", milliseconds, "Reduction time limit in milliseconds.")->check(CLI::PositiveNumber);
   app.add_flag("--reductionNoAgglo", noAgglo, "Disable agglomeration.");
+  app.add_option("--deadMs", deadMs, "Budget of the state-equation dead transition tests over the reduction; 0 disables.");
   try { app.parse(argc, argv); } catch (const CLI::ParseError& error) { return app.exit(error); }
   if (pnml.empty() && pnet.empty()) throw std::invalid_argument("Specify -i or --net");
   bool counting = !goal.empty();
@@ -48,7 +49,7 @@ template<class T> int reduceCommand(int argc, char** argv) {
   std::unique_ptr<SparsePetriNet<T>> original(pnet.empty() ? loadXML<T>(pnml) : PNETIO<T>::read(pnet, &blocks));
   if (!original) throw std::runtime_error("Cannot read reduction input");
   Configuration config;
-  config.timeLimit = std::chrono::milliseconds(milliseconds); config.agglomeration = !noAgglo;
+  config.timeLimit = std::chrono::milliseconds(milliseconds); config.agglomeration = !noAgglo; config.deadMs = deadMs;
   std::vector<expr::Property> properties;
   Prepared<T> prepared;
   typename PNETIO<T>::Blocks outBlocks;
@@ -63,7 +64,8 @@ template<class T> int reduceCommand(int argc, char** argv) {
         << " places, " << original->getTransitionCount() << " -> " << result.net.getTransitionCount() << " transitions, "
         << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count()
         << " ms" << (result.limited ? " (limit)" : "") << ".\n";
-    for (const auto& stat : result.stats) if (stat.edits) std::cerr << "Reduction rule " << stat.name << ": " << stat.edits << " sparse edits.\n";
+    for (const auto& stat : result.stats) if (stat.edits) std::cerr << "Reduction rule " << stat.name << ": " << stat.edits << " edits.\n";
+    describeDeadTransitions(result.dead, std::cerr);
     describeCounting(*result.counting, std::cerr);
     outBlocks = countingToBlocks<T>(*result.counting);
     prepared.net = std::move(result.net); prepared.reduction = std::move(result); prepared.rounds = 1;

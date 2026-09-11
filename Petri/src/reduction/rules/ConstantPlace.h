@@ -12,7 +12,7 @@ struct ConstantPlace {
   static constexpr const char* name = "constant-place";
   template<class T> static void apply(Workspace<T>& w) {
     if (w.config.goal == Goal::LIVENESS) return; // dead transitions must remain as liveness obligations
-    std::vector<size_t> dead;
+    std::vector<size_t> dead, constants;
     for (size_t p = w.places.size(); p-- > 0;) {
       if ((p % 256 == 0 && w.stop()) || !w.liveP[p]) { if (w.limited) return; continue; }
       const auto& in = w.producers.getColumn(p);
@@ -27,9 +27,10 @@ struct ConstantPlace {
       for (size_t i = 0; i < out.size(); ++i)
         if (out.valueAt(i) > w.marks[p]) dead.push_back(out.keyAt(i));
       if (w.observed[p]) w.erasePlaceArcs(p);
-      else w.retireConstantPlace(p);
+      else constants.push_back(p);
     }
-    for (size_t t : dead) w.retireDeadTransition(t);
+    w.retireConstantPlaces(std::move(constants));
+    w.retireDeadTransitions(std::move(dead));
   }
 };
 }

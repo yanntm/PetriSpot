@@ -39,6 +39,7 @@ struct Options
   bool netStats = false;
   bool reduce = false;
   long reductionMs = 15000;
+  long deadMs = 3000;
   bool reductionNoAgglo = false;
 
   // invariants
@@ -155,6 +156,7 @@ inline void addOptions (CLI::App &app, Options &o)
   red->add_option ("--reductionMs", o.reductionMs, "Reduction time limit in ms (default 15000).")
       ->check (CLI::PositiveNumber);
   red->add_flag ("--reductionNoAgglo", o.reductionNoAgglo, "Disable native agglomeration rules.");
+  red->add_option ("--deadMs", o.deadMs, "Budget in ms of the state-equation dead transition tests inside a reduction (default 3000, 0 disables).");
 
   auto *inv = app.add_option_group ("Invariants");
   inv->add_flag ("--Pflows", o.pflows, "Generative basis of P-flows.");

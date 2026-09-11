@@ -31,6 +31,12 @@ inline void remap(expr::CtlFormula& formula, const std::vector<size_t>& map) {
   for (auto& child : formula.kids) remap(child, map);
 }
 
+inline void describeDeadTransitions(const DeadStats& d, std::ostream& os) {
+  if (d.tested == 0 && !d.limited) return;
+  os << "Reduction dead transitions: " << d.found << " of " << d.tested << " tested, " << d.solves << " solves, "
+      << d.pivots << " pivots, " << d.passes << " passes, " << d.spentMs << " ms" << (d.limited ? " (budget)" : "") << ".\n";
+}
+
 /** Derive a joint goal. General CTL and mixed deadlock/state queries use the
  * strong local subset (LTL configuration); no stutter assumption is inferred.
  * Hints and executable witnesses retain the original net until lifting exists.
@@ -76,7 +82,8 @@ std::optional<Result<T>> prepareQueries(const SparsePetriNet<T>& original,
       << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count()
       << " ms" << (result.limited ? " (limit)" : "") << ".\n";
   for (const auto& stat : result.stats) if (stat.edits)
-    diagnostics << "Reduction rule " << stat.name << ": " << stat.edits << " sparse edits.\n";
+    diagnostics << "Reduction rule " << stat.name << ": " << stat.edits << " edits.\n";
+  describeDeadTransitions(result.dead, diagnostics);
   return result;
 }
 }

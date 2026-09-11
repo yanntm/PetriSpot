@@ -23,6 +23,7 @@
 #include "reduction/rules/ScalarTransition.h"
 #include "reduction/rules/SinkTransition.h"
 #include "reduction/rules/InitialTokenMove.h"
+#include "reduction/rules/DeadTransition.h"
 
 namespace petri::reduction {
 struct RuleStats { const char* name = ""; size_t passes = 0, edits = 0; };
@@ -32,6 +33,7 @@ struct NoTrace { static constexpr bool enabled = false; };
  * local cleanup, prefix, implicit, SCC and trivial/simple post reach stability.
  * Pre/future/general/complex fallbacks precede siphons, redundancy, free/partial
  * agglomeration and token movement. Four growing outer rounds stop expansion.
+ * Each outer round opens with the state-equation dead transition test.
  * STATESPACE runs its own short loop of record-maintaining rules instead.
  * Trace policies are compile-time optional: no event construction when off.
  * An enabled policy supplies before(rule,workspace) / after(rule,workspace).
@@ -49,7 +51,7 @@ template<class T, class Trace = NoTrace> class Coordinator {
     stat.edits += w.changes - before;
   }
 public:
-  std::array<RuleStats, 26> stats {};
+  std::array<RuleStats, 27> stats {};
   size_t passes = 0;
   Coordinator(Workspace<T>& net, Trace& observer) : w(net), trace(observer) {}
   void execute() {
@@ -61,6 +63,7 @@ public:
         if (++passes > w.config.maxPasses || w.stop()) { w.limited = true; return; }
         before = w.changes;
         run<ConstantPlace>(0); run<DuplicateTransition>(1); run<NoEffect>(3); run<FreeSCC>(11);
+        run<DeadTransition>(26);
       } while (w.changes != before);
       return;
     }
@@ -73,6 +76,7 @@ public:
     run<PrefixOfInterest>(5);
     size_t growing = 0;
     while (passes < w.config.maxPasses && !w.stop() && !w.deadlock.has_value()) {
+      run<DeadTransition>(26);
       size_t countBefore = std::count(w.liveT.begin(), w.liveT.end(), true);
       size_t before;
       do {

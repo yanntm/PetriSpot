@@ -380,6 +380,7 @@ template<typename T>
     petri::reduction::Configuration reductionConfig;
     reductionConfig.timeLimit = std::chrono::milliseconds(o.reductionMs);
     reductionConfig.agglomeration = !o.reductionNoAgglo;
+    reductionConfig.deadMs = o.deadMs;
     // constants, initial state, reduction, to a fixpoint (reduction/Pipeline.h)
     auto prepared = petri::reduction::prepare(original, props, o.reduce && !o.printProps,
         o.trace || !o.hintsFile.empty(), reductionConfig, o.printProps ? nullptr : &std::cout, std::cerr);
@@ -513,6 +514,7 @@ template<typename T>
     petri::reduction::Configuration reductionConfig;
     reductionConfig.timeLimit = std::chrono::milliseconds(o.reductionMs);
     reductionConfig.agglomeration = !o.reductionNoAgglo;
+    reductionConfig.deadMs = o.deadMs;
     auto prepared = petri::reduction::prepare(original, properties, o.reduce,
         o.trace || !o.hintsFile.empty(), reductionConfig, &std::cout, std::cerr);
     const auto& pn = prepared.net;

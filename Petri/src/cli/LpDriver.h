@@ -56,6 +56,7 @@ template<typename T>
     petri::reduction::Configuration reductionConfig;
     reductionConfig.timeLimit = std::chrono::milliseconds(o.reductionMs);
     reductionConfig.agglomeration = !o.reductionNoAgglo;
+    reductionConfig.deadMs = o.deadMs;
     auto prepared = petri::reduction::prepare(original, props, o.reduce,
         o.trace || !o.hintsFile.empty() || !o.lpHintsFile.empty(), reductionConfig, &std::cout, std::cerr);
     const auto& pn = prepared.net;
