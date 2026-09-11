@@ -39,6 +39,24 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 
 ## In flight
 
+**Campaign itstools/202609101624: ITS-Tools on RC and RF, PT nets, small%,
+complete.** Submitted 2026-09-11 11:30 from the cluster head by
+`Petri/test/mcc/submit-2026-09-11.sh` (its log ends with `SUBMISSION DONE`):
+1953 jobs an examination, 1800 s, 6 cores, `TAG=itstools`, the CI product
+202609101624 through the locally built x86-64-v2 native image. Every job
+has run (`RC.itstools` and `RF.itstools` hold 3906 files each, the queue is
+empty). Not collected yet:
+
+```
+bash Petri/test/mcc/collect.sh itstools/202609101624 RC.itstools RF.itstools --pages
+```
+
+then the README of `MCC26logs/itstools/202609101624/`, its line in the
+`MCC26logs/README.md` table, and a set for it in `campaign/example.json`
+before `--pages` picks it up. Its `petri64` predates the preparation
+pipeline (`reduction/Pipeline.h`): it is the baseline the next PetriSpot
+campaign measures against, not a measure of the pipeline.
+
 **Campaign hsc/20260910: libHSC alone on CTLC and CTLF, PT nets, small%.**
 Submitted 2026-09-10 18:28 from the cluster head by
 `Petri/test/mcc/submit-2026-09-10.sh` (detached, its log
