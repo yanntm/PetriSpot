@@ -22,6 +22,7 @@
 #include "cli/WalkDriver.h"
 #include "core/SparsePetriNet.h"
 #include "expr/Property.h"
+#include "reduction/Pipeline.h"
 #include "lp/DeadlockRefiner.h"
 #include "lp/Parikh.h"
 #include "lp/Refiner.h"
@@ -55,11 +56,9 @@ template<typename T>
     petri::reduction::Configuration reductionConfig;
     reductionConfig.timeLimit = std::chrono::milliseconds(o.reductionMs);
     reductionConfig.agglomeration = !o.reductionNoAgglo;
-    auto reduced = petri::reduction::prepareQueries(original, props, o.reduce,
-        o.trace || !o.hintsFile.empty() || !o.lpHintsFile.empty(), reductionConfig, std::cerr);
-    const auto& pn = reduced ? reduced->net : original;
-    petri::reduction::simplifyProperties(pn, props);
-    petri::reduction::consumeSolvedProperties(pn, props, std::cout);
+    auto prepared = petri::reduction::prepare(original, props, o.reduce,
+        o.trace || !o.hintsFile.empty() || !o.lpHintsFile.empty(), reductionConfig, &std::cout, std::cerr);
+    const auto& pn = prepared.net;
     if (props.empty()) return;
     petri::lp::StateEquation<T> se (pn);
     std::cout << "State equation: " << pn.getPlaceCount () << " places, " << pn.getTransitionCount ()

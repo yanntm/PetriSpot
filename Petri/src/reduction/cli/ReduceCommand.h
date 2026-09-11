@@ -7,7 +7,7 @@
 #include "io/PNETIO.h"
 #include "parse/PTNetLoader.h"
 #include "parse/PropertyFile.h"
-#include "reduction/Properties.h"
+#include "reduction/Pipeline.h"
 
 namespace petri::reduction {
 /** Standalone transformation: publish a paired PNET/property directory, without
@@ -51,9 +51,8 @@ template<class T> int reduceCommand(int argc, char** argv) {
       throw std::invalid_argument("Reduction export needs supported formulas without transition hints");
   Configuration config;
   config.timeLimit = std::chrono::milliseconds(milliseconds); config.agglomeration = !noAgglo;
-  auto reduced = prepareQueries(*original, properties, true, false, config, std::cerr);
-  if (!reduced) throw std::logic_error("Reduction did not produce a model/formula pair");
-  simplifyProperties(reduced->net, properties);
+  auto prepared = prepare(*original, properties, true, false, config, nullptr, std::cerr);
+  const auto* reduced = &prepared;
 
   if (!fs::create_directory(staging)) throw std::runtime_error("Cannot create reduction staging directory");
   try {

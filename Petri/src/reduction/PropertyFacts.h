@@ -6,14 +6,41 @@
 
 namespace petri::reduction {
 
-/** Facts available without exploration. Initial deadlock implies every place
- * is constant on the reachable set, even when disabled transitions remain.
- * A transition enabled using only constant guards rules out every deadlock. */
+/** Facts available without exploration. A place is constant when no transition
+ * changes it, or when it lies in the greatest initially empty siphon (it never
+ * receives its first token). Initial deadlock makes every place constant. A
+ * transition enabled using only constant guards rules out every deadlock. */
 struct PropertyFacts {
   std::vector<bool> constant;
   bool initialDeadlock = true;
   bool noDeadlocks = false;
 };
+
+/** The greatest siphon of initially empty places: start from them all, drop the
+ * outputs of every transition none of whose inputs is a candidate, propagate. */
+template<class T> std::vector<bool> emptySiphon(const SparsePetriNet<T>& net) {
+  size_t places = net.getPlaceCount(), transitions = net.getTransitionCount();
+  std::vector<bool> candidate(places);
+  for (size_t p = 0; p < places; ++p) candidate[p] = net.getMarks()[p] == 0;
+  std::vector<size_t> inputs(transitions, 0), todo;
+  for (size_t t = 0; t < transitions; ++t) {
+    const auto& pre = net.getFlowPT().getColumn(t);
+    for (size_t i = 0; i < pre.size(); ++i) inputs[t] += candidate[pre.keyAt(i)] ? 1 : 0;
+    if (inputs[t] == 0) todo.push_back(t);
+  }
+  auto consumers = net.getFlowPT().transpose();
+  for (size_t k = 0; k < todo.size(); ++k) {
+    const auto& post = net.getFlowTP().getColumn(todo[k]);
+    for (size_t i = 0; i < post.size(); ++i) {
+      size_t p = post.keyAt(i);
+      if (!candidate[p]) continue;
+      candidate[p] = false;
+      const auto& row = consumers.getColumn(p);
+      for (size_t j = 0; j < row.size(); ++j) if (--inputs[row.keyAt(j)] == 0) todo.push_back(row.keyAt(j));
+    }
+  }
+  return candidate;
+}
 
 template<class T> PropertyFacts propertyFacts(const SparsePetriNet<T>& net) {
   PropertyFacts facts;
@@ -35,6 +62,8 @@ template<class T> PropertyFacts propertyFacts(const SparsePetriNet<T>& net) {
     std::fill(facts.constant.begin(), facts.constant.end(), true);
     return facts;
   }
+  auto siphon = emptySiphon(net);
+  for (size_t p = 0; p < siphon.size(); ++p) if (siphon[p]) facts.constant[p] = true;
   for (size_t t = 0; t < net.getTransitionCount(); ++t) {
     const auto& pre = net.getFlowPT().getColumn(t);
     bool always = true;
@@ -98,9 +127,11 @@ expr::CtlFormula substituteConstants(expr::CtlFormula formula, const PropertyFac
  * forms retain their coordinates (the syntax has no affine offset), with an
  * exact known bound so normal initial-goal evaluation can close them. */
 template<class T>
-void simplifyProperties(const SparsePetriNet<T>& net, std::vector<expr::Property>& properties) {
+size_t simplifyProperties(const SparsePetriNet<T>& net, std::vector<expr::Property>& properties) {
   const auto facts = propertyFacts(net);
+  size_t changed = 0;
   for (auto& property : properties) {
+    const expr::Property before = property;
     if (property.kind == expr::PropertyKind::Bound) {
       bool constant = true;
       long long value = 0;
@@ -121,6 +152,9 @@ void simplifyProperties(const SparsePetriNet<T>& net, std::vector<expr::Property
     } else if (property.kind != expr::PropertyKind::Unsupported) {
       property.body = substituteConstants(std::move(property.body), facts, net.getMarks());
     }
+    if (property.kind != before.kind || !(property.body == before.body) || !(property.ctl == before.ctl)
+        || property.boundHint != before.boundHint) ++changed;
   }
+  return changed;
 }
 }

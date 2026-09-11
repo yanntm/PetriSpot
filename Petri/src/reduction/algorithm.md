@@ -442,7 +442,27 @@ executable witness lifting remain deferred optional capabilities. libHSC reuses
 the native API through vendoring; PNET stays an adapter. Implementation proceeds
 incrementally under the approved design; the report records remaining coverage.
 
-## 9. Implemented reachability/deadlock schedule
+## 9. Preparation to a fixpoint (`Pipeline.h`)
+
+Reduction alone misses what the reference gets for free: ITS-Tools substitutes
+the constant places into the formulas and answers what the initial marking
+decides *before* it computes the support the reduction protects, then reduces
+again each time a property falls. `prepare` is that loop, without the walks:
+
+1. constants of the current net into the formulas (`PropertyFacts.h`), simplify;
+2. the initial marking (`expr/InitialState.h`): answer, rewrite, requalify;
+3. report and drop the decided properties (INITIAL_STATE before any reduction,
+   STRUCTURAL_REDUCTION after one);
+4. reduce for the remaining kinds and supports (`Properties.h`), and if the
+   net or a property changed, back to 1; stop at stability, on an empty
+   property list, or at `maxRounds`.
+
+Without `--reduce` steps 1 to 3 still run on the unchanged net. On
+AirplaneLD-PT-0010 ReachabilityCardinality the reference answers 12 of 16
+properties this way before its first walk and reduces the rest on a support of 4
+formulas; reducing first on the support of all 16 leaves the net untouched.
+
+## 10. Implemented reachability/deadlock schedule
 
 Each named rule owns its own recognition and edits. The coordinator retains
 Java's nested phases: free SCC and prefix first; place cleanup, transition

@@ -30,12 +30,12 @@ std::optional<std::string> propertyResult(const SparsePetriNet<T>& net, const ex
 /** Consume decided properties before allocating walk, CTL or LP machinery. */
 template<class T>
 size_t consumeSolvedProperties(const SparsePetriNet<T>& net, std::vector<expr::Property>& properties,
-                               std::ostream& output) {
+                               std::ostream& output,
+                               const char* techniques = "TOPOLOGICAL STRUCTURAL_REDUCTION") {
   return std::erase_if(properties, [&](const auto& property) {
     auto result = propertyResult(net, property);
     if (!result) return false;
-    output << "FORMULA " << property.name << " " << *result
-        << " TECHNIQUES TOPOLOGICAL STRUCTURAL_REDUCTION\n";
+    output << "FORMULA " << property.name << " " << *result << " TECHNIQUES " << techniques << '\n';
     if (property.kind == expr::PropertyKind::Bound)
       output << "BOUND " << property.name << " " << *result << '\n';
     return true;

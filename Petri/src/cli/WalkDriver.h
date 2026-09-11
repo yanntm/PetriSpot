@@ -24,6 +24,7 @@
 #include "expr/SexprPrinter.h"
 #include "parse/PropertyFile.h"
 #include "parse/sexpr/HintReader.h"
+#include "reduction/Pipeline.h"
 #include "reduction/Properties.h"
 #include "reduction/cli/PropertyResults.h"
 #include "invariants/InvariantMiddle.h"
@@ -379,15 +380,14 @@ template<typename T>
     petri::reduction::Configuration reductionConfig;
     reductionConfig.timeLimit = std::chrono::milliseconds(o.reductionMs);
     reductionConfig.agglomeration = !o.reductionNoAgglo;
-    auto reduced = petri::reduction::prepareQueries(original, props, o.reduce && !o.printProps,
-        o.trace || !o.hintsFile.empty(), reductionConfig, std::cerr);
-    const auto& pn = reduced ? reduced->net : original;
+    // constants, initial state, reduction, to a fixpoint (reduction/Pipeline.h)
+    auto prepared = petri::reduction::prepare(original, props, o.reduce && !o.printProps,
+        o.trace || !o.hintsFile.empty(), reductionConfig, o.printProps ? nullptr : &std::cout, std::cerr);
+    const auto& pn = prepared.net;
     if (o.printProps) {
       printProperties (props, pn, o.printPropsFormat);
       return;
     }
-    petri::reduction::simplifyProperties(pn, props);
-    petri::reduction::consumeSolvedProperties(pn, props, std::cout);
     if (props.empty()) return;
     // CTL properties have their own engine; the rest go to the walk
     std::vector<petri::expr::Property> ctlProps;
@@ -513,11 +513,9 @@ template<typename T>
     petri::reduction::Configuration reductionConfig;
     reductionConfig.timeLimit = std::chrono::milliseconds(o.reductionMs);
     reductionConfig.agglomeration = !o.reductionNoAgglo;
-    auto reduced = petri::reduction::prepareQueries(original, properties, o.reduce,
-        o.trace || !o.hintsFile.empty(), reductionConfig, std::cerr);
-    const auto& pn = reduced ? reduced->net : original;
-    petri::reduction::simplifyProperties(pn, properties);
-    petri::reduction::consumeSolvedProperties(pn, properties, std::cout);
+    auto prepared = petri::reduction::prepare(original, properties, o.reduce,
+        o.trace || !o.hintsFile.empty(), reductionConfig, &std::cout, std::cerr);
+    const auto& pn = prepared.net;
     if (properties.empty()) return;
     petri::walk::WalkBudget budget = o.budget;
     budget.timeoutMillis = static_cast<uint64_t> (o.timeout) * 1000;

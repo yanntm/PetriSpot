@@ -28,6 +28,7 @@ struct Configuration {
   bool agglomeration = true;
   bool relevance = true;
   size_t maxPasses = 1000;
+  size_t maxRounds = 8; // preparation rounds of Pipeline.h: simplify, reduce, again
   size_t maxComposedArcs = std::numeric_limits<size_t>::max();
   size_t postCrossProductLimit = 32;
   size_t complexPostApplications = 101;

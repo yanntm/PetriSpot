@@ -28,7 +28,8 @@ Implemented source responsibilities:
 | `rules/ReachabilityRelevance.h` | One property relevance rule |
 | `rules/TrivialPost.h`, `rules/PreAgglo.h`, `rules/PostAgglo.h` | Separate agglomeration rules |
 | `rules/DuplicatePlace.h`, `rules/NoEffect.h`, `rules/SinkPlace.h` | Separate cleanup rules |
-| `Properties.h` | Adapter for `expr::Property`, support and checked rewriting |
+| `Properties.h` | Adapter for `expr::Property`, support and checked rewriting; one reduction step for a property set |
+| `Pipeline.h` | `prepare(...)`: constants into the formulas, initial state, decided properties dropped, reduce, to a fixpoint |
 | `PropertyFacts.h` | Constant substitution and formula simplification |
 | `Composition.h`, `TransitionAlgebra.h` | Checked sparse composition and effect operations |
 | `graph/` | SCCs, dependency prefixes and stabilizing analysis |
@@ -56,8 +57,18 @@ Graphical rendering belongs in an IO adapter, outside the reduction kernel.
 Current related services: [sparse substrate](../core/README.md),
 [property AST](../expr/README.md), [PNET records](../io/PNET.md).
 
-`--reduce` opts query analysis into the module. It runs after property parsing
-and before walk/CTL/LP net compilation, using the union of query supports.
+Every engine starts with `Pipeline.h`'s `prepare`, `--reduce` or not: the
+constant places of the net (`PropertyFacts.h`: unchanged by every transition, or
+in the greatest initially empty siphon) are substituted into the formulas, the
+formulas simplified and confronted with the initial marking
+(`expr/InitialState.h`: decided formulas answered, an until whose left side
+fails initially replaced by its right side, `EF p` / `AG p` requalified as
+reachability kinds), and the decided properties reported and dropped. With
+`--reduce` the net is then reduced for the kinds and the union support that
+remain, and the round repeats on the reduced net while something changes: a
+smaller support lets more rules fire, a reduced net exposes more constants.
+Without it only the formula side runs, the degraded mode. `--reduce` runs before
+walk/CTL/LP net compilation.
 `--reductionMs` limits reduction work (default 15000); `--reductionNoAgglo`
 disables agglomeration. `--trace`, input hints and LP hint export keep the
 original net until lifting is implemented. Export and invariant-only requests
