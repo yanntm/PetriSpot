@@ -968,16 +968,22 @@ question the measurement answers.
 
 `lp/DeadTransitions.h` exists and runs as `reduction/rules/DeadTransition.h`
 in PetriSpot's own reductions, STATESPACE loop and general schedule, under
-`--deadMs` (3 s). On BugTracking q3m002 after the structural pass it tests
-about 470 of the 5 764 transitions in the budget, 118 dead (185 pivots and
-6 ms a solve, cold start each time); the linear test above did all 5 764 in
-0.2 s and found 2 995. So today the linear test wins on that net by an order
-of magnitude, the LP being exact but paid per transition. Two known gains
-before the comparison is fair: a warm start from the previous basis, and a
-per-place bound program as a pre-filter (`lp/algorithm.md`, section 5).
-Elsewhere the LP is cheap: 0 to 30 ms for every model under 600
-transitions, the 3 s budget at 2 000 to 5 000 transitions with 200 to 300
-pivots a solve, and 75 ms a solve on Erlangen's 59 000 columns.
+`--deadMs` (3 s), places first (a bound per place, its never-marked places
+and over-asking consumers dead) then transitions. On BugTracking q3m002 the
+3 s leave 304 places and 4 630 transitions (phase one 0.97 s for 538 places,
+6 624 transitions dead from the bounds); 30 s and 13 118 solves leave 4 556
+alive, where the linear test leaves 2 769 in 0.2 s. On that net, most
+places one-safe and a few unbounded, the linear test is the winner in its
+basic form, and not by budget: its set is the *integer* points of the flow
+equalities and the box, where the LP relaxation admits fractional markings
+(half a token in each of two places summing to one) that enable transitions
+no integer marking does. A warm start cuts pivots, not that gap; closing it
+is integer programming (the cuts of `lp/algorithm.md` section 4), which is
+not cheap. Elsewhere the LP is cheap: 0 to 30 ms under 600 transitions, the
+3 s budget at 2 000 to 5 000 transitions, 75 ms a solve on Erlangen's
+59 000 columns. Decision: the hsc-pn path computes the invariants once and
+tests on the set (step 3 above, `--dead-test linear` the default); the
+PetriSpot path keeps the LP under its budget.
 
 ### The comparison, then the default
 
