@@ -123,10 +123,19 @@ Resume with validation, not new commands or generated tests:
    1,681 models with zero original/reduced conflicts, but comparisons span the
    broken oracle replacement. Do not treat its zero reported wrong answers as
    full oracle validation. `Petri/test/reduction/summarize.py` reads these files.
-3. Investigate GPPP-PT-C0010N1000000000 CTLCardinality-2024-08: FALSE both with
-   and without reductions, TRUE in consensus (TAPAAL, 2025GOLD), FALSE for TY.
-   Unchanged reduced net sizes argue against a reduction-specific regression;
-   overflow and the correct answer remain unresolved.
+3. GPPP disagreement is resolved: CTLC (CTLCardinality), zero-based index 08
+   (ninth property), full ID `GPPP-PT-C0010N1000000000-CTLCardinality-2024-08`
+   in the MCC26 formulas. FALSE is correct; consensus TRUE (TAPAAL, 2025GOLD)
+   is wrong. The C++ counterexample has 52 enabled firings, independently
+   replayed with Python arbitrary-precision integers. No undefined arithmetic
+   was reported by the UBSan probe; the largest marking on this path is
+   4,000,000,000. This settles this verdict, not general overflow protection.
+   See `PS_REDUCTIONS.md` for the proof and `Petri/test/reduction/README.md`
+   for the one-shot probe commands. Keep the probes only until this problem
+   is closed, then remove them. Still to do: curate this specific oracle value
+   in pnmcc-models-2026 with the evidence, and repair the blank root evidence
+   printed when an until formula fails at its initial state. No oracle patch
+   has been made for GPPP yet; no overflow in a reference tool is established.
 4. Review 137 reduced invocation timeouts and 46 reduction-limit reports in
    the complete-inventory campaign, particularly BlocksWorld. Each model shares
    a 15-second allowance; no cluster runs are authorized for this task.

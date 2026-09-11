@@ -154,8 +154,8 @@ formula verdicts were `?`, and all five global-property families were missing.
 This was not a withdrawal of the GPPP verdict and does not settle the disagreement.
 The raw CSV and locally rebuilt archive retain TRUE for GPPP-PT-C0010N1000000000
 CTLCardinality-2024-08, defended by TAPAAL and 2025GOLD; TY and PetriSpot answer
-FALSE. ITS-Tools reports CC in the raw row. Overflow remains an investigation,
-not a demonstrated cause or a cleared defect.
+FALSE. ITS-Tools reports CC in the raw row. The counterexample investigation below resolves this particular disagreement
+in favor of FALSE; the cause of the reference tools’ TRUE answers is unknown.
 
 The complete local build in pnmcc-models-2026 produced 29,871 files, with all
 ordinary families populated and all total-vector lengths preserved. Its commit
@@ -171,3 +171,32 @@ stored oracle comparisons span oracle versions (and entries unavailable during
 replacement may be unverified); re-score recorded answers against one fixed
 oracle before interpreting aggregate oracle-match counts. Original/reduced
 pairwise comparisons remain independent of this oracle change.
+
+## GPPP CTLC index 08: verified false
+
+The MCC26 property is
+`GPPP-PT-C0010N1000000000-CTLCardinality-2024-08`, the ninth property
+(zero-based 08) of CTLCardinality, not CTLFireability. The original net with
+`petri64`, seed 1 and the validation budgets answers FALSE via EXPLICIT CTL_WALK.
+The ordinary root trace is blank because the initial-until failure discards
+its child's evidence. Solving that AG child with the same property seed
+(1 + 7919 * 8) exposes the 52-transition counterexample.
+
+The formula has the shape `E[_3PG >= 2467342475 U AG(B)]`. Initially `_3PG=0`,
+so it requires AG(B) at the initial state. In B, the outer disjunction is
+`Ru5P >= Pyr` or a conjunction whose first factor is
+`E4P >= 228211673 OR A[FBP >= b2 U GAP >= 2707223165]`.
+The counterexample reaches Ru5P=0, Pyr=1, E4P=1, FBP=0, b2=27, GAP=1.
+Both disjuncts fail: the inner until has neither its target nor its left
+condition at that state. Thus B is false at a reachable state, AG(B) is false
+initially, and the complete property is FALSE.
+
+The C++ probe built with undefined-behavior sanitization reported no arithmetic
+fault. Independent PNML replay in Python arbitrary-precision integers verified
+that all 52 transitions are enabled and the endpoint satisfies the inequalities
+above. Its maximum place marking is 4,000,000,000. This is a concrete refutation
+of the consensus TRUE, not an inference from absence of a sanitizer report.
+The one-shot probes are `Petri/test/reduction/gppp_probe.cpp` and
+`gppp_replay.py`; their README gives reproduction commands. Remove them after
+oracle curation and trace-reporting follow-up. General unchecked arithmetic
+elsewhere and the cause of TAPAAL/2025GOLD's answer remain unassessed.
