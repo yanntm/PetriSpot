@@ -103,6 +103,37 @@ export. Trace hooks compile out with NoTrace. Enabled hooks currently observe
 rule passes; bounded per-application captures and animated PDF output remain
 unimplemented, as do image transport and full SI-specific completion.
 
+## Preparation pipeline (`reduction/Pipeline.h`)
+
+Reducing on the union support of every formula left AirplaneLD-PT-0010
+untouched (89 places, 88 transitions) where ITS-Tools reached 46 places and 70
+transitions: the reference substitutes the constant places into the formulas
+and answers what the initial marking decides before it computes the support,
+then reduces again each time a property falls. `prepare` is that loop, run by
+every entry point, `--reduce` or not: constants of the current net (unchanged
+by every transition, or in the greatest empty siphon) into the formulas; the
+initial marking (`expr/InitialState.h`: decided formulas answered, an until
+whose left side fails initially replaced by its right side, `EF p` / `AG p`
+requalified as reachability kinds); decided properties reported and dropped;
+reduce for the kinds and supports that remain; again while something changed.
+A net declared one-safe by its NUPN structure (`SparsePetriNet::isSafe`,
+cleared by the two rules that fuse places) bounds every place by one, and an
+atom every value of its form decides the same way folds to a constant.
+
+AirplaneLD-PT-0010, 15 s, verdicts all agreeing with the oracle:
+
+| examination | answered before any engine | reduction | answered in 15 s |
+|---|---|---|---|
+| RC | 14 / 16 (ITS-Tools: 12) | 89 -> 17 places, 88 -> 25 transitions | 16 / 16 |
+| CTLC | 5 / 16 | 89 -> 36, 88 -> 46 | 16 / 16 |
+| RF | | 89 -> 54, 88 -> 88 | 11 / 16 |
+| UB | | 89 -> 26, 88 -> 35 | 5 / 16 |
+
+The reduction's own deadline is `--reductionMs`, 15 s by default, spent inside
+the run's budget: ErlangenMainframeV1-PT-bP09C09 RC spends 13.7 s reducing
+59 403 transitions to 52 683 and leaves the walk nothing at a 15 s cap. A
+budget shared with the engines is still to design.
+
 ## Validation
 
 Validation uses existing MCC P/T archives and their supplied formulas, with
@@ -196,7 +227,10 @@ fault. Independent PNML replay in Python arbitrary-precision integers verified
 that all 52 transitions are enabled and the endpoint satisfies the inequalities
 above. Its maximum place marking is 4,000,000,000. This is a concrete refutation
 of the consensus TRUE, not an inference from absence of a sanitizer report.
-The one-shot probes are `Petri/test/reduction/gppp_probe.cpp` and
-`gppp_replay.py`; their README gives reproduction commands. Remove them after
-oracle curation and trace-reporting follow-up. General unchecked arithmetic
-elsewhere and the cause of TAPAAL/2025GOLD's answer remain unassessed.
+VerifyPN 4.3.0 reproduces the wrong TRUE in 0.1 s on the property alone, and
+reports a token total of 9 000 000 380; Marcie rejects at parse time the 14 of
+16 formulas of this instance whose constants exceed 2^31 - 1, formula 08 among
+them. The oracle is patched in pnmcc-models-2026 (`install_inputs.sh`, commit
+edf0e56: FALSE, defended by TY, verified from the trace), the deployed and
+cluster copies with it; the trace, a standalone replay and the one-property
+formula file went to TAPAAL's authors. The one-shot probes are removed.

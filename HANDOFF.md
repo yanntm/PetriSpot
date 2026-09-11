@@ -3,7 +3,7 @@
 Read this first, then the design file of the thread you pick up. This file is
 rewritten, never appended to: what is done leaves it (result in the README or
 the design file, history in git and `docs/HISTORY.md`). State as of
-2026-09-11.
+2026-09-11, evening.
 
 ## Orientation
 
@@ -103,46 +103,34 @@ ReachabilityFireability.
 
 ### Native structural reductions
 
-Implementation inventory and caveats are in `PS_REDUCTIONS.md`; the design and
-rule documentation are under `Petri/src/reduction/`. Preserve ITS-Tools behavior,
-rule separation (especially trivial agglomeration), guards and scheduling.
-Reachability/deadlock inventory is committed in 9571625; a57017e makes existing
-display-rate conversions explicit. All three standard binaries build. Standalone
-`reduce` exports a matched model/property pair; normal analysis reports and drops
-resolved goals through the portfolio. SI-specific completion and bounded
-per-application visualization/PDF tracing remain deferred.
+Inventory, pipeline and caveats: `PS_REDUCTIONS.md`; design and rules under
+`Petri/src/reduction/`. Every entry point runs `reduction/Pipeline.h`'s
+`prepare` (constants, initial state, drop, reduce, to a fixpoint) before any
+engine; `Petri/test/reduction/check_oracle.sh MODEL EXAM [options]` is the
+15 s check of one model against the deployed oracle, which is the CI archive
+of 2026-09-11 with the GPPP patch, identical on the cluster.
 
-Resume with validation, not new commands or generated tests:
-
-1. Await the pnmcc-models-2026 CI build for 11443a6. Its fresh full local build
-   passed; archive is `~/git/pnmcc-models-2026/website/local-ci-build/website/oracle.tar.gz`.
-   Local deployed oracles are still incomplete; cluster oracles are untouched.
-   Diagnose/check the published archive before any deployment changes.
-2. Re-score stored answers in `/data/ythierry/MCC26logs/local/native-reduction/`
-   against one fixed rebuilt oracle. `reach-deadlock-full.jsonl` finished all
-   1,681 models with zero original/reduced conflicts, but comparisons span the
-   broken oracle replacement. Do not treat its zero reported wrong answers as
-   full oracle validation. `Petri/test/reduction/summarize.py` reads these files.
-3. GPPP disagreement is resolved: CTLC (CTLCardinality), zero-based index 08
-   (ninth property), full ID `GPPP-PT-C0010N1000000000-CTLCardinality-2024-08`
-   in the MCC26 formulas. FALSE is correct; consensus TRUE (TAPAAL, 2025GOLD)
-   is wrong. The C++ counterexample has 52 enabled firings, independently
-   replayed with Python arbitrary-precision integers. No undefined arithmetic
-   was reported by the UBSan probe; the largest marking on this path is
-   4,000,000,000. This settles this verdict, not general overflow protection.
-   See `PS_REDUCTIONS.md` for the proof and `Petri/test/reduction/README.md`
-   for the one-shot probe commands. Keep the probes only until this problem
-   is closed, then remove them. Still to do: curate this specific oracle value
-   in pnmcc-models-2026 with the evidence, and repair the blank root evidence
-   printed when an until formula fails at its initial state. No oracle patch
-   has been made for GPPP yet; no overflow in a reference tool is established.
-4. Review 137 reduced invocation timeouts and 46 reduction-limit reports in
-   the complete-inventory campaign, particularly BlocksWorld. Each model shares
-   a 15-second allowance; no cluster runs are authorized for this task.
-5. Audit parity on real MCC examples, then revisit support shrinking after
-   solved goals are removed, trace lifting, and deferred SI rules. Keep core
-   and sibling modules isolated; do not broaden or restrict rules silently.
-
+1. Re-score `/data/ythierry/MCC26logs/local/native-reduction/*.jsonl` against
+   the deployed oracle (`summarize.py`); the earlier comparisons spanned the
+   broken oracle. Then rerun `mcc.py` on the pipeline binary: the answers
+   before any engine and the reduced sizes changed everywhere.
+2. Reduction budget: `--reductionMs` (15 s) is spent inside the run's budget
+   (Erlangen bP09C09 RC: 13.7 s of reduction, nothing left to walk at 15 s).
+   Share it with the engines, or bound it by the net's size.
+3. STATESPACE: the route is constants only; the Java route (place and
+   transition cleanup, redundant compositions, free SCC when a counting
+   record exists) needs the PNET blocks maintained (`NetBlocks.java`:
+   TMULT on fused duplicates, PDROP on dropped constants, PCOEF on free SCC).
+4. Dead transitions: the state equation of `lp/` proves a transition never
+   enabled (`lp/algorithm.md`); Java runs that test inside its outer loop
+   (`ReachabilitySolver.applyReductions`). Add it as a rule of `prepare`.
+5. CTL goals: a stuttering formula (no EX/AX) takes SI_CTL in Java and LTL
+   here; scalar-transition removal under the LTL goal is not next-step
+   preserving (Java does the same) — a theory question before enabling.
+6. Review the 137 reduced timeouts and 46 limit reports of the inventory
+   campaign (BlocksWorld first), 15 s per model, no cluster.
+7. The blank root evidence when an until fails at its initial state (the CTL
+   checker discards the child's trace) is still to repair.
 
 ### First: the CTL examinations (the two campaigns above)
 

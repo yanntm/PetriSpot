@@ -39,25 +39,12 @@ and is not being expanded. If needed, compile with
 `c++ -std=c++23 -O2 -I Petri/src Petri/test/reduction/validate.cpp -o build/reduction-validate`
 and run one example with `timeout 15s build/reduction-validate SEED`.
 
-## One-shot GPPP CTLC 08 investigation
+## `check_oracle.sh`
 
-`gppp_probe.cpp` solves the AG child of MCC26 CTLCardinality index 08 with
-its original property seed, prints the counterexample, and replays its enabled
-transitions. `gppp_replay.py` independently checks that path against PNML using
-Python integers and verifies the endpoint inequalities that refute the formula.
-These are temporary diagnostics for this specific oracle disagreement; remove
-both once oracle curation and the missing root-trace follow-up are complete.
-The conclusions are in `PS_REDUCTIONS.md` and the open actions in `HANDOFF.md`.
+One model, one examination, `build/petri64` with the options given, against the
+deployed oracle, 15 s: prints the reduction and initial-state lines, then one
+line per FORMULA saying whether the oracle agrees; exit 1 on a disagreement.
 
-Use the MCC26 model/formulas, not a previous edition:
-
-```sh
-c++ -std=c++23 -O1 -g -fsanitize=undefined -fno-sanitize-recover=all \
-  -I Petri/src Petri/test/reduction/gppp_probe.cpp -lexpat -pthread -o build/gppp-probe
-timeout 15s build/gppp-probe \
-  /data/ythierry/MCC26deploy/MCC-drivers/INPUTS/GPPP-PT-C0010N1000000000 \
-  > Petri/test/logs/gppp-probe.log 2>&1
-python3 Petri/test/reduction/gppp_replay.py \
-  /data/ythierry/MCC26deploy/MCC-drivers/INPUTS/GPPP-PT-C0010N1000000000 \
-  Petri/test/logs/gppp-probe.log
+```
+bash Petri/test/reduction/check_oracle.sh bench/models/AirplaneLD-PT-0010 RC --reduce -q --totalTime=8 -t 8
 ```
