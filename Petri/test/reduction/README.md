@@ -39,6 +39,17 @@ and is not being expanded. If needed, compile with
 `c++ -std=c++23 -O2 -I Petri/src Petri/test/reduction/validate.cpp -o build/reduction-validate`
 and run one example with `timeout 15s build/reduction-validate SEED`.
 
+## `check_statespace.sh`
+
+One model through `petri64 reduce --goal STATESPACE`, its PNET counted by
+`hsc-pn --states` (`HSC=` names the binary, default the libHSC build tree),
+the four values against the deployed StateSpace oracle, 15 s each step; a
+value the consumer leaves unanswered prints as missing, never as wrong.
+
+```
+bash Petri/test/reduction/check_statespace.sh bench/models/AutonomousCar-PT-01a
+```
+
 ## `check_oracle.sh`
 
 One model, one examination, `build/petri64` with the options given, against the
