@@ -1,6 +1,8 @@
 # Structural reduction design
 
-Status: proposal for review, before implementation. The reference inspection
+Status: target design, with an initial subset implemented; the folder README
+and `PS_REDUCTIONS.md` distinguish current behavior from planned capabilities.
+The reference inspection
 is in [itstools-review.md](itstools-review.md). This document defines a native
 module intended to express ITS-Tools' reduction capabilities through named
 configurations, while separating rules, sparse edits and coordination.
@@ -437,5 +439,5 @@ trivial fast paths, name-based traceability, and clear/append edits with local
 transpose maintenance and deferred compaction. The reference configuration is
 the baseline; changes need evidence, including on difficult models. Image and
 executable witness lifting remain deferred optional capabilities. libHSC reuses
-the native API through vendoring; PNET stays an adapter. No code starts before
-this design iteration is reviewed.
+the native API through vendoring; PNET stays an adapter. Implementation proceeds
+incrementally under the approved design; the report records remaining coverage.

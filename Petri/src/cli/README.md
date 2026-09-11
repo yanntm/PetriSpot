@@ -15,6 +15,9 @@ The `petri*` binaries are one `main` (`src/Petri.cpp`) over these headers.
   the round scheduler over open properties (`--totalTime`, `--escalate`), the portfolio run
   for one target and the `FORMULA` output, `--findDeadlock`. CTL properties
   of the file are handed to `CtlDriver.h` first.
+  `--reduce` prepares the property/net pair through `reduction/Properties.h`
+  before either engine compiles it; deadlock and LP queries use that adapter
+  too. Original traces/hints bypass reduction until coordinate lifting exists.
 * `CtlDriver.h` — the CTL properties: normalisation, the checker of `ctl/`
   in rounds of growing budgets (`--ctlSteps`, `--ctlRegion`, `--ctlRounds`)
   under a clock per property (`-t`, or a share of `--totalTime`),

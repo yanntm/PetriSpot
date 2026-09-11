@@ -24,6 +24,7 @@
 #include "expr/SexprPrinter.h"
 #include "parse/PropertyFile.h"
 #include "parse/sexpr/HintReader.h"
+#include "reduction/Properties.h"
 #include "invariants/InvariantMiddle.h"
 #include "walk/Components.h"
 #include "walk/Knowledge.h"
@@ -362,11 +363,17 @@ template<typename T>
  * listening early still holds the best value known at that time.
  */
 template<typename T>
-  void runProperties (const Options &o, const SparsePetriNet<T> &pn)
+  void runProperties (const Options &o, const SparsePetriNet<T> &original)
   {
     using petri::walk::NO_FOCUS;
     auto propsStart = std::chrono::steady_clock::now (); // the total budget counts the components too
-    std::vector<petri::expr::Property> props = loadProperties (o, pn);
+    std::vector<petri::expr::Property> props = loadProperties (o, original);
+    petri::reduction::Configuration reductionConfig;
+    reductionConfig.timeLimit = std::chrono::milliseconds(o.reductionMs);
+    reductionConfig.agglomeration = !o.reductionNoAgglo;
+    auto reduced = petri::reduction::prepareQueries(original, props, o.reduce && !o.printProps,
+        o.trace || !o.hintsFile.empty(), reductionConfig, std::cerr);
+    const auto& pn = reduced ? reduced->net : original;
     if (o.printProps) {
       printProperties (props, pn, o.printPropsFormat);
       return;
@@ -487,8 +494,16 @@ template<typename T>
 
 /** --findDeadlock: one deadlock target with the -t timeout. */
 template<typename T>
-  void runDeadlock (const Options &o, const SparsePetriNet<T> &pn)
+  void runDeadlock (const Options &o, const SparsePetriNet<T> &original)
   {
+    std::vector<petri::expr::Property> properties(1);
+    properties[0].kind = petri::expr::PropertyKind::Deadlock;
+    petri::reduction::Configuration reductionConfig;
+    reductionConfig.timeLimit = std::chrono::milliseconds(o.reductionMs);
+    reductionConfig.agglomeration = !o.reductionNoAgglo;
+    auto reduced = petri::reduction::prepareQueries(original, properties, o.reduce,
+        o.trace || !o.hintsFile.empty(), reductionConfig, std::cerr);
+    const auto& pn = reduced ? reduced->net : original;
     petri::walk::WalkBudget budget = o.budget;
     budget.timeoutMillis = static_cast<uint64_t> (o.timeout) * 1000;
     budget.recordTrace = o.trace;

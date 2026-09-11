@@ -213,6 +213,8 @@ else on stdout is a log (`INTEROP.md` section 5).
 | `--printUnknown` | at exit, one `UNKNOWN <id>` line per property left without verdict |
 | `--ctlSteps`, `--ctlRegion`, `--ctlRounds`, `--ctlRunLength` | CTL checker: hunt steps and region states of the first round (1000 each, root and per-state probe), rounds of tenfold work (8), steps of a hunt run before a restart (1000) |
 | `--netStats` | structural histograms of the net |
+| `--reduce` | native structural reductions before walk, CTL, deadlock or LP query analysis; initial rule subset, opt-in; original traces/hints bypass reduction |
+| `--reductionMs=<ms>`, `--reductionNoAgglo` | reduction time limit (15000 ms by default), or disable agglomeration |
 
 `TOTAL_QUERIES.md` proposes three total examinations, a query per place or per
 transition, as a better instrument than the contest's sixteen formulas;
@@ -264,6 +266,7 @@ comparison with TAPAAL's dependency graphs.
 | `Petri/src/expr/` | property AST, simplifier, goal distance |
 | `Petri/src/invariants/` | flow and semi-flow solver |
 | `Petri/src/io/` | KERS and PNET binary formats, ASCII matrix, PNML and dot exporters |
+| `Petri/src/reduction/` | native structural rules, sparse workspace and coordinator; progress in `PS_REDUCTIONS.md` |
 | `Petri/src/walk/` | the explicit walk engine: net view, marking, enabled set, strategies, portfolio |
 | `Petri/test/` | scripts, hand-written property files, logs (ignored) |
 | `docs/` | the operating guides (`CLUSTER.md`, `CI.md`, `BUILD.md`) and `HISTORY.md`, the append-only sink of past handoffs, frozen at the time of writing |
@@ -305,4 +308,3 @@ For communication, please use the issue tracker or contact Yann Thierry-Mieg dir
 ## Acknowledgements
 
 This project is supported by LIP6, Sorbonne Université, and CNRS.
-

@@ -46,12 +46,18 @@ inline std::string sexprAtom (const std::string &name)
 }
 
 template<typename T>
-  void runLp (const Options &o, const SparsePetriNet<T> &pn)
+  void runLp (const Options &o, const SparsePetriNet<T> &original)
   {
     using petri::expr::PropertyKind;
     using petri::lp::LpStatus;
     auto t0 = std::chrono::steady_clock::now ();
-    std::vector<petri::expr::Property> props = loadProperties (o, pn);
+    std::vector<petri::expr::Property> props = loadProperties (o, original);
+    petri::reduction::Configuration reductionConfig;
+    reductionConfig.timeLimit = std::chrono::milliseconds(o.reductionMs);
+    reductionConfig.agglomeration = !o.reductionNoAgglo;
+    auto reduced = petri::reduction::prepareQueries(original, props, o.reduce,
+        o.trace || !o.hintsFile.empty() || !o.lpHintsFile.empty(), reductionConfig, std::cerr);
+    const auto& pn = reduced ? reduced->net : original;
     petri::lp::StateEquation<T> se (pn);
     std::cout << "State equation: " << pn.getPlaceCount () << " places, " << pn.getTransitionCount ()
         << " transitions, effects in " << millisSince (t0) << " ms." << std::endl;

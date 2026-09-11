@@ -1,5 +1,8 @@
 # `test/` — test material
 
+* `reduction/` — isolated structural-reduction validation: existing MCC models
+  and formulas through original/reduced CLI analysis versus MCC oracles.
+
 * `props/` — hand-written MCC-format property files for models that live
   outside the repository (see its README).
 * `logs/` — run logs, git-ignored. `baseline_*.txt` are the invariant outputs

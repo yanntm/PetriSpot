@@ -37,6 +37,9 @@ struct Options
   bool normalizePNML = false;
   std::string normalizePNMLFile; // empty: <model>.norm.pnml
   bool netStats = false;
+  bool reduce = false;
+  long reductionMs = 15000;
+  bool reductionNoAgglo = false;
 
   // invariants
   bool pflows = false;
@@ -147,6 +150,11 @@ inline void addOptions (CLI::App &app, Options &o)
       }, "Write a normalised PNML (ids p0,p1... t0,t1..., no graphics); default <model>.norm.pnml.")
       ->expected (0, 1);
   ex->add_flag ("--netStats", o.netStats, "Print structural histograms of the net (arities, fan-out).");
+  auto *red = app.add_option_group ("Structural reduction");
+  red->add_flag ("--reduce", o.reduce, "Reduce before query analysis (native rule subset, goal inferred from properties).");
+  red->add_option ("--reductionMs", o.reductionMs, "Reduction time limit in ms (default 15000).")
+      ->check (CLI::PositiveNumber);
+  red->add_flag ("--reductionNoAgglo", o.reductionNoAgglo, "Disable native agglomeration rules.");
 
   auto *inv = app.add_option_group ("Invariants");
   inv->add_flag ("--Pflows", o.pflows, "Generative basis of P-flows.");
