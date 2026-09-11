@@ -177,10 +177,11 @@ template<typename T>
     // one line per strategy kind: the calibration of the model
     if (res.kinds.size () > 1 || res.reports.size () > 1) {
       for (const petri::walk::KindReport &k : res.kinds) {
+        // Display-only throughput rates; counters and property arithmetic stay integral.
         double ms = k.micros ? static_cast<double> (k.micros) / 1000.0 : 1.0;
         std::cout << "Strategy " << k.kind << ": " << k.tasks << " task" << (k.tasks > 1 ? "s" : "") << ", " << k.steps
-            << " steps in " << static_cast<uint64_t> (ms) << " ms (" << static_cast<uint64_t> (k.steps / ms) << " steps/ms), "
-            << k.claims << " claims (" << static_cast<uint64_t> (k.claims * 1000.0 / ms) << "/s), " << k.slices << " slices, "
+            << " steps in " << static_cast<uint64_t> (ms) << " ms (" << static_cast<uint64_t> (static_cast<double> (k.steps) / ms) << " steps/ms), "
+            << k.claims << " claims (" << static_cast<uint64_t> (static_cast<double> (k.claims) * 1000.0 / ms) << "/s), " << k.slices << " slices, "
             << k.cappedSlices << " capped, longest " << k.maxSliceMicros / 1000 << " ms, " << k.novelty << " first firings; share "
             << static_cast<int> (k.share * 100.0 + 0.5) << "%." << std::endl;
       }

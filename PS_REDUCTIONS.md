@@ -144,3 +144,19 @@ so original/reduced timeout asymmetry is not a fair performance comparison.
 Most scans are sparse, but graph edge generation costs sum(|pre|*|post|), future
 matching and composition searches can be quadratic, and repeated fixed points
 add work. Cooperative reduction deadlines do not replace the external hard cap.
+
+## Oracle refresh
+
+The deployed oracle was refreshed from CI by removing its cached directory and
+archive and rerunning install_oracle.sh. The new GPPP-PT-C0010N1000000000 CTLC
+file marks all 16 properties unknown (`?`), including property 08 previously
+recorded TRUE. The old campaign disagreement therefore does not establish a
+regression against the current oracle. Neither oracle correctness nor absence
+of overflow in PetriSpot has been proved by this refresh. The deployed format
+contains no per-tool defenders for this entry.
+
+The reach-deadlock-full campaign was already running during the refresh. Its
+stored oracle comparisons span oracle versions (and entries unavailable during
+replacement may be unverified); re-score recorded answers against one fixed
+oracle before interpreting aggregate oracle-match counts. Original/reduced
+pairwise comparisons remain independent of this oracle change.
