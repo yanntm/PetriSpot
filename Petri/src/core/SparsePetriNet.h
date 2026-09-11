@@ -20,8 +20,12 @@ template<typename T>
     std::vector<std::string> tnames;
     std::vector<std::string> pnames;
     T maxArcValue;
+    bool safe = false; // every place holds at most one token in every reachable marking (declared by the source, e.g. NUPN)
     static const int DEBUG = 0;
   public:
+    bool isSafe () const { return safe; }
+    void setSafe (bool s) { safe = s; }
+
     SparsePetriNet ()
         : name ("Petri"), maxArcValue (0)
     {
