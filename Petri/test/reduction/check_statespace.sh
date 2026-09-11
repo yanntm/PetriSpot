@@ -25,7 +25,7 @@ bad=0
 for v in STATES TRANSITIONS MAX_TOKEN_IN_PLACE MAX_TOKEN_PER_MARKING; do
   ours=$(awk -v v="$v" '$1=="STATE_SPACE" && $2==v {print $3}' "$log")
   expected=$(awk -v v="$v" '$1=="STATE_SPACE" && $2==v {print $3}' "$ORACLE/$name-SS.out")
-  if [ -z "$ours" ]; then s=missing; elif [ "$ours" = "$expected" ]; then s=agree; else s=WRONG; bad=1; fi
+  if [ -z "$ours" ]; then s=missing; elif [ -z "$expected" ]; then s=no-oracle; elif [ "$ours" = "$expected" ]; then s=agree; else s=WRONG; bad=1; fi
   printf '%-8s %-22s %s (oracle %s)\n' "$s" "$v" "${ours:--}" "${expected:-?}"
 done
 exit $bad
