@@ -17,9 +17,11 @@ struct DeadTransition {
     auto start = std::chrono::steady_clock::now();
     auto deadline = std::min(w.deadline, start + std::chrono::milliseconds(remaining));
     lp::DeadReport report;
-    auto dead = lp::deadTransitions(w.pre, w.post, w.marks, w.liveT, w.dead.cursor, deadline, w.config.deadPivots, report);
+    auto dead = lp::deadTransitions(w.pre, w.post, w.consumers, w.producers, w.marks, w.liveT, w.liveP, w.safe,
+                                    w.dead.cursor, deadline, w.config.deadPivots, report);
     w.retireDeadTransitions(std::move(dead));
     w.dead.found += report.dead; w.dead.tested += report.tested; w.dead.solves += report.solves;
+    w.dead.places += report.places; w.dead.stuck += report.stuck; w.dead.byBound += report.byBound; w.dead.placesMs += report.placesMs;
     w.dead.pivots += report.pivots; w.dead.limited |= report.limited; ++w.dead.passes;
     w.dead.spentMs += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
   }

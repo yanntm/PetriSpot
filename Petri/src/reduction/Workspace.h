@@ -15,6 +15,8 @@ namespace petri::reduction {
 /** What the state-equation dead transition tests did, over every pass. */
 struct DeadStats {
   size_t found = 0, tested = 0, solves = 0, pivots = 0, passes = 0, cursor = 0;
+  size_t places = 0, stuck = 0, byBound = 0; // phase one: places bounded, never marked, transitions dead by a bound
+  long placesMs = 0;
   long spentMs = 0;
   bool limited = false;
 };

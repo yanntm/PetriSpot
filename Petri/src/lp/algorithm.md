@@ -209,20 +209,25 @@ prototype; until then a cut re-solves from the current basis by phase 1.
 
 ### Dead transitions, as a reduction rule
 
-The cheapest consumer of the engine: for transition `t`, add `m0[p] + C[p]·x
-≥ pre(t)[p]` for its input places to the base program and ask for
-feasibility; infeasible means no reachable marking enables `t`, and the
-reduction retires it with nothing to record (`lp/DeadTransitions.h`,
-`reduction/rules/DeadTransition.h`). Measured 2026-09-11 with a 3 s budget:
-a solve costs from a few microseconds (AutonomousCar, 52 solves in 0 ms) to
-75 ms (Erlangen, 59 000 columns, 400 pivots a solve); BugTracking
-q3m002 after its structural pass, 341 places and 5 764 transitions, gets
-475 solves in the budget, 118 of them dead, 185 pivots a solve. Every solve
-starts cold from `x = 0`; reusing the previous basis (the enabling rows are
-the only change) is the obvious next gain, and a per-place bound program
-(341 solves instead of 5 764, a transition asking more than a place can
-hold is dead) the cheaper pre-filter. The verdict is the floating-point
-solver's until the exact checker exists.
+The cheapest consumer of the engine, places first (`lp/DeadTransitions.h`,
+`reduction/rules/DeadTransition.h`). Phase one maximises each place's
+marking over the base program: a maximum below one means the place never
+holds a token, so every transition touching it is dead (a producer would
+have marked it); a finite maximum kills the consumers asking more. Phase
+two, per surviving transition, adds `m0[p] + C[p]·x ≥ pre(t)[p]` for its
+input places and asks for feasibility; infeasible means dead. A net
+declared one-safe adds `≤ 1` to every place row. The reduction retires what
+is dead with nothing to record. Measured 2026-09-11 (3 s budget): phase one
+costs about 1.5 ms a place (BugTracking q3m002, 538 places in 0.97 s, 220
+never marked, 6 624 transitions dead from the bounds), phase two 2 to 6 ms
+a solve at 150 to 200 pivots (every solve starts from `x = 0`, which is
+feasible for the base rows, so only the enabling rows go through phase 1 of
+the simplex); a few microseconds a solve under 600 transitions, 75 ms on
+Erlangen's 59 000 columns. Given 30 s on BugTracking the two phases leave
+4 556 of 27 370 transitions alive where libHSC's invariant-set test leaves
+2 769 in 0.2 s: on that unbounded net the state equation is the weaker
+oracle, not only the slower one. The verdict is the floating-point solver's
+until the exact checker exists.
 
 ## 6. Shape of the code
 

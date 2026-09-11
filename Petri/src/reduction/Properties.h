@@ -32,8 +32,9 @@ inline void remap(expr::CtlFormula& formula, const std::vector<size_t>& map) {
 }
 
 inline void describeDeadTransitions(const DeadStats& d, std::ostream& os) {
-  if (d.tested == 0 && !d.limited) return;
-  os << "Reduction dead transitions: " << d.found << " of " << d.tested << " tested, " << d.solves << " solves, "
+  if (d.tested == 0 && d.places == 0 && !d.limited) return;
+  os << "Reduction dead transitions: " << d.found << " (" << d.byBound << " by the bounds of " << d.places
+      << " places, " << d.stuck << " never marked, " << d.placesMs << " ms), then " << d.tested << " tested, " << d.solves << " solves, "
       << d.pivots << " pivots, " << d.passes << " passes, " << d.spentMs << " ms" << (d.limited ? " (budget)" : "") << ".\n";
 }
 
