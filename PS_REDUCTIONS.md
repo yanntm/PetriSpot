@@ -129,13 +129,15 @@ only temporarily inside the existing corpus. Results are in
   analysis, eight executions, 63 oracle matches, no errors or timeouts. All
   16 bound formulas resolve to the oracle value 0. The reduced UB net has zero
   transitions; the separate analysis returns in milliseconds without walking.
-* `reach-deadlock-full.jsonl`: new whole-corpus RC/RF/UB/RD campaign running on
-  the complete structural inventory. Its fixed binary is petri64-complete.
-  The first 176 processed models have 4,164 oracle matches and no wrong
-  answers/conflicts/errors, but 12 reduced and three original invocation timeouts
-  plus 15 model-deadline records. BlocksWorld
-  instances reach the shared allowance during preprocessing; these are concrete
-  performance findings to investigate, not evidence of graph-rule linearity.
+* `reach-deadlock-full.jsonl`: complete-inventory RC/RF/UB/RD campaign finished
+  across all 1,681 P/T models using the fixed petri64-complete binary. There are
+  zero original/reduced conflicts, 14 original and 137 reduced invocation
+  timeouts, 151 model-deadline records and 46 reduction-limit reports. Stored
+  comparisons record 10,050 oracle matches and zero wrong answers, but 30,112
+  answers are unverified and the oracle changed during this campaign. Re-score
+  against the rebuilt oracle before drawing correctness conclusions.
+  BlocksWorld preprocessing reaches the allowance: a performance finding,
+  not evidence of graph-rule linearity.
 
 This bounded campaign is not a solver ranking. Unknowns are neither agreements
 nor errors; absent/? oracle entries leave answers unverified. Bound lower bounds
@@ -147,13 +149,22 @@ add work. Cooperative reduction deadlines do not replace the external hard cap.
 
 ## Oracle refresh
 
-The deployed oracle was refreshed from CI by removing its cached directory and
-archive and rerunning install_oracle.sh. The new GPPP-PT-C0010N1000000000 CTLC
-file marks all 16 properties unknown (`?`), including property 08 previously
-recorded TRUE. The old campaign disagreement therefore does not establish a
-regression against the current oracle. Neither oracle correctness nor absence
-of overflow in PetriSpot has been proved by this refresh. The deployed format
-contains no per-tool defenders for this entry.
+The CI archive downloaded into the local deployment was incomplete: all ordinary
+formula verdicts were `?`, and all five global-property families were missing.
+This was not a withdrawal of the GPPP verdict and does not settle the disagreement.
+The raw CSV and locally rebuilt archive retain TRUE for GPPP-PT-C0010N1000000000
+CTLCardinality-2024-08, defended by TAPAAL and 2025GOLD; TY and PetriSpot answer
+FALSE. ITS-Tools reports CC in the raw row. Overflow remains an investigation,
+not a demonstrated cause or a cleared defect.
+
+The complete local build in pnmcc-models-2026 produced 29,871 files, with all
+ordinary families populated and all total-vector lengths preserved. Its commit
+11443a6 fixes Boolean provenance parsing and stops publication on failed build
+steps or missing/unfilled oracle families. CI logs supplied by the user show the
+raw CSV download timing out; if retries exhausted, the old script continued
+with missing input, explaining the observed artifact. The local deployment is
+still the broken downloaded version; the cluster was not synchronized or deleted.
+Await successful CI publication before refreshing either deployment.
 
 The reach-deadlock-full campaign was already running during the refresh. Its
 stored oracle comparisons span oracle versions (and entries unavailable during

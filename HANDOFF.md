@@ -3,12 +3,13 @@
 Read this first, then the design file of the thread you pick up. This file is
 rewritten, never appended to: what is done leaves it (result in the README or
 the design file, history in git and `docs/HISTORY.md`). State as of
-2026-09-10, 18:30.
+2026-09-11.
 
 ## Orientation
 
 | thread | read | code |
 | --- | --- | --- |
+| native structural reductions | `PS_REDUCTIONS.md`, `Petri/src/reduction/README.md`, `Petri/src/reduction/algorithm.md` | `Petri/src/reduction/`, `Petri/test/reduction/` |
 | the walk engine (reachability) | `WALK_PLAN.md` sections 9, 10 | `Petri/src/walk/` |
 | the solving loop, walker budgets | `PORTFOLIO.md`, `INTEROP.md` | `cli/WalkDriver.h`, ITS-Tools `PetriSpotWalker` |
 | the CTL checker | `CTL_PLAN.md` sections 9, 11 | `Petri/src/ctl/`, `cli/CtlDriver.h` |
@@ -99,6 +100,40 @@ Liveness, CTLCardinality, QuasiLiveness, StableMarking and
 ReachabilityFireability.
 
 ## Next actions, by thread
+
+### Native structural reductions
+
+Implementation inventory and caveats are in `PS_REDUCTIONS.md`; the design and
+rule documentation are under `Petri/src/reduction/`. Preserve ITS-Tools behavior,
+rule separation (especially trivial agglomeration), guards and scheduling.
+Reachability/deadlock inventory is committed in 9571625; a57017e makes existing
+display-rate conversions explicit. All three standard binaries build. Standalone
+`reduce` exports a matched model/property pair; normal analysis reports and drops
+resolved goals through the portfolio. SI-specific completion and bounded
+per-application visualization/PDF tracing remain deferred.
+
+Resume with validation, not new commands or generated tests:
+
+1. Await the pnmcc-models-2026 CI build for 11443a6. Its fresh full local build
+   passed; archive is `~/git/pnmcc-models-2026/website/local-ci-build/website/oracle.tar.gz`.
+   Local deployed oracles are still incomplete; cluster oracles are untouched.
+   Diagnose/check the published archive before any deployment changes.
+2. Re-score stored answers in `/data/ythierry/MCC26logs/local/native-reduction/`
+   against one fixed rebuilt oracle. `reach-deadlock-full.jsonl` finished all
+   1,681 models with zero original/reduced conflicts, but comparisons span the
+   broken oracle replacement. Do not treat its zero reported wrong answers as
+   full oracle validation. `Petri/test/reduction/summarize.py` reads these files.
+3. Investigate GPPP-PT-C0010N1000000000 CTLCardinality-2024-08: FALSE both with
+   and without reductions, TRUE in consensus (TAPAAL, 2025GOLD), FALSE for TY.
+   Unchanged reduced net sizes argue against a reduction-specific regression;
+   overflow and the correct answer remain unresolved.
+4. Review 137 reduced invocation timeouts and 46 reduction-limit reports in
+   the complete-inventory campaign, particularly BlocksWorld. Each model shares
+   a 15-second allowance; no cluster runs are authorized for this task.
+5. Audit parity on real MCC examples, then revisit support shrinking after
+   solved goals are removed, trace lifting, and deferred SI rules. Keep core
+   and sibling modules isolated; do not broaden or restrict rules silently.
+
 
 ### First: the CTL examinations (the two campaigns above)
 
