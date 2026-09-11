@@ -15,6 +15,13 @@
   negation of a normal-form formula (`ctlDual`), and the state predicates
   `ctlNow(f)` (implied by `f`) and `ctlSuf(f)` (implying `f`) that steer a
   walk. The checker is `ctl/`.
+* `InitialState.h` — what the initial marking alone decides: the
+  three-valued truth of a CTL formula there (`initialValue`), the rewrite of
+  an until whose left side fails initially (`initialRewrite`), the
+  requalification of `EF p` / `AG p` / `EF deadlock` into the reachability
+  kinds (`requalify`), and `simplifyInitial(net, properties)` running all of
+  it over a property list; called before any engine, and again after a
+  reduction changed the net.
 * `Hint.h` — `ParikhHint`, side information attached to a property.
 * `SexprPrinter.h` — properties and expressions in the s-expression syntax of
   `parse/sexpr/` (indices, or names quoted when needed).

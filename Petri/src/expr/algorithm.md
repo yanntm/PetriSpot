@@ -62,6 +62,34 @@ A `Property` has a name, a kind and a body:
 * `Unsupported`: parsed but out of the fragment (LTL, unknown elements);
   `comment` says why.
 
+## Initial state (`InitialState.h`)
+
+Before any exploration, every property is confronted with the initial marking
+`M0`, after Bonneland et al. (Petri Nets 2018, section 3) as ITS-Tools applies
+it. A reachability body true at `M0` is TRUE, an invariant body false at `M0`
+is FALSE, the deadlock property is TRUE when nothing is enabled at `M0`. A CTL
+formula, in normal form, is given a three-valued truth at `M0`:
+
+* a state formula is evaluated (`deadlock` from the enabled transitions);
+* `EG f`, `AG f` are false when `f` is false at `M0`; `EF f`, `AF f` are true
+  when `f` is true there; `EX`, `AX` say nothing;
+* an until or weak until `[a U b]` is true when `b` holds at `M0`, false when
+  neither `a` nor `b` holds there.
+
+A decided formula becomes its constant. Otherwise the formula is rewritten
+with what `M0` decides: the children of a boolean are rewritten in turn, and
+an until whose left side fails at `M0` is replaced by its right side, which
+then has to hold at `M0` itself. Operands under a path operator speak of other
+states and are left alone. The result is simplified again and *requalified*:
+`EF p` with `p` a state predicate becomes a `Reachability` property, `AG p` an
+`Invariant`, `EF deadlock` the `Deadlock` property. So `E[a U AG p]` with `a`
+false initially is answered as the invariant `AG p`, by the reachability
+engines and under the reachability reductions, not by the CTL checker.
+
+The pass runs on the parsed properties before the structural reduction reads
+their kinds and supports, and again on the reduced net after its constant
+places were substituted (`reduction/PropertyFacts.h`).
+
 ## CTL normal form (`ctlNormalize`)
 
 Negation is pushed to the leaves (`not E[a U b] = A[not b W (not a and not
