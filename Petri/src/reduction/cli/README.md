@@ -14,9 +14,20 @@ successful publication is a matched model/formula pair.
 
 Solve later using any consumer of the existing exchange formats, for example:
 `petri64 --net reduced/model.pnet --props reduced/properties.sexpr --totalTime=10`.
-Input counting records cannot yet be maintained through this command; they are
-explicitly discarded with a diagnostic. The output claims property preservation,
-not original state/arc counts or original witness reconstruction.
+The output claims property preservation, not original state/arc counts or
+original witness reconstruction; input counting records are discarded with a
+diagnostic, since the rules these goals run cannot maintain them.
+
+`petri64 reduce -i model.pnml --goal STATESPACE --output reduced` takes no
+formulas: the net is reduced by the rules that keep the four StateSpace values
+recoverable and `model.pnet` carries the counting record as named blocks
+(`io/PNET.md`: `TMULT`, `PDROP`, `PCOEF`), built by `CountingBlocks.h` from
+`Counting.h`. A PNML input vouches for its own arcs (identity record); a
+`--net` input is trusted only for the blocks it carries, so a PNET without
+`TMULT` yields no `TMULT`. Unknown input blocks are dropped and named on
+stderr. `hsc-pn --net reduced/model.pnet --states` then answers the
+examination; `Petri/test/reduction/check_statespace.sh MODEL` runs that chain
+against the deployed oracle.
 
 `PropertyResults.h` is the analysis-side consumer of simplified properties:
 scan for boolean bodies and exact bounds, print those results, and retain only

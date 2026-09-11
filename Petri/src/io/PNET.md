@@ -7,9 +7,10 @@ codec and is otherwise a format of its own; a KERS reader stays a matrix
 reader.
 
 Producers and consumers today: PetriSpot (`Petri/src/io/PNETIO.h`, both
-directions, `--net` and `--exportNet`, `kersconv --decode-net`), ITS-Tools
+directions, `--net` and `--exportNet`, `kersconv --decode-net`; `petri64
+reduce --goal STATESPACE` writes the three counting blocks below), ITS-Tools
 (`interop/fr.lip6.move.gal.interop/PNETFormatIO`, write), libHSC
-(`tools/hsc-pn --net`, read). The exchange it serves is `INTEROP.md`; the
+(`tools/hsc-pn --net`, read, honours the three counting blocks). The exchange it serves is `INTEROP.md`; the
 reasoning behind the optional blocks is `HSC_PLAN.md` sections 10 to 13.
 
 All integers are little-endian. Values inside a KERS payload are int64 as
@@ -115,7 +116,7 @@ engine's answer and the largest value here. The block does not affect
 removal that leaves a place whose marking is not constant is not this rule
 and must not be recorded here.
 
-### `PCOEF` — place multiplicities (declared, not yet produced)
+### `PCOEF` — place multiplicities
 
 **Shape.** One column, as many rows as this net has places; value `K - 1` at
 row `p`, so a missing row means `K = 1`.

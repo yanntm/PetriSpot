@@ -20,6 +20,7 @@ Implemented source responsibilities:
 | `Reduce.h` | `reduce(net, configuration, support[, trace])`, result and index maps |
 | `Workspace.h` | Owned sparse net, adjacency views, validated edits and compaction |
 | `Configuration.h` | All ITS-Tools named goals, options/limits and agglomeration eligibility |
+| `Counting.h` | The counting record (transition multiplicities, place coefficients, dropped constants) and its maintenance under STATESPACE |
 | `Coordinator.h` | Java phase order, 26 rule/phase statistics, optional pass-level trace policy |
 | `rules/DuplicateTransition.h` | One duplicate-transition rule |
 | `rules/ConstantPlace.h` | One constant-place rule |
@@ -39,15 +40,18 @@ Implemented source responsibilities:
 | `rules/ScalarTransition.h`, `rules/SinkTransition.h`, `rules/SourceTransition.h` | Transition cleanup and deadlock deduction |
 | `rules/InitialTokenMove.h` | Final-stability pre-firing |
 | `rules/BoundsDominance.h` | Unscheduled Java bounds-specific method |
-| `cli/` | Standalone model/formula transformation and solved-property reporting |
+| `cli/` | Standalone model/formula transformation, the counting record as PNET blocks, solved-property reporting |
 
 Each rule gets its own file and named type; the list illustrates the layout,
 not a fixed inventory. Shared helpers contain mechanics, not multiple rules.
 All nine goal names are accepted. Reachability/deadlock follow the Java
 structural phases; full SI-mode validation and caller-level SMT orchestration
-remain outside the completed scope. LIVENESS retains dead-transition obligations. STATESPACE retains
-all place coordinates and duplicate transitions, preserving raw counts without
-metadata reconstruction. Local clear/replace operations maintain sparse
+remain outside the completed scope. LIVENESS retains dead-transition obligations. STATESPACE
+runs the rules audited for the counting record (constant places, duplicate
+transitions, no-effect transitions once arcs are untracked, free SCC) and the
+workspace maintains the record through them: `TMULT` while the arcs are those of
+the input, `PDROP` for removed constant places, `PCOEF` for fused free
+components (algorithm.md section 4, `io/PNET.md`). Local clear/replace operations maintain sparse
 transposes without index shifting; publication compacts to a normal net.
 Create files as their rules arrive, keeping each responsibility roughly below
 500 lines. The kernel depends on `core/`, not parsers, CLI, walkers, SMT, or
@@ -74,7 +78,7 @@ disables agglomeration. `--trace`, input hints and LP hint export keep the
 original net until lifting is implemented. Export and invariant-only requests
 still describe the original net. The original input remains available.
 
-Deferred: SI-mode completion, caller-level SMT orchestration, counting-record and image adapters,
+Deferred: SI-mode completion, caller-level SMT orchestration, image adapters,
 application-level bounded visual capture/PDF, original witness lifting, and
 libHSC vendoring. `NoTrace` compiles observation hooks out; enabled policies
 currently observe whole rule passes, not individual applications. See the
@@ -82,6 +86,8 @@ implementation report [PS_REDUCTIONS.md](../../../PS_REDUCTIONS.md) and the
 isolated [validation folder](../../test/reduction/README.md).
 
 Standalone transformation: `petri64 reduce -i MODEL --props FORMULAS --output DIR`
-writes a matched PNET/formula pair plus names; see [cli/README.md](cli/README.md).
+writes a matched PNET/formula pair plus names; `petri64 reduce -i MODEL --goal
+STATESPACE --output DIR` writes the net reduced for counting with its record as
+PNET blocks, for `hsc-pn --net DIR/model.pnet --states`; see [cli/README.md](cli/README.md).
 Normal MCC analysis reports and drops constant properties before creating goals.
 Structural deadlock deductions are explicit results, independent of net mutation.
