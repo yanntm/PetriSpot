@@ -207,6 +207,44 @@ procedures, between explicit, linear and symbolic engines, each share
 following what it earned in the previous round. That alternation is where
 the state of the art is beaten, not in any one engine.
 
+### Epochs
+
+The unit of the loop is the **epoch**: a periodic rendez-vous where the
+cohort is reconsidered as a whole. At an epoch boundary:
+
+* the goal set is re-read: what closed, what a fact from one goal says
+  about another (a bound closes an invariant, a dead transition kills a
+  fireability atom), what reclassified;
+* finished goals return their unused resources to the pool;
+* procedures are re-budgeted: the successful ones escalate, the ones that
+  earned nothing are discarded for this instance, and some signals admit
+  the exotic ones (a shape that failed twice admits a different order, a
+  stalled walk admits k-induction);
+* when few goals are left and their characteristics make them disjoint,
+  support or nature, the cohort attacks them individually; when they
+  batch, they batch by kind, the stutter-insensitive CTL formulas together
+  and the rest together, each batch on the reductions its kind allows.
+
+"Stuck" is relative and uses every signal, not a counter. For the symbolic
+engine it usually means memory growth or states accreting far too slowly:
+the shape gets a negative signal, and the failed run is not waste but an
+under-approximation to harvest, reachable states with a good heuristic
+score handed to the walks, or facts the set already proves. The epoch is
+the brain of the operation: today a policy of rules over the profile and
+the knowledge; later, when the tensors of knowledge and outcomes exist
+across campaigns, a learned policy choosing the next epoch's strategies
+and budgets. The design only has to make the inputs of that policy
+explicit and recorded, which is what the profile is. ITS-Tools does this
+implicitly at best, with hard-coded procedures and timeouts and little
+knowledge shared; making it explicit is the advantage we hold.
+
+Scheduling is **cooperative**, on our own thread pool with its park and
+resume (`walk/`'s tasks and coordinator): procedures poll their deadlines,
+and what enters the pool is decided centrally at the epoch. A literal
+rendez-vous is the first version because it keeps the reasoning simple;
+the same reasoning can later run as one more task scanning a snapshot of
+the pool's load and dependencies, without stopping anyone.
+
 What is new against the Java loop:
 
 * **Reclassification is a step**, run after every batch of facts, and it
@@ -325,13 +363,20 @@ the checker spawns such subgoals into the cohort, to be attacked by the
 invariant procedures under their own budget with the set as initial states
 (section 5), or keeps them as internal searches, is **open in this
 architecture**; the interfaces allow both, since a procedure takes a set of
-initial states. `CTL_PLAN.md` section 11 is where that question continues.
+initial states, and that is all the provision made now. What is already
+clear: an explicit engine given a set picks a state and walks it, a partial
+answer that is often enough; whether re-reducing for a new initial state
+pays depends on the model, useless on a live net, worth it only where
+behaviour stabilises. A symbolic run spawning goals is not absurd; which
+procedures accept a set, and how, is solved when the case arises.
+`CTL_PLAN.md` section 11 is where that question continues.
 
 ## 9. Plan of attack
 
-1. `loop/`: questions, kinds, reclassification, knowledge; `prepare`
-   rewritten as steps over them, behaviour identical, the three callers
-   unchanged. The regression is the oracle checks of `Petri/test/`.
+1. `loop/`: questions, kinds, reclassification, knowledge, the epoch as
+   a rendez-vous with a rule policy; `prepare` rewritten as steps over
+   them, behaviour identical, the three callers unchanged. The regression
+   is the oracle checks of `Petri/test/`.
 2. `proc/` with the adapters for what exists; `exam/` with the StateSpace
    and reachability rows; the walk driver becomes the loop of section 5 for
    those two families. Measured against the campaign baseline of
