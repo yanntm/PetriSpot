@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <limits>
 #include <optional>
@@ -10,6 +11,13 @@
 #include "reduction/Counting.h"
 
 namespace petri::reduction {
+
+/** What the state-equation dead transition tests did, over every pass. */
+struct DeadStats {
+  size_t found = 0, tested = 0, solves = 0, pivots = 0, passes = 0, cursor = 0;
+  long spentMs = 0;
+  bool limited = false;
+};
 
 /** Sparse edit workspace. Slots stay stable until publication. Every adjacency
  * row contains active arcs only; inactive empty columns are never transitions.
@@ -40,6 +48,7 @@ public:
   bool safe = false; // the input's one-safety; a rule that fuses places clears it
   std::optional<bool> deadlock;
   std::optional<Counting<T>> counting;
+  DeadStats dead;
   std::chrono::steady_clock::time_point deadline;
 
   Workspace(SparsePetriNet<T> net, Configuration options, std::vector<bool> support)
@@ -102,19 +111,45 @@ public:
   void retireTransition(size_t t) {
     if (!liveT[t]) return;
     if (counting) counting->dropArcs("transitions removed whose arcs no survivor stands for");
-    replacePre(t, {}); replacePost(t, {}); liveT[t] = false;
+    dropTransition(t);
   }
   /** `t` duplicates `survivor`, which takes its multiplicity. */
   void fuseTransition(size_t t, size_t survivor) {
     if (!liveT[t]) return;
     if (counting) counting->fused(t, survivor);
-    replacePre(t, {}); replacePost(t, {}); liveT[t] = false;
+    dropTransition(t);
   }
   /** A transition proven never enabled: no arc of the graph was its. */
   void retireDeadTransition(size_t t) {
-    if (!liveT[t]) return;
-    replacePre(t, {}); replacePost(t, {}); liveT[t] = false;
+    if (liveT[t]) dropTransition(t);
   }
+  /** The same for a set, one pass per place column they touch. */
+  void retireDeadTransitions(std::vector<size_t> ts) {
+    std::sort(ts.begin(), ts.end());
+    ts.erase(std::unique(ts.begin(), ts.end()), ts.end());
+    std::erase_if(ts, [&](size_t t) { return !liveT[t]; });
+    if (ts.empty()) return;
+    std::vector<size_t> touched;
+    for (size_t t : ts)
+      for (const auto* mat : {&pre, &post}) {
+        const auto& col = mat->getColumn(t);
+        for (size_t i = 0; i < col.size(); ++i) touched.push_back(col.keyAt(i));
+      }
+    std::sort(touched.begin(), touched.end());
+    touched.erase(std::unique(touched.begin(), touched.end()), touched.end());
+    for (size_t p : touched) { consumers.getColumn(p).removeKeys(ts); producers.getColumn(p).removeKeys(ts); }
+    for (size_t t : ts) { pre.getColumn(t).clear(); post.getColumn(t).clear(); liveT[t] = false; ++changes; }
+  }
+private:
+  void dropTransition(size_t t) {
+    for (auto pair : {std::pair{&pre, &consumers}, std::pair{&post, &producers}}) {
+      auto& col = pair.first->getColumn(t);
+      for (size_t i = 0; i < col.size(); ++i) pair.second->getColumn(col.keyAt(i)).put(t, 0);
+      col.clear();
+    }
+    liveT[t] = false; ++changes;
+  }
+public:
 
   /** Remove a proven irrelevant guard/coordinate; no transition is implicitly
    * retired. Callers first retire consumers proved dead by this coordinate. */
@@ -134,6 +169,28 @@ public:
   void retireConstantPlace(size_t p) {
     if (counting) counting->constantDropped(marks[p]);
     dropPlace(p);
+  }
+  /** The same for a set, one pass per transition column they touch. */
+  void retireConstantPlaces(std::vector<size_t> ps) {
+    std::sort(ps.begin(), ps.end());
+    ps.erase(std::unique(ps.begin(), ps.end()), ps.end());
+    std::erase_if(ps, [&](size_t p) { return !liveP[p]; });
+    if (ps.empty()) return;
+    std::vector<size_t> touched;
+    for (size_t p : ps) {
+      if (observed[p]) throw std::logic_error("Retiring a protected place");
+      for (const auto* mat : {&consumers, &producers}) {
+        const auto& col = mat->getColumn(p);
+        for (size_t i = 0; i < col.size(); ++i) touched.push_back(col.keyAt(i));
+      }
+    }
+    std::sort(touched.begin(), touched.end());
+    touched.erase(std::unique(touched.begin(), touched.end()), touched.end());
+    for (size_t t : touched) { pre.getColumn(t).removeKeys(ps); post.getColumn(t).removeKeys(ps); }
+    for (size_t p : ps) {
+      if (counting) counting->constantDropped(marks[p]);
+      consumers.getColumn(p).clear(); producers.getColumn(p).clear(); liveP[p] = false; ++changes;
+    }
   }
   /** `kept` absorbs `p` (a fused free component); the caller has already
    * summed the markings and moved the arcs. */
