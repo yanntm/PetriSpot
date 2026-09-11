@@ -39,6 +39,7 @@ Implemented source responsibilities:
 | `rules/FutureEquivalent.h`, `rules/RedundantComposition.h` | Future fusion and transition dominance/composition |
 | `rules/ScalarTransition.h`, `rules/SinkTransition.h`, `rules/SourceTransition.h` | Transition cleanup and deadlock deduction |
 | `rules/InitialTokenMove.h` | Final-stability pre-firing |
+| `rules/DeadTransition.h` | Transitions the state equation proves never enabled (`lp/DeadTransitions.h`), budgeted by `deadMs` |
 | `rules/BoundsDominance.h` | Unscheduled Java bounds-specific method |
 | `cli/` | Standalone model/formula transformation, the counting record as PNET blocks, solved-property reporting |
 
@@ -48,7 +49,8 @@ All nine goal names are accepted. Reachability/deadlock follow the Java
 structural phases; full SI-mode validation and caller-level SMT orchestration
 remain outside the completed scope. LIVENESS retains dead-transition obligations. STATESPACE
 runs the rules audited for the counting record (constant places, duplicate
-transitions, no-effect transitions once arcs are untracked, free SCC) and the
+transitions, no-effect transitions once arcs are untracked, free SCC, dead
+transitions by the state equation) and the
 workspace maintains the record through them: `TMULT` while the arcs are those of
 the input, `PDROP` for removed constant places, `PCOEF` for fused free
 components (algorithm.md section 4, `io/PNET.md`). Local clear/replace operations maintain sparse
@@ -74,7 +76,11 @@ smaller support lets more rules fire, a reduced net exposes more constants.
 Without it only the formula side runs, the degraded mode. `--reduce` runs before
 walk/CTL/LP net compilation.
 `--reductionMs` limits reduction work (default 15000); `--reductionNoAgglo`
-disables agglomeration. `--trace`, input hints and LP hint export keep the
+disables agglomeration; `--deadMs` (default 3000, 0 disables) budgets the
+state-equation dead transition tests, which open every outer round and the
+STATESPACE loop, and are reported as one diagnostics line (found, tested,
+solves, pivots, passes, ms, budget hit). A pass cut by the budget resumes
+after the last transition tested. `--trace`, input hints and LP hint export keep the
 original net until lifting is implemented. Export and invariant-only requests
 still describe the original net. The original input remains available.
 

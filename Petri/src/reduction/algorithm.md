@@ -224,7 +224,9 @@ consumers asking more than the constant are dead), duplicate transitions
 (fused), transitions with no effect (kept while `tmult` is present: their
 guards are still counted by the consumer, and they add nothing to a fixpoint;
 dropped once arcs are no longer tracked), free SCC fusion (drops `tmult`,
-feeds `pcoef`), then the cheap rules again while anything changes. Redundant
+feeds `pcoef`), dead transitions by the state equation
+(`lp/DeadTransitions.h`, arc-neutral: `retireDeadTransition`), then the
+cheap rules again while anything changes. Redundant
 composition, the agglomerations and duplicate places never run here: the
 first two remove arcs no survivor stands for, the last removes states.
 Reference: ITS-Tools' `StructuralReduction.reduce` STATESPACE branch and

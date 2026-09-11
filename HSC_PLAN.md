@@ -964,6 +964,21 @@ StateSpace oracle for every BugTracking instance is `+inf`; what the
 prepared net buys the fixpoint, and `--cover`'s pumping pair, is the
 question the measurement answers.
 
+### The LP test, measured (2026-09-11)
+
+`lp/DeadTransitions.h` exists and runs as `reduction/rules/DeadTransition.h`
+in PetriSpot's own reductions, STATESPACE loop and general schedule, under
+`--deadMs` (3 s). On BugTracking q3m002 after the structural pass it tests
+about 470 of the 5 764 transitions in the budget, 118 dead (185 pivots and
+6 ms a solve, cold start each time); the linear test above did all 5 764 in
+0.2 s and found 2 995. So today the linear test wins on that net by an order
+of magnitude, the LP being exact but paid per transition. Two known gains
+before the comparison is fair: a warm start from the previous basis, and a
+per-place bound program as a pre-filter (`lp/algorithm.md`, section 5).
+Elsewhere the LP is cheap: 0 to 30 ms for every model under 600
+transitions, the 3 s budget at 2 000 to 5 000 transitions with 200 to 300
+pivots a solve, and 75 ms a solve on Erlangen's 59 000 columns.
+
 ### The comparison, then the default
 
 On BugTracking q3m002 to q3m016 and a handful of nets where each rule fires

@@ -23,6 +23,11 @@ the tree. `algorithm.md` describes the method; this file maps the sources.
 * `Refiner.h` — the `Accept / Cut / Split` interface between a candidate
   solution and the refinements (traps, read arcs, predecessor, integrality:
   planned, see `algorithm.md` section 4) and the loop that applies them.
+* `DeadTransitions.h` — transitions the state equation proves never enabled,
+  on a reduction's edit state (flow matrices, marking, live flags): one base
+  problem, one solve per transition with its enabling rows as extra rows, a
+  deadline and a pivot cap, a cursor so a pass cut by its budget resumes.
+  Consumed by `reduction/rules/DeadTransition.h`.
 * `DeadlockRefiner.h` — the dead-marking condition built lazily: a split on
   the pre-places of a transition still enabled in the candidate.
 

@@ -207,6 +207,23 @@ prototype; until then a cut re-solves from the current basis by phase 1.
 * **Program to program.** The Java side asks through the hint protocol of
   INTEROP.md: a property file in, verdicts and hints out.
 
+### Dead transitions, as a reduction rule
+
+The cheapest consumer of the engine: for transition `t`, add `m0[p] + C[p]·x
+≥ pre(t)[p]` for its input places to the base program and ask for
+feasibility; infeasible means no reachable marking enables `t`, and the
+reduction retires it with nothing to record (`lp/DeadTransitions.h`,
+`reduction/rules/DeadTransition.h`). Measured 2026-09-11 with a 3 s budget:
+a solve costs from a few microseconds (AutonomousCar, 52 solves in 0 ms) to
+75 ms (Erlangen, 59 000 columns, 400 pivots a solve); BugTracking
+q3m002 after its structural pass, 341 places and 5 764 transitions, gets
+475 solves in the budget, 118 of them dead, 185 pivots a solve. Every solve
+starts cold from `x = 0`; reusing the previous basis (the enabling rows are
+the only change) is the obvious next gain, and a per-place bound program
+(341 solves instead of 5 764, a transition asking more than a place can
+hold is dead) the cheaper pre-filter. The verdict is the floating-point
+solver's until the exact checker exists.
+
 ## 6. Shape of the code
 
 ```

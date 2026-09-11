@@ -142,9 +142,12 @@ of 2026-09-11 with the GPPP patch, identical on the cluster.
    hsc-pn (HSC_PLAN.md section 15); ITS-Tools still runs its own Java
    reductions before `hsc-pn`, the PetriSpot export is the standalone path
    until the projects integrate.
-4. Dead transitions: the state equation of `lp/` proves a transition never
-   enabled (`lp/algorithm.md`); Java runs that test inside its outer loop
-   (`ReachabilitySolver.applyReductions`). Add it as a rule of `prepare`.
+4. Dead transitions: `reduction/rules/DeadTransition.h` on
+   `lp/DeadTransitions.h` runs at the head of every outer round and in the
+   STATESPACE loop, `--deadMs` 3 s. Slower than libHSC's linear test on
+   BugTracking by an order of magnitude (HSC_PLAN.md section 17): warm-start
+   the basis between solves, add the per-place bound pre-filter, then the
+   comparison and the mcc.py sweep before trusting the default budget.
 5. CTL goals: a stuttering formula (no EX/AX) takes SI_CTL in Java and LTL
    here; scalar-transition removal under the LTL goal is not next-step
    preserving (Java does the same) — a theory question before enabling.
