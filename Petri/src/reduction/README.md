@@ -9,6 +9,9 @@ Read [algorithm.md](algorithm.md) for the proposed interface, correctness
 boundary, mutation strategy, and implementation stages. Read
 [itstools-review.md](itstools-review.md) for the reference inventory, actual
 rule schedule, optimizations, and points requiring further audit.
+Read [tracing.md](tracing.md) for optional high-debug local views and the future
+multipage PDF showing reduction steps, with bounded capture and no trace work
+in the disabled hot path.
 
 Proposed source responsibilities (names are provisional):
 
@@ -21,6 +24,7 @@ Proposed source responsibilities (names are provisional):
 | `Mapping.h` | Names and traceability, index remapping, constant substitutions |
 | `Metadata.h` | Maintenance or invalidation of counting records and structural facts |
 | `Coordinator.h` | Configured rule ordering, fallback, fixed points and statistics |
+| `Trace.h` | Optional bounded observation of rule applications; disabled specialization |
 | `rules/DuplicateTransition.h` | One duplicate-transition rule |
 | `rules/ConstantPlace.h` | One constant-place rule |
 | `rules/EmptySiphon.h` | One empty-siphon rule |
@@ -41,6 +45,7 @@ normal net. Alternative schedules are separate configurations.
 Create files as their rules arrive, keeping each responsibility roughly below
 500 lines. The kernel depends on `core/`, not parsers, CLI, walkers, SMT, or
 libHSC's calculus. The property and PNET adapters sit outside that kernel.
+Graphical rendering belongs in an IO adapter, outside the reduction kernel.
 
 Current related services: [sparse substrate](../core/README.md),
 [property AST](../expr/README.md), [PNET records](../io/PNET.md).

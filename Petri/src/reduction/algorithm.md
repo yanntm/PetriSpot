@@ -75,6 +75,10 @@ the caller formats optional progress and diagnostics.
 * Options/limits: enabled rules, schedule, agglomeration limits, search cutoffs,
   and optional deadline/cancellation. These control effort, never weaken
   semantic guards. No price or cost-model service is required.
+* Optional reduction tracing, disabled by default, with a sink and explicit
+  capture limits. This observes rule applications for study and visualization;
+  it is separate from name-based traceability and executable witness lifting.
+  See [tracing.md](tracing.md) for the capture and PDF design.
 
 `Result<T>` contains:
 
@@ -344,6 +348,10 @@ Each rule returns pass progress, limit/skipping reasons and statistics. The
 coordinator owns fixed-point decisions and growth tracking, not individual
 rules. It can rerun cheap cleanup after broader rewrites according to the
 chosen schedule. Reusable phases preserve the reference's fast fallbacks.
+Rules also expose optional before/after capture points with their local focus
+and highlighted objects. Dispatch once into an untraced or traced coordinator;
+the untraced specialization compiles out capture, descriptions and snapshots.
+Tracing never requires keeping retired columns alive after a rewrite.
 Use actual committed change, including guard or marking changes, as progress;
 net size alone is not sufficient. End at stability only if every enabled
 eligible search completed without a match; report exhausted candidate budgets
@@ -393,6 +401,10 @@ Maintain a compatibility checklist as implementation starts: each reference
 rule/variant, goal gate, option, fast path, caller-side preprocessing requirement,
 and metadata/name behavior is implemented, deferred, or intentionally changed
 with a reason. Incremental delivery is not permanent loss of reference scope.
+Include ITS-Tools' high-debug views in that checklist. Add optional capture
+hooks alongside rules, then local DOT export and a multipage PDF renderer as a
+separate feature increment. Bounded capture and disabled-path overhead checks
+are acceptance criteria for tracing, not optional later optimizations.
 
 Validation should target semantics rather than reproduce implementation.
 For small bounded examples exhaust original and reduced reachable markings:
