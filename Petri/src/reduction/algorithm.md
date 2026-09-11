@@ -2,7 +2,11 @@
 
 Status: proposal for review, before implementation. The reference inspection
 is in [itstools-review.md](itstools-review.md). This document defines a native
-module, not a promise to reproduce every Java transformation or its schedule.
+module intended to express ITS-Tools' reduction capabilities through named
+configurations, while separating rules, sparse edits and coordination.
+ITS-Tools is the profiled, extensively tested reference engine. Preserve its
+special cases, fast paths and operational limits until measurements justify
+changing them; unusual models and downstream metrics matter here.
 
 ## 1. Boundary and purpose
 
@@ -12,10 +16,11 @@ An absent arc is zero. Incidence alone is insufficient: it loses read guards.
 The result is another `SparsePetriNet<T>` usable by existing analysis engines.
 No serialization round trip or second public net hierarchy is needed.
 
-Java's dynamic-product `image`/`keepImage` mechanism is outside the proposed
-scope. Its specialized LTL use does not justify carrying it into the native
-interface. Ordinary index remapping is necessary independently. Original
-witness lifting is a possible later capability, not an initial requirement.
+Java's dynamic-product `image`/`keepImage` mechanism is not in the first
+implementation increment. Keep an optional extension point for that LTL
+configuration rather than permanently excluding the capability. Ordinary
+index remapping and name-based traceability are supported independently.
+Executable witness lifting is a possible later capability.
 
 The desired default integration is one reduction before building walk tables,
 LP constraints, invariants, or libHSC events and variable order. Parse properties
@@ -48,7 +53,7 @@ PropertyResult<T> reduceForProperties(
 ```
 
 Passing an lvalue makes the intentional copy; passing `std::move(net)` transfers
-ownership. Do not additionally copy the entire net into a Java-like reducer.
+ownership. The workspace takes that ownership without another full net copy.
 The property overload derives the contract and returns rewritten properties
 together with the net, so callers cannot accidentally mix coordinate systems.
 It delegates to the same kernel as net-only analysis. No logging to stdout;
@@ -56,7 +61,8 @@ the caller formats optional progress and diagnostics.
 
 `Request<T>` contains:
 
-* A preservation contract and sparse set of observed original place IDs.
+* A named reduction configuration, its preservation contract, and sparse set
+  of observed original place IDs.
   No implicit reachability mode for an empty request: net-only callers must
   explicitly request their intended semantics.
 * Required artifacts: selected counting measures (and, potentially later,
@@ -66,15 +72,17 @@ the caller formats optional progress and diagnostics.
 * Known facts about this input revision, such as proven safety/bounds, and
   optional provenance records. Unknown is distinct from false. Caller-supplied
   facts are trusted premises, not inferred from a filename or NUPN label.
-* Options: enabled rule families, schedule, deadline/cancellation, work and
-  expansion budgets. These control effort, never weaken semantic guards.
+* Options/limits: enabled rules, schedule, agglomeration limits, search cutoffs,
+  and optional deadline/cancellation. These control effort, never weaken
+  semantic guards. No price or cost-model service is required.
 
 `Result<T>` contains:
 
 * Owned reduced net, the effective preservation contract, and net revision.
 * Original-to-result place mapping with explicit `kept(index)`, `constant(T)`,
   or `unavailable` entries; result-to-original identity/aggregate provenance.
-  Deleted unobserved places need not be reconstructible. Names are labels.
+  Deleted unobserved places need not be reconstructible. Names retain their
+  traceability role; numeric maps serve sparse indexing and property rewriting.
 * Updated counting records/facts, including reasons
   for invalidation. Renumbering never silently carries a stale record.
 * Typed deductions (for example no reachable deadlock), with a rule and its
@@ -89,11 +97,26 @@ last valid result and an explicit arithmetic-limit reason. The final choice
 between these two behaviors can follow the existing arithmetic conventions.
 Neither is a property verdict. A timeout returns a sound partial reduction.
 
-## 3. Preservation is a contract, not an enum of examinations
+## 3. Reduction goals and configurations
 
-The kernel accepts a small set of validated profiles, with extra artifact
-requirements. Do not expose arbitrary combinations of permissive booleans.
-Every rule has a documented applicability table and its own structural guards.
+Keep all ITS-Tools reduction types as public named goals: `NONE`, `DEADLOCK`,
+`REACHABILITY`, `SI_LTL`, `LTL`, `LIVENESS`, `STATESPACE`, `LI_LTL`, `SI_CTL`.
+Each resolves to a configuration: preservation requirements, eligible rules,
+coordinator schedule, default options/limits, and optional artifact handling.
+The names remain recognizable to existing callers. Their implementation need
+not be a switch repeated through every rule.
+
+Configurations can share a common local-rule set and compose reusable phases.
+They are not a simple hierarchy of increasingly strong reductions: liveness,
+branching, trace length and counting impose different restrictions. A derived
+configuration explicitly adds/removes rules or tightens their guards. Preserve
+LI_LTL as a distinct goal with the reference's eligibility choices; do not
+collapse it into SI_LTL based on a generic stuttering label.
+
+The table below describes semantic building blocks, not replacements for the
+named goals. Each rule documents a goal applicability table plus structural
+guards. Goal support grows incrementally; a partially implemented configuration
+reports its rule coverage, rather than silently aliasing a different goal.
 
 | Profile | Required relation | Initial availability |
 |---|---|---|
@@ -141,9 +164,15 @@ different relationships and must not share one unqualified `image` field.
 
 The following trace design is a deferred option, not part of the first API.
 If added, trace support must constrain the schedule when requested.
-For duplicates, map to a representative original transition. For a simple
-agglomerate store a DAG recipe such as `sequence(h, repeat(f,k))`, with original
-transition IDs at leaves, rather than concatenate names. Record any pre-fired
+For duplicates, map to a representative original transition. Preserve names
+and composed names for human traceability, as ITS-Tools does. Record merges,
+removals and renames against those names; numeric slot changes must not erase
+that history. Expose the reference's excessive-name-length limit as an option;
+if names are shortened, retain an optional old/new-name record when traceability
+is requested. No provenance DAG is required for ordinary reduction.
+
+If executable witness lifting is added, a simple agglomerate can additionally
+store a recipe such as `sequence(h, repeat(f,k))`. Record any pre-fired
 initial prefix. More general fusion can require marking-dependent routing;
 skip it under replay requirements until that lifting algorithm exists.
 Replay on the original net and check the original goal before publishing an
@@ -172,8 +201,9 @@ without requiring the reducer to include a file codec.
   distinct from these records. Revalidate, transform, or invalidate each.
 
 Required count preservation skips incompatible rewrites. Optional records may
-be lost. This is explicit in the request, avoiding the Java coupling where the
-mere presence of metadata changes the reduction policy. Later ghost support
+be lost. The reference configuration retains ITS-Tools' metadata-sensitive
+choices, including the special STATESPACE route. Other configurations may make
+these priorities explicit in the request. Later ghost support
 must be implemented in producer and consumer before advertising arc recovery.
 
 ## 5. Mutation and sparse execution
@@ -197,17 +227,46 @@ eligibility are checked before commit. Conflicting candidates are rechecked
 after an intervening mutation; do not assume all matches in a scan coexist.
 
 Canonical matrices are transition columns. Lazily materialize their transposes
-for place-oriented passes, scoped by revision. A mutation either updates all
-materialized affected rows or invalidates the view through one central path.
-Start with invalidation and pass-level batching; incremental adjacency is a
-measured optimization, not duplicated handwritten updates in every rule.
+for place-oriented passes. The workspace offers local replacement, retirement,
+append, and explicit compaction; rules choose the appropriate operation without
+duplicating transpose/index maintenance. Preserve efficient reference paths:
+avoid invalidating a whole transpose when only a few sparse entries change.
 
-Batch independent deletions and compact with one old-to-new map. Rewrite all
-matrix keys, observations, identities and metadata with that same map. IDs in
-a candidate are valid only within its revision; external original IDs never
-change. O(P+T) tables at preprocessing boundaries are acceptable; do not add
-dense work to downstream firing loops. Tombstones and permanent stable internal
-handles are optional later optimizations, not a prerequisite for this API.
+**Clear/retire, append, compact later** is the preferred transition-edit path.
+Retiring a transition clears both columns and removes its entries from the
+materialized pre/post transposes by traversing the old supports. It marks the
+slot inactive without shifting any other transition index. Appending a new
+transition adds its columns and sparse transpose entries at the end; transpose
+row counts grow accordingly. Replacing a column visits its old/new support
+union. These operations cost work proportional to touched arcs rather than
+renumbering the entire matrix for each match.
+
+An inactive cleared column is **not** an active source/no-effect transition.
+Maintain an explicit active set, and make every rule, graph scan and deduction
+respect it. A genuinely active transition with empty pre/post remains a real
+transition. Counts and growth limits use active objects; a separate storage
+limit monitors accumulated retired slots. Avoid reusing retired slots within
+a pass, so queued IDs cannot silently acquire another meaning.
+
+Trivial agglomeration remains its own fast rule even if a general rule matches
+the same pattern. It can redirect a surviving transition's output and retire
+the continuation, preserving matrix shape/indices and most adjacency data.
+It changes arc contents, but avoids structural row/column deletion and a
+general composition allocation. Do not route it through a heavyweight edit
+representation or per-candidate full-net validation. Shared edit helpers can
+commit a small prepared local change directly after its checks.
+
+Compact at configured phase boundaries, when retired storage crosses a limit,
+or before publishing the result. Compact with one old-to-new map, repairing
+matrix keys, observations, names and metadata together. Place retirement needs
+the same discipline and can initially be batched in place-oriented passes.
+Rebuild transposes at compaction if cheaper than reindexing them; retain the
+reference's immediate batch-deletion path where it is advantageous. The public
+result has ordinary compact indices and no inactive slots.
+
+Candidates carry revision information; recheck affected candidates after edits
+and invalidate all slot-based candidates at compaction. O(P+T) bookkeeping at
+preprocessing boundaries is acceptable; no dense work enters firing loops.
 
 Hash immutable column pairs for duplicates and effects for dominance; compare
 full sparse vectors to resolve collisions. Narrow candidates by degree and
@@ -230,16 +289,17 @@ The proposed conceptual protocol is:
 ```cpp
 bool eligible(const Contract& contract) const;
 // Structural search yields a typed Match, or no match, under a work budget.
-std::optional<Match> find(const NetView<T>& net, SearchBudget& budget) const;
-Estimate estimate(const NetView<T>& net, const Match& match) const; // optional
+SearchResult<Match> find(const NetView<T>& net, const RuleOptions& options) const;
 Edit<T> prepare(const NetView<T>& net, const Match& match) const;
 ```
 
 These signatures express responsibilities; template placement and the exact
 search cursor/result types remain design choices. No inheritance hierarchy or
 runtime plugin registry is needed initially: named rule types and explicit
-calls in the scheduler suffice. `find` must distinguish exhaustion from a
-budget stop in its eventual result type. A match carries its source revision;
+calls in the coordinator suffice. `find` distinguishes exhaustion from a
+limit stop. Rules may implement a batch pass using these responsibilities
+internally, so trivial rewrites need not allocate a generic match/edit object
+per application. A match carries its source revision;
 `prepare` rechecks validity if that revision changed.
 
 The guard has two parts: eligibility for what the caller wants to preserve,
@@ -248,15 +308,21 @@ before committing the edit. Both parts are mandatory even if the scheduler
 already filtered the rule family. A rule may expose distinct named variants
 when their proof obligations differ, rather than nested boolean switches.
 
-A cost metric is useful but provisional. Start with a coarse search class
-(local, full sparse scan, pairwise, expanding) and, where cheap to obtain,
-estimated candidate work and added/removed arcs and transitions. These are
-different quantities: an expensive search can produce a cheap result, and
-removing a place can enlarge the transition relation. Do not collapse them
-into one unexplained score. An absent estimate means unknown cost; it never
-means zero. Exact measured time and actual edit deltas belong in rule stats.
-The first scheduler can use fixed phases and hard budgets, then use measured
-data to decide whether richer cost-based ordering pays for itself.
+Use explicit options and limits rather than a mandatory cost estimate. A rule
+can cheaply decide to skip a search on the current net or reject an expansion
+candidate: transition count, degree-bucket size, search depth, producer/consumer
+product, generated arc count, applications per pass. The coordinator can also
+inspect recent progress to decide whether to enter a phase. That is already
+dynamic selection without assigning a speculative price to every rule.
+Keep measured time and actual changes in statistics for later tuning.
+
+Preserve the reference defaults and exact comparisons in its configuration:
+implicit depth 5; composition skipped above 20,000 transitions; future buckets
+skipped at 10,000; complex post cross-product rejected at 32 when both sides
+are non-singleton; complex post stops after more than 100 applications; global
+loop stops after four consecutive transition-growing rounds. The image-mode
+consumer limit belongs to its optional configuration. Give these limits names,
+units and meanings; changing one must not change a structural guard.
 
 Each rule states: mathematical preconditions; supported profiles; observation
 and artifact obligations; sparse recognition algorithm; edit; and validation
@@ -264,20 +330,31 @@ examples. Split cheap rejection tests from the semantic predicate and split
 that predicate from construction. Share agglomerate construction, not an
 opaque nest of `doComplex`/`doSimple` switches across different proofs.
 
-First schedule: cheap local cleanup to stability, structural siphon/implicit
-and relevance passes, non-expanding agglomeration, then budgeted broader
-fusion/composition. Return to cleanup after a successful expensive rewrite.
+The **rule coordinator** assembles and runs the selected goal's rules. Its
+small vocabulary is ordered sequence, repeat while changed, fallback when a
+phase made no progress, and conditional phase. Ordinary typed C++ functions
+are sufficient; no scheduling language is required. The reference configuration
+reproduces the order and nested loops in the review, including initial SCC
+passes, trivial-before-general post, late siphons/token movement, and the
+separate STATESPACE path. It is the initial comparison baseline. A modified
+schedule is a named configuration, so experimental ordering does not silently
+replace that baseline.
+
+Each rule returns pass progress, limit/skipping reasons and statistics. The
+coordinator owns fixed-point decisions and growth tracking, not individual
+rules. It can rerun cheap cleanup after broader rewrites according to the
+chosen schedule. Reusable phases preserve the reference's fast fallbacks.
 Use actual committed change, including guard or marking changes, as progress;
 net size alone is not sufficient. End at stability only if every enabled
 eligible search completed without a match; report exhausted candidate budgets
 as limited search, not global irreducibility.
 
-Keep a named reference-inspired schedule for experiments, with thresholds in
-one options structure. Candidate order should be deterministic (ID tie breaks)
-and statistics should make schedule comparisons possible. Budget new arcs,
-new transitions, candidate pairs, and total work, not only net size. Work
-limits bound repeatable tests; a deadline bounds practical latency. Check
-cancellation between candidate batches and before expensive allocation.
+The reference schedule aims at operational compatibility, not byte-identical
+Java hash iteration. Document candidate traversal and tie breaks; preserve
+reference ordering where observable, and record differences. Keep thresholds
+in named option groups, including optional arc/storage limits absent from the
+reference. Such extra limits are disabled in the compatibility configuration
+unless requested. Check cancellation between batches and before large allocation.
 
 For example, post-agglomeration through initially empty p with unit arcs,
 one producer h and one consumer f, h's only output p and f's only input p,
@@ -290,7 +367,8 @@ arithmetic. This formula is not a generic composition of arbitrary transitions.
 
 ## 7. Implementation stages after design review
 
-1. Introduce request/result, revision and remapping machinery; implement
+1. Introduce named goals/configurations, coordinator, request/result, sparse
+   local edits, retirement and compaction, names and remapping; implement
    duplicate transitions, proven constants and dead transitions. Preserve
    observations and basic counting records, with explicit refusal of any
    unsupported required artifact. Integrate one preprocessing point in
@@ -300,12 +378,21 @@ arithmetic. This formula is not a generic composition of arbitrary transitions.
 3. Add the trivial chain above and simple pre/post agglomeration; compare
    schedule costs before expanding rule coverage. Decide separately whether
    original witness lifting warrants implementation.
-4. Add free SCC/future fusion and broader weighted/partial agglomerations only
-   with per-profile justification. Temporal, counting and dynamic-image support
-   are separate milestones, not automatically inherited from reachability;
-   dynamic-image support is excluded unless a concrete LTL use calls for it.
+4. Complete the structural rule inventory and goal-specific eligibility,
+   including free SCC/future fusion and weighted/partial agglomerations.
+   Bring each named goal's reference configuration to parity; document the
+   original conditions and their rationale alongside each rule. Keep the
+   optional image configuration as a separately scheduled capability.
 5. Add optional invariant/LP/SMT-derived facts through a separate adapter if
-   useful. Structural preprocessing remains usable with no solver dependency.
+   needed to reproduce the outer ITS-Tools orchestration. Structural
+   preprocessing remains usable with no solver dependency. Explicit transforms
+   such as read abstraction and causal decomposition remain separately callable
+   operations with their own contracts, rather than default equivalence rules.
+
+Maintain a compatibility checklist as implementation starts: each reference
+rule/variant, goal gate, option, fast path, caller-side preprocessing requirement,
+and metadata/name behavior is implemented, deferred, or intentionally changed
+with a reason. Incremental delivery is not permanent loss of reference scope.
 
 Validation should target semantics rather than reproduce implementation.
 For small bounded examples exhaust original and reduced reachable markings:
@@ -316,20 +403,27 @@ source transitions, duplicate chains, and overflow in composition. Test mixed
 property supports, deletion followed by fusion, metadata reindexing and replay.
 For CTL use formulas distinguishing branching, next steps, and deadlock.
 
-Use ITS-Tools as a differential reference, not the only correctness oracle;
-different reduced net sizes or rule counts are expected. Measure reduction time,
-peak storage, arcs and downstream analysis cost on user-selected MCC models.
+Use ITS-Tools as the performance and functional baseline, alongside small exact
+semantic checks. Compare the reference configuration first; investigate changed
+reductions rather than dismissing different sizes as expected. Distinguish
+candidate-order differences from missed rules and avoidable performance loss.
+Measure reduction time, peak storage, arcs and downstream analysis cost on
+user-selected MCC models. Retain pathological cases motivating particular
+limits/fast paths as regression inputs or external corpus references, including
+cases where a smaller net makes a downstream metric worse. Rule-level timings,
+transpose rebuilds, compaction work and allocated columns help explain losses.
 Individual diagnostics stay within the repository's 15-second bound. No tests
 or benchmarks are needed for this documentation-only stage.
 
 ## 8. Review decisions
 
-The proposed starting point is observed reachability plus a conservative
-deadlock/local-counting subset, with general CTL restricted to strong local
-rules. Java image support is excluded. Original witness reconstruction is
-deferred; when traces are required, use only rules with an implemented lift
-or run the original net. Each rule is its own file/type, with explicit guards;
-cost estimates are optional scheduling advice rather than semantic premises.
-The workspace is private, using ordinary dense indices per revision and batch
-compaction. libHSC reuses the native API through vendoring; PNET stays an adapter.
-These choices are the first implementation boundary to validate.
+Keep all ITS-Tools goals as configurations, sharing rule sets and phases where
+appropriate. The coordinator owns ordering, fallback and fixed points; each
+rule owns its guards and efficient rewrite in one file/type. Named options and
+limits control dynamic admission; there is no mandatory cost model. Preserve
+trivial fast paths, name-based traceability, and clear/append edits with local
+transpose maintenance and deferred compaction. The reference configuration is
+the baseline; changes need evidence, including on difficult models. Image and
+executable witness lifting remain deferred optional capabilities. libHSC reuses
+the native API through vendoring; PNET stays an adapter. No code starts before
+this design iteration is reviewed.

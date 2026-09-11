@@ -17,9 +17,10 @@ Proposed source responsibilities (names are provisional):
 | `Reduce.h` | Typed request/result and entry point; no rule bodies |
 | `Workspace.h` | Owned sparse net, adjacency views, validated edits and compaction |
 | `Contract.h` | Preservation requirements, observations, rule eligibility |
-| `Mapping.h` | Original identities and constant substitutions |
+| `Configuration.h` | All ITS-Tools named goals, shared phases and options/limits |
+| `Mapping.h` | Names and traceability, index remapping, constant substitutions |
 | `Metadata.h` | Maintenance or invalidation of counting records and structural facts |
-| `Schedule.h` | Pass ordering, budgets, termination and statistics |
+| `Coordinator.h` | Configured rule ordering, fallback, fixed points and statistics |
 | `rules/DuplicateTransition.h` | One duplicate-transition rule |
 | `rules/ConstantPlace.h` | One constant-place rule |
 | `rules/EmptySiphon.h` | One empty-siphon rule |
@@ -33,6 +34,10 @@ Proposed source responsibilities (names are provisional):
 
 Each rule gets its own file and named type; the list illustrates the layout,
 not a fixed inventory. Shared helpers contain mechanics, not multiple rules.
+The reference configuration preserves ITS-Tools' schedule, goal distinctions,
+limits and fast paths. Local clear/replace/append operations maintain sparse
+transposes without repeated index shifting; explicit compaction publishes a
+normal net. Alternative schedules are separate configurations.
 Create files as their rules arrive, keeping each responsibility roughly below
 500 lines. The kernel depends on `core/`, not parsers, CLI, walkers, SMT, or
 libHSC's calculus. The property and PNET adapters sit outside that kernel.

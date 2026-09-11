@@ -6,6 +6,13 @@ Reference trees were read only. This is a code review, not a proof audit or a
 performance measurement. Reasons labeled as interpretations are inferred from
 the implementation; no external literature claims are made here.
 
+ITS-Tools is the mature, profiled and extensively tested reference, identified
+by the project owner as the current state-of-the-art reduction engine. This
+review's purpose is to retain its accumulated engineering knowledge in a more
+modular implementation. A surprising condition or specialized fast path is an
+investigation prompt, not evidence that it is unnecessary. Model-specific
+limits can protect downstream metrics that a local net-size measure misses.
+
 ## Source map
 
 All Java paths below are relative to `~/git/ITStools`.
@@ -106,7 +113,7 @@ caps that case at roughly 10k places and 10k transitions, and uses
 | Stop complex post after `total > 100` | Pass throttling (can apply 101), not a theorem |
 | Pre with `keepImage` rejects >=4 consumers | Growth heuristic documented with a model example |
 | Stop after four consecutive transition-growing rounds | Global blow-up brake; not convergence |
-| Rename when a transition name reaches 1024 characters | Representation workaround for concatenated histories |
+| Rename when a transition name reaches 1024 characters | Bound the cost of name-based traceability; preserve as an option |
 | Sort composition candidates by descending arc degree | Search priority; interpretation: eliminate bulky composed transitions first |
 | Single consumers/producers in several rules | Sometimes only cheap-first restriction; sometimes continuation, conflict or branching premise: classify per rule |
 | Empty eliminated place, integral weight ratio, no producer/consumer overlap | Semantic premises for the corresponding composition |
@@ -131,10 +138,13 @@ patches already materialized transposes. Trivial post replaces a column directly
 and delays cleanup rather than building a Cartesian product. `maxArcValue`
 avoids scanning for scalar multiples on unit-weight nets.
 
-These are useful algorithmic choices, not just Java idioms. Boxed collections,
-stream grouping, repeated full transposes, and temporary expression trees are
-implementation choices we need not reproduce. Preserve sparse locality first;
-measure whether maintaining both orientations beats rebuilding at pass boundaries.
+These are algorithmic choices to preserve in the baseline. Trivial post merits
+its own rule because it avoids structural matrix deletion/reindexing and general
+composition work, even when a general rule can recognize the same net. Clearing
+retired columns and appending new ones preserves indices and supports local
+transpose updates; inactive slots must be distinguished from real empty
+transitions. Compare C++ storage choices against these paths before replacing
+them. Measure both local maintenance and rebuilds at compaction boundaries.
 The degree filters bound some pairwise searches but do not make them linear.
 Likewise the place dependency graph can expand a wide transition quadratically.
 
@@ -145,10 +155,14 @@ scans can become a sparse worklist with counters of remaining candidate inputs;
 that optimization should preserve the same fixed point and include source
 transitions from the outset.
 
-## Refactoring and correctness audit points
+## Questions to resolve while transcribing the reference
 
-These are static inspection findings; no failing execution was produced in
-this stage. They justify focused tests rather than claims about contest results.
+These are static inspection questions; no failing execution was produced in
+this stage. Caller invariants, deliberate restrictions and rare model behavior
+may explain them. Resolve each against its callers and targeted examples before
+changing behavior; they are not a ranking of the reference's quality. Keep
+reference behavior documented and distinguish a confirmed correction from a
+refactoring or an untested suspicion.
 
 * `ruleReducePlaces` returns removed-place count, although it can delete
   transitions, clear guards, or move tokens as well. `reduce()` mixes boolean
@@ -176,12 +190,14 @@ this stage. They justify focused tests rather than claims about contest results.
   survive agglomeration: it is a dynamic-product mechanism, not a logging flag
   or a complete original-trace lift. Free SCC and other paths need separate
   examination before asserting any general image invariant.
-* `SparsePetriNet.readFrom` remaps properties through place names. Native
-  identities should be numeric and explicit, including constants and loss of
-  information; concatenated transition names are not a provenance format.
+* `SparsePetriNet.readFrom` remaps properties through place names. Retain names
+  for traceability, including composed transition names. Explicit numeric maps
+  make internal slot compaction convenient; they complement that naming
+  contract. Executable witness reconstruction is a separate capability.
 * The scheduler itself comments that partial post is “almost legitimate” for
   SI_LTL, yet invokes it for selected temporal modes. This is a proof-review
-  item, not permission to ship that temporal eligibility unchanged.
+  item: recover the intended conditions and caller context before changing
+  the reference configuration's temporal eligibility.
 * SCC deadlock deduction is attempted before `ruleReduceTrans`'s source test.
   A source transition is always enabled and prevents deadlock; a graph with
   no cyclic place SCC must not overrule that fact. Check standalone `reduce`
@@ -189,7 +205,8 @@ this stage. They justify focused tests rather than claims about contest results.
 * `abstractReads` removes guards and is an abstraction. Causal decomposition
   warns on a marked place but proceeds; its per-feeder copies also need a
   separate argument for consumers requiring tokens from multiple feeders.
-  Neither belongs in the default equivalence-preserving rule registry.
+  Preserve access to these as explicit transformations with their own contracts;
+  neither is selected by a default equivalence-preserving goal.
 
 The useful split is therefore threefold: sound recognition with a stated
 relation, centrally checked mutation with artifact maintenance, and an
