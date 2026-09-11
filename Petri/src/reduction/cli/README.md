@@ -21,7 +21,7 @@ diagnostic, since the rules these goals run cannot maintain them.
 `petri64 reduce -i model.pnml --goal STATESPACE --output reduced` takes no
 formulas: the net is reduced by the rules that keep the four StateSpace values
 recoverable and `model.pnet` carries the counting record as named blocks
-(`io/PNET.md`: `TMULT`, `PDROP`, `PCOEF`), built by `CountingBlocks.h` from
+(`io/PNET.md`: `TMULT`, `PDROP`, `PCOEF`, `PCONST`), built by `CountingBlocks.h` from
 `Counting.h`. A PNML input vouches for its own arcs (identity record); a
 `--net` input is trusted only for the blocks it carries, so a PNET without
 `TMULT` yields no `TMULT`. Unknown input blocks are dropped and named on

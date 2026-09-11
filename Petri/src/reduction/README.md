@@ -54,8 +54,8 @@ transitions by the state equation) and the
 workspace maintains the record through them: `TMULT` while the arcs are those of
 the input, `PDROP` for removed constant places, `PCOEF` for fused free
 components (algorithm.md section 4, `io/PNET.md`).
-Constant representatives of fused components retain their coefficient as
-isolated places; recording only their token sum in `PDROP` would lose states.
+Constant representatives of fused components move to `PCONST` as token-total
+and coefficient pairs; their binomial factors survive without diagram places.
 Local clear/replace operations maintain sparse transposes without index
 shifting; publication compacts to a normal net.
 Create files as their rules arrive, keeping each responsibility roughly below

@@ -6,8 +6,9 @@
 
 namespace petri::reduction {
 /** The counting record as PNET named blocks and back (io/PNET.md). A block
- * is one column; `TMULT` and `PCOEF` are indexed by object, `PDROP` is a list.
- * Reading takes the three names and reports the others, which nothing here
+ * is one column except `PCONST` (tokens, coefficient). `TMULT` and `PCOEF`
+ * are indexed by object; `PDROP` and `PCONST` are lists.
+ * Reading takes these names and reports the others, which nothing here
  * maintains; a `TMULT` is required for the arcs to count as vouched for. */
 template<class T>
 Counting<T> countingFromBlocks(const typename PNETIO<T>::Blocks& blocks, size_t places,
@@ -16,6 +17,15 @@ Counting<T> countingFromBlocks(const typename PNETIO<T>::Blocks& blocks, size_t 
   c.pcoef.assign(places, T(0));
   c.arcsLost = "the input net carries no TMULT block";
   for (const auto& [name, matrix] : blocks) {
+    if (name == "PCONST") {
+      if (matrix.getColumnCount() != 2) throw std::invalid_argument("PCONST requires two columns");
+      for (size_t row = 0; row < matrix.getRowCount(); ++row) {
+        const T tokens = matrix.getColumn(0).get(row), coefficient = matrix.getColumn(1).get(row);
+        if (tokens < 0 || coefficient < 1) throw std::invalid_argument("Invalid PCONST token total or coefficient");
+        c.pconst.emplace_back(tokens, coefficient);
+      }
+      continue;
+    }
     if (matrix.getColumnCount() != 1) throw std::invalid_argument("PNET block " + name + " is not one column");
     const auto& col = matrix.getColumn(0);
     if (name == "TMULT") {
@@ -30,6 +40,10 @@ Counting<T> countingFromBlocks(const typename PNETIO<T>::Blocks& blocks, size_t 
     } else {
       diagnostics << "Reduction drops the input block " << name << ": nothing maintains it.\n";
     }
+  }
+  if (!c.pconst.empty()) {
+    c.tmult.reset();
+    c.arcsLost = "PCONST carries no evidence for internal transition counts";
   }
   return c;
 }
@@ -49,6 +63,16 @@ typename PNETIO<T>::Blocks countingToBlocks(const Counting<T>& c) {
   if (c.tmult) blocks.emplace_back("TMULT", column(*c.tmult, false));
   if (!c.pdrop.empty()) blocks.emplace_back("PDROP", column(c.pdrop, true));
   if (c.weighted()) blocks.emplace_back("PCOEF", column(c.pcoef, false));
+  if (!c.pconst.empty()) {
+    MatrixCol<T> m(c.pconst.size(), 0);
+    SparseArray<T> tokens, coefficients;
+    for (size_t i = 0; i < c.pconst.size(); ++i) {
+      if (c.pconst[i].first != 0) tokens.append(i, c.pconst[i].first);
+      coefficients.append(i, c.pconst[i].second);
+    }
+    m.appendColumn(std::move(tokens)); m.appendColumn(std::move(coefficients));
+    blocks.emplace_back("PCONST", std::move(m));
+  }
   return blocks;
 }
 
@@ -69,5 +93,7 @@ void describeCounting(const Counting<T>& c, std::ostream& os) {
     for (T k : c.pcoef) if (k != 0) { ++fused; extra = petri::addExact(extra, k); }
     os << "Counting record: PCOEF " << fused << " places stand for " << extra << " more.\n";
   }
+  if (!c.pconst.empty())
+    os << "Counting record: PCONST " << c.pconst.size() << " constant free components.\n";
 }
 }

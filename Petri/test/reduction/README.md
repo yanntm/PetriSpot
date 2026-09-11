@@ -47,6 +47,9 @@ place. Analytic binomial counts are compared with HSC before and after native
 reduction, then after PNET export/reimport and a second reduction. The same
 check covers PetriSpot's standalone export and its re-reduction. This catches
 free-SCC fusion followed by constant-place removal losing its counting weight.
+Exports must have no remaining places and retain `PCONST`; diagnostic weighted
+counts must equal the analytic answer. `--skip-original` checks large products
+against the analytic oracle without exploring the unreduced state space.
 Each invocation has a shared 15-second limit and keeps diagnostics in
 `Petri/test/logs/`; temporary model/export files are removed after the check.
 

@@ -2,6 +2,7 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 #include "core/Arithmetic.hpp"
 
@@ -17,6 +18,7 @@ template<class T> struct Counting {
   std::optional<std::vector<T>> tmult;
   std::vector<T> pcoef;
   std::vector<T> pdrop;
+  std::vector<std::pair<T, T>> pconst; // removed free components: tokens, K-1
   std::string arcsLost;
 
   static Counting identity(size_t places, size_t transitions) {
@@ -34,8 +36,11 @@ template<class T> struct Counting {
     if (tmult) (*tmult)[survivor] = petri::addExact((*tmult)[survivor], petri::addExact((*tmult)[dropped], T(1)));
   }
   /** A constant place holding `marking` tokens leaves the net. */
-  void constantDropped(T marking) {
-    if (marking > 0) pdrop.push_back(marking);
+  void constantDropped(size_t place, T marking) {
+    if (pcoef[place] != 0) {
+      pconst.emplace_back(marking, pcoef[place]);
+      dropArcs("constant free components removed without their internal moves");
+    } else if (marking > 0) pdrop.push_back(marking);
   }
   /** `kept` absorbs `other`: their coefficients add, and the moves inside
    * the component are no longer moves of this net. */
@@ -48,7 +53,7 @@ template<class T> struct Counting {
   Counting compact(const std::vector<size_t>& placeMap, const std::vector<size_t>& transitionMap) const {
     constexpr size_t absent = std::numeric_limits<size_t>::max();
     Counting out;
-    out.pdrop = pdrop; out.arcsLost = arcsLost;
+    out.pdrop = pdrop; out.pconst = pconst; out.arcsLost = arcsLost;
     size_t live = 0;
     for (size_t p = 0; p < placeMap.size(); ++p) if (placeMap[p] != absent) ++live;
     out.pcoef.assign(live, T(0));

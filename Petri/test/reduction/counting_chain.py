@@ -6,6 +6,7 @@ import argparse
 import math
 from pathlib import Path
 import subprocess
+import struct
 import tempfile
 import time
 
@@ -17,6 +18,8 @@ def main() -> None:
     parser.add_argument("--places", type=int, default=2)
     parser.add_argument("--tokens", type=int, default=3)
     parser.add_argument("--components", type=int, default=1)
+    parser.add_argument("--skip-original", action="store_true",
+                        help="use only the analytic oracle for large Cartesian products")
     args = parser.parse_args()
     if args.places < 2 or args.tokens < 0 or args.components < 1:
         parser.error("need >=2 places, >=0 tokens and >=1 components")
@@ -55,12 +58,24 @@ def main() -> None:
                 for key, value in expected.items():
                     if values.get(key) != value:
                         raise AssertionError(f"{label}: {key} expected {value}, got {values.get(key)}; see {log.name}")
+                counts = [line for line in result.stderr.splitlines() if line.startswith("hsc-pn: counts ")]
+                if counts:
+                    fields = dict(word.split("=", 1) for word in counts[-1].split()[2:])
+                    assert fields["reach_weighted_states"] == expected["STATES"], fields
                 print(f"{label}: {values}")
 
+        def check_export(path: Path) -> None:
+            data = path.read_bytes()
+            assert struct.unpack_from("<I", data, 6)[0] == 0, "constant components remain in net"
+            if args.tokens > 0:
+                assert b"PCONST\0\0" in data, "missing constant component record"
+
         hsc = [str(args.hsc.resolve()), "--states", "--totalTime", "3", "-v"]
-        run(hsc + ["-i", str(model)], "original")
+        if not args.skip_original:
+            run(hsc + ["-i", str(model)], "original")
         native = root / "native.pnet"
         run(hsc + ["-i", str(model), "--reduce", "--export-net", str(native)], "native reduce")
+        check_export(native)
         run(hsc + ["--net", str(native), "--reduce"], "native re-reduce")
         previous = model
         for iteration in range(2):
@@ -69,6 +84,7 @@ def main() -> None:
                  str(previous), "--goal", "STATESPACE", "--deadMs", "0", "--output", str(target)],
                 f"standalone export {iteration}", check=False)
             previous = target / "model.pnet"
+            check_export(previous)
             run(hsc + ["--net", str(previous)], f"standalone count {iteration}")
     print(f"PASS {tag}")
 

@@ -8,9 +8,9 @@ reader.
 
 Producers and consumers today: PetriSpot (`Petri/src/io/PNETIO.h`, both
 directions, `--net` and `--exportNet`, `kersconv --decode-net`; `petri64
-reduce --goal STATESPACE` writes the three counting blocks below), ITS-Tools
+reduce --goal STATESPACE` writes the counting blocks below), ITS-Tools
 (`interop/fr.lip6.move.gal.interop/PNETFormatIO`, write), libHSC
-(`tools/hsc-pn --net`, read, honours the three counting blocks). The exchange it serves is `INTEROP.md`; the
+(`tools/hsc-pn --net`, read, honours the counting blocks). The exchange it serves is `INTEROP.md`; the
 reasoning behind the optional blocks is `HSC_PLAN.md` sections 10 to 13.
 
 All integers are little-endian. Values inside a KERS payload are int64 as
@@ -130,6 +130,39 @@ baseline net, so a consumer counting states folds that weight into its count
 rather than multiplying at the end: the correction depends on the marking.
 Token totals are unchanged, since the component's total is what the place
 holds.
+
+### `PCONST` — removed free components with constant token totals
+
+**Shape.** Two columns and one row per removed component: column 0 holds its
+constant token total `M >= 0`, column 1 its place coefficient `K - 1 >= 1`.
+Rows are a list, independent of the surviving place indices. Sparse zeroes
+in column 0 mean a zero token total. The stored pair avoids computing a
+potentially enormous count in the producer's fixed-width marking type.
+
+**Semantics.** The component consisted of `K` baseline places with free token
+redistribution. Its representative became constant and was removed; for
+every represented residual marking it contributes all distributions of `M`
+tokens over those places, exactly `binomial(M + K - 1, K - 1)` markings.
+Components recorded here are disjoint. The constant multiplier is the product
+of their binomials, evaluated with arbitrary-precision integers by the consumer.
+
+**Use.** Multiply the residual count, including live `PCOEF` weights, by this
+factor. The empty residual net has one marking. Add each `M` to the maximum
+token total, and consider each `M` in the maximum tokens in one place. These
+tokens must not also occur in `PDROP`. The block does not recover transition
+counts: producing it invalidates `TMULT`; a consumer does not report
+`TRANSITIONS` for a net carrying `PCONST`.
+
+**Maintenance.** When a constant place with nonzero `PCOEF` is removed, append
+its `(marking, coefficient)` pair here instead of recording it in `PDROP`.
+Carry existing rows unchanged through compaction, serialization and subsequent
+STATESPACE reductions. Reductions for properties discard the counting record.
+An absent block contributes factor one. Reading requires a consumer supporting
+`PCONST`; older consumers can skip the unknown block but cannot recover the
+baseline's counts. Producers and counting consumers must be deployed together.
+
+The reduction producer preserves the record in factored form; no general
+polyhedral reconstruction or transition reconstruction is implied.
 
 ### `GHOSTPT` and `GMULT` — transitions removed but still counted (declared, not yet produced)
 
