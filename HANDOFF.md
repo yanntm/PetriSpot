@@ -3,7 +3,7 @@
 Read this first, then the design file of the thread you pick up. This file is
 rewritten, never appended to: what is done leaves it (result in the README or
 the design file, history in git and `docs/HISTORY.md`). State as of
-2026-09-11, evening.
+2026-09-12, 01:00 CEST.
 
 ## Orientation
 
@@ -31,7 +31,7 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 | what | where |
 | --- | --- |
 | campaign logs, collected | `/data/ythierry/MCC26logs/<tool>/<build>/<EXAM>/`, `csv/` beside them; `local/<name>/` a local experiment's files |
-| the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` (product `202609080208`) |
+| the deploy tree of the harness | `/data/ythierry/MCC26deploy/MCC-drivers/` (HSC/PetriSpot updated; ITS product separately staged) |
 | the cluster tree | `cluster.lip6.fr:~/MCC26/MCC-drivers/`, results only there |
 | result pages | `/data/ythierry/MCC26logs/web/campaign`, built by `~/git/MCC-analysis`; `web/order-sweep` the libHSC sweep's |
 | native image material | `~/git/ITStools/ITS-commandline/native/`, `cluster.lip6.fr:MCC26/flat-test/`, the x86-64-v2 image `/data/ythierry/MCC26deploy/native-v2/` |
@@ -40,83 +40,42 @@ ITS-Tools product bundles the `petri64` of the PetriSpot `Inv-Linux` branch
 
 ## In flight
 
-**Campaign itstools/202609101624: ITS-Tools on RC and RF, PT nets, small%,
-complete.** Submitted 2026-09-11 11:30 from the cluster head by
-`Petri/test/mcc/submit-2026-09-11.sh` (its log ends with `SUBMISSION DONE`):
-1953 jobs an examination, 1800 s, 6 cores, `TAG=itstools`, the CI product
-202609101624 through the locally built x86-64-v2 native image. Every job
-has run (`RC.itstools` and `RF.itstools` hold 3906 files each, the queue is
-empty). Not collected yet:
+**Reduced PT campaigns: detached submission running.** Controller:
+`cluster.lip6.fr:~/MCC26/MCC-drivers/submit-reduce-20260912.sh full`,
+log `submit-reduce20260912.log` beside it. Do not rewrite running scripts
+or deployed tools. One serial controller; no parallel oarsub. Queue checks
+only between full sweep batches, every five minutes when capacity is needed;
+no queue drain between batches. Up to 5000 queued jobs is acceptable.
 
-```
-bash Petri/test/mcc/collect.sh itstools/202609101624 RC.itstools RF.itstools --pages
-```
+All 1681 PT models, no COL oracles. StateSpace: 900 s, small%, six cores,
+17-minute OAR walltime. Then the original shape sweep, SS/CTLC/CTLF,
+17 heuristics per bundled job, proven duplicate net+shape pairs reused;
+300 s external / 270 s internal, original 94-minute bundle walltime.
+Sweep deployment: `~/MCC26/hsc-sweep-reduce-20260912/`, results under
+`results/reduce20260912/`. StateSpace logs: `SS.reduce20260912/` in the harness.
+Total planned jobs: 1681 StateSpace + 5043 sweep bundles.
 
-then the README of `MCC26logs/itstools/202609101624/`, its line in the
-`MCC26logs/README.md` table, and a set for it in `campaign/example.json`
-before `--pages` picks it up. Its `petri64` predates the preparation
-pipeline (`reduction/Pipeline.h`): it is the baseline the next PetriSpot
-campaign measures against, not a measure of the pipeline.
+Warmups reviewed: three StateSpace jobs, six sweep jobs. All 102 sweep entries
+accounted for, zero wrong answers or overruns. StateSpace returned 11 correct
+values; DoubleExponent omitted TRANSITIONS, the accepted reduction limitation.
+Local evidence: `/data/ythierry/MCC26logs/hsc/reduce20260912/`.
+Use the sweep audit with the explicit model and heuristic rosters when collecting.
 
-**Campaign hsc/20260910: libHSC alone on CTLC and CTLF, PT nets, small%.**
-Submitted 2026-09-10 18:28 from the cluster head by
-`Petri/test/mcc/submit-2026-09-10.sh` (detached, its log
-`~/MCC26/MCC-drivers/submit-2026-09-10.log` ends with `SUBMISSION DONE`):
-CTLC then CTLF over `oracle/*-PT-*-<EXAM>.out`, 1681 jobs each, 600 s,
-6 cores, `HOSTS=small%`, `TAG=hsc`, results in `CTLC.hsc` and `CTLF.hsc`.
-The tool is `hsc-pn` from libHSC `142fd4b`, the first CTL run since the
-three defects the order sweep exposed were fixed (a stopped closure decides
-nothing, a partial reachable set answers only what stands, a deadline is
-never an error; libHSC `c20f91f`..`142fd4b`). Six cores because OAR caps a
-job's memory at the node's RAM per core times the cores asked, and 6 of
-small's 24 hyper-threads are 16 GB (`docs/CLUSTER.md` section 1). The
-warmup (AirplaneLD-PT-0010, the eight examinations the tool declares) is in
-`/data/ythierry/MCC26logs/hsc/20260910/_warmup/`: every one answered on
-`small10`, no regression line, no failure. The cluster also holds
-`CTLC.hsc600` and `CTLF.hsc600`, one Airplane warmup log each from the hsc600 campaign.
+**Follow-up after submission:** confirm the controller eventually reaches
+SUBMISSION DONE; collect campaign results locally, merge sweep rows, rebuild
+pages. No broad cluster-side analysis. RC/RF build 202609101624 is already
+collected (3906 logs) and its CSV/report rebuilt under
+`/data/ythierry/MCC26logs/itstools/202609101624/`; its page configuration,
+page rebuild and log-index updates remain. Do not collect it again unnecessarily.
+Older HSC campaign collection completeness was not rechecked this session.
 
-Watch, collect, read:
-
-```
-bash Petri/test/mcc/cluster_status.sh CTLC.hsc CTLF.hsc
-bash Petri/test/mcc/collect.sh hsc/20260910 CTLC.hsc CTLF.hsc --pages
-```
-
-then the README of `MCC26logs/hsc/20260910/` and its line in the
-`MCC26logs/README.md` table, and free the cluster (`docs/CLUSTER.md`
-sections 4, 5). What to read: the wrong verdicts first (the sweep had 559 on
-CTLC, 97 % off a partial set; the fix must bring that to 0), then how many
-formulas the checker answers against the hsc600 and the ITS-Tools CTL
-campaigns on the pages. A wrong verdict now is a new bug, not the old one.
-
-**Campaign 202609080313, the first CTL examinations at scale (ITS-Tools,
-tall%)**, is collected: `MCC26logs/itstools/202609080313/` (CTLC, CTLF, L,
-5862 logs). Its reading is still to do, against the field (`report.py
---raw`, the pages against `ITS-Tools 2026` and `Tapaal 2026`): how many
-formulas the explicit checker answers, how many only it had before the
-diagrams, any wrong verdict. Its companion `hsc-pn` was the pre-fix binary,
-so its `-hsc` verdicts on CTL carry the partial-set bug: a wrong one there
-is explained before it is investigated.
-
-**CI.** Both fixes are published and deployed in `202609080313`: `7f4113e0`
-puts `--no-V` back in the LTSmin runners, `fcdae5b8` registers the coloured
-`Sort[]`.
-
-**The native image is now the launcher.** `runeclipse.sh` execs
-`its-tools-native` whenever the file is present, so the deploy decides it;
-`docs/CLUSTER.md` section 1 says how to tell and how to choose. The CI image
-is AVX2, hence `tall%` only; a `NATIVE_MARCH=x86-64-v2` build runs on `small%`
-and `big%` (`docs/CLUSTER.md` section 1, the node table). Its closed world was missing
-`fr.lip6.move.gal.InstanceDecl[]` and `fr.lip6.move.gal.Synchronization[]`,
-reached reflectively by the composite builder on the `-order META -manyOrder`
-path: StateSpace died there and the decision diagram engine answered nothing
-while the run looked healthy. Traced with
-`Petri/test/native-trace.sh`, verified by a local rebuild, pushed as ITS-Tools
-`d929bfc4` and confirmed on the cluster: the Airplane warmup on `202609080208`
-is 16 examinations, 0 exceptions, `SS` answering. The config had only ever been traced over AirplaneLD PT (OneSafe,
-deadlock, LTLC, UB) and COL (LTLF, CTLF, RC); it now also covers StateSpace,
-Liveness, CTLCardinality, QuasiLiveness, StableMarking and
-ReachabilityFireability.
+Counting contract: `Petri/src/io/PNET.md` and libHSC's tool documentation.
+PCONST removes constant free components from the DD and preserves exact GMP
+binomial factors; live PCOEF stays in DD counting. Transition reconstruction
+for these reductions remains open. Current paired CI binaries are deployed;
+source changes pushed in PetriSpot 6749234, libHSC bbc823b, harness 976ff018,
+sweep tooling 8532db4. The sweep records raw paths, DD nodes, exact weighted
+markings, constant factor, epochs and partial completion.
 
 ## Next actions, by thread
 
@@ -137,8 +96,8 @@ of 2026-09-11 with the GPPP patch, identical on the cluster.
    (Erlangen bP09C09 RC: 13.7 s of reduction, nothing left to walk at 15 s).
    Share it with the engines, or bound it by the net's size.
 3. `hsc-pn --reduce` (libHSC, HSC_PLAN.md section 17) runs these
-   reductions in memory before the portfolio; a StateSpace cluster
-   campaign with it is the next measurement. STATESPACE is done for the three blocks (`reduction/Counting.h`,
+   reductions in memory before the portfolio; the reduced StateSpace
+   campaign is in flight above. Counting metadata is documented in PNET.md (`reduction/Counting.h`,
    `petri64 reduce --goal STATESPACE`, `check_statespace.sh`; results in
    `PS_REDUCTIONS.md`). Open: `TRANSITIONS` after a free SCC fusion needs
    the removed internal moves per fused place and a shifted weight in
@@ -212,19 +171,16 @@ chosen at each of its states to find the first transition the reduction drops.
 
 ### Native image (ITS-Tools)
 
-`-march`: `build-native.sh` takes `NATIVE_MARCH` (ITS-Tools `1305abfb`,
-committed, not pushed; unset keeps the CI's default). The `x86-64-v2` image
-built from the deployed product is `/data/ythierry/MCC26deploy/native-v2/its-tools-native-v2`
-and `cluster.lip6.fr:MCC26/flat-test/its-tools-native-v2`, tested on `small10`
-and `big12` (`docs/CLUSTER.md` section 1). Open: how the deploy picks it
-(`runeclipse.sh` could exec the v2 file when `/proc/cpuinfo` lacks `avx2`),
-and a `small%` campaign at 6 cores. The tall probe job `1387749` is queued
-until tomorrow; its log in `MCC26/MCC-drivers/probe/` gives tall's RAM per
-core for the table. Open too:
-`--exact-reachability-metadata` for loud misses on a sweep, and stripping the
-20 signed jars at install (a 25 % start-up gain for the flat launcher). More
-closed-world misses should be expected on the corpus; the recipe is
-`Petri/test/native-trace.sh` then a rebuild.
+Local Maven and x86-64-v2 native build completed, staged at
+`/data/ythierry/MCC26deploy/products/itstools-202609112344/`.
+ITS deployment was deprioritized for tonight's HSC-only campaigns. That product
+predates the newest PCONST binaries: refresh its bundled HSC/PetriSpot before
+using it for this counting contract. Do not assume it replaced the cluster image.
+
+Side note: signatures were stripped from 20 product JARs to get past a native
+build certificate-metadata failure. Harmless workaround accepted for this run;
+the signed-JAR issue and whether signatures were verified at startup remain
+**uninvestigated**. Do not present this as a diagnosed startup issue.
 
 ### libHSC as a competitor (a dedicated session)
 
@@ -238,4 +194,5 @@ and in our runs, TRUE for smpt, TAPAAL and 2025-gold; the `CPN_APPROX`
 skeleton over-approximation of the coloured net, deterministic, not the
 walker.
 
-StateSpace answers three values, not four: no `TRANSITIONS`. Normal.
+Reduced HSC StateSpace may omit `TRANSITIONS` when reconstruction is unsupported;
+it reports that value when preserved. Missing it alone is not a wrong answer.
