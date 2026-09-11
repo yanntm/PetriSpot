@@ -32,6 +32,7 @@ struct NoTrace { static constexpr bool enabled = false; };
  * local cleanup, prefix, implicit, SCC and trivial/simple post reach stability.
  * Pre/future/general/complex fallbacks precede siphons, redundancy, free/partial
  * agglomeration and token movement. Four growing outer rounds stop expansion.
+ * STATESPACE runs its own short loop of record-maintaining rules instead.
  * Trace policies are compile-time optional: no event construction when off.
  * An enabled policy supplies before(rule,workspace) / after(rule,workspace).
  * The policy owns filtering, bounded capture and synchronous output. */
@@ -54,7 +55,13 @@ public:
   void execute() {
     if (w.config.goal == Goal::NONE) return;
     if (w.config.goal == Goal::STATESPACE) {
-      run<ConstantPlace>(0); run<DuplicateTransition>(1); run<DuplicatePlace>(2);
+      // the rules audited for a counting record (algorithm.md section 4), to stability
+      size_t before;
+      do {
+        if (++passes > w.config.maxPasses || w.stop()) { w.limited = true; return; }
+        before = w.changes;
+        run<ConstantPlace>(0); run<DuplicateTransition>(1); run<NoEffect>(3); run<FreeSCC>(11);
+      } while (w.changes != before);
       return;
     }
     run<SourceTransition>(25);

@@ -7,12 +7,16 @@
 #include <vector>
 #include "core/SparsePetriNet.h"
 #include "reduction/Configuration.h"
+#include "reduction/Counting.h"
 
 namespace petri::reduction {
 
 /** Sparse edit workspace. Slots stay stable until publication. Every adjacency
  * row contains active arcs only; inactive empty columns are never transitions.
- * Observed places are retained, making output remapping a pure permutation. */
+ * Observed places are retained, making output remapping a pure permutation.
+ * `counting`, when attached, is maintained by the operations that say what
+ * they did (fuse, dead, constant) and invalidated or refused by the generic
+ * ones (Counting.h). */
 template<class T> class Workspace {
   void replace(MatrixCol<T>& matrix, MatrixCol<T>& transpose, size_t t,
                SparseArray<T> column) {
@@ -35,6 +39,7 @@ public:
   bool limited = false;
   bool safe = false; // the input's one-safety; a rule that fuses places clears it
   std::optional<bool> deadlock;
+  std::optional<Counting<T>> counting;
   std::chrono::steady_clock::time_point deadline;
 
   Workspace(SparsePetriNet<T> net, Configuration options, std::vector<bool> support)
@@ -84,6 +89,7 @@ public:
     replace(post, producers, t, std::move(col)); ++changes;
   }
   size_t appendTransition(SparseArray<T> input, SparseArray<T> output, std::string label) {
+    if (counting) throw std::logic_error("Composing a transition under a counting record");
     size_t t = transitions.size();
     pre.appendColumn(SparseArray<T>{}); post.appendColumn(SparseArray<T>{});
     consumers.addRow(); producers.addRow();
@@ -92,7 +98,20 @@ public:
     return t;
   }
 
+  /** A transition leaves without a survivor standing for its arcs. */
   void retireTransition(size_t t) {
+    if (!liveT[t]) return;
+    if (counting) counting->dropArcs("transitions removed whose arcs no survivor stands for");
+    replacePre(t, {}); replacePost(t, {}); liveT[t] = false;
+  }
+  /** `t` duplicates `survivor`, which takes its multiplicity. */
+  void fuseTransition(size_t t, size_t survivor) {
+    if (!liveT[t]) return;
+    if (counting) counting->fused(t, survivor);
+    replacePre(t, {}); replacePost(t, {}); liveT[t] = false;
+  }
+  /** A transition proven never enabled: no arc of the graph was its. */
+  void retireDeadTransition(size_t t) {
     if (!liveT[t]) return;
     replacePre(t, {}); replacePost(t, {}); liveT[t] = false;
   }
@@ -108,9 +127,26 @@ public:
     consumers.getColumn(p).clear(); producers.getColumn(p).clear();
   }
   void retirePlace(size_t p) {
+    if (counting) throw std::logic_error("Retiring a place under a counting record without saying what it held");
+    dropPlace(p);
+  }
+  /** A place whose marking never changes leaves, its tokens recorded. */
+  void retireConstantPlace(size_t p) {
+    if (counting) counting->constantDropped(marks[p]);
+    dropPlace(p);
+  }
+  /** `kept` absorbs `p` (a fused free component); the caller has already
+   * summed the markings and moved the arcs. */
+  void fusePlace(size_t p, size_t kept) {
+    if (counting) counting->placesFused(p, kept);
+    dropPlace(p);
+  }
+private:
+  void dropPlace(size_t p) {
     if (!liveP[p] || observed[p]) throw std::logic_error("Retiring a protected/inactive place");
     erasePlaceArcs(p); liveP[p] = false; ++changes;
   }
+public:
 
   std::string composedName(size_t h, size_t f) const {
     return transitions[h] + "." + transitions[f];

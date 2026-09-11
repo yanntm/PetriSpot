@@ -7,11 +7,12 @@ namespace petri::reduction {
  * one-output transitions can freely redistribute their total tokens. Fuse each
  * nontrivial SCC by summing markings and arc weights. Internal transfers become
  * self loops, preserving their ability to stutter or prevent a deadlock.
- * LTL forbids fusion; STATESPACE needs the reference's counting records. */
+ * LTL forbids fusion. Under a counting record the survivor's coefficient takes
+ * the component's size and the arc record goes (Counting.h). */
 struct FreeSCC {
   static constexpr const char* name = "free-scc";
   template<class T> static void apply(Workspace<T>& w) {
-    if (w.config.goal == Goal::LTL || w.config.goal == Goal::STATESPACE) return;
+    if (w.config.goal == Goal::LTL) return;
     Graph graph(w.places.size());
     for (size_t t = 0; t < w.transitions.size(); ++t) if (w.liveT[t]) {
       if (w.stop()) return;
@@ -38,7 +39,7 @@ struct FreeSCC {
       }
       if (w.stop()) return;
       w.safe = false; // the fused place holds the component's total
-      for (size_t i = 1; i < component.size(); ++i) w.retirePlace(component[i]);
+      for (size_t i = 1; i < component.size(); ++i) w.fusePlace(component[i], kept);
       w.marks[kept] = marking;
       for (size_t i = 0; i < inputs.size(); ++i) {
         size_t t = inputs.keyAt(i); auto col = w.pre.getColumn(t); col.put(kept, inputs.valueAt(i));

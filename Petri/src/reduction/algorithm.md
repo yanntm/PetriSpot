@@ -188,23 +188,47 @@ invalidate unsupported hints explicitly and let the existing engine run
 without them. This does not invalidate the property itself.
 
 Counting metadata follows [PNET](../io/PNET.md), including the distinction
-between an absent block and an empty, present identity record. Keep an optional
-typed record beside the net; convert to/from `PNETIO<T>::Blocks` in an adapter,
-without requiring the reducer to include a file codec.
+between an absent block and an empty, present identity record. The record is
+an optional typed value beside the workspace (`Counting.h`), attached only
+under the STATESPACE goal; every other goal runs rules that no record can
+follow, so their output carries none. Conversion to and from
+`PNETIO<T>::Blocks` is the adapter `cli/CountingBlocks.h`; the kernel includes
+no file codec.
 
-* Duplicate transitions merge `TMULT` weights; proven dead transitions only
-  reindex them. Removing a possibly enabled transition needs a justified ghost
-  record or invalidates arc counting.
-* Constant deletion records the removed marking for token maxima/totals.
-  An existing `PDROP` must be carried forward; absence is not a license to
-  invent provenance for an already reduced imported net.
-* Free SCC fusion can carry a `PCOEF` state weight, but that does not preserve
-  arc counts. Weighted state counting and maximum tokens in an original place
-  each need their own established relation, not an assumption from token sums.
-* Unknown named metadata is retained only for an unchanged net; after edits,
-  drop it unless its producer supplied a valid maintenance contract.
+* `tmult`, one weight per transition slot, present while the net's arcs are
+  those of the baseline. Fusing duplicate transitions adds the dropped weight
+  to the survivor (`fuseTransition`). A transition proven never enabled
+  contributes no arc and only leaves the indexing (`retireDeadTransition`).
+  Any other removal, and any fusion of places, drops `tmult` with its reason;
+  the export then omits `TMULT` and the consumer leaves `TRANSITIONS`
+  unanswered rather than wrong.
+* `pdrop`, the markings held by removed constant places
+  (`retireConstantPlace`): additive in the token total, candidates for the
+  per-place maximum, neutral for states and arcs. An input `PDROP` is
+  carried forward, appended to.
+* `pcoef`, one coefficient per place slot: how many baseline places the slot
+  stands for. Free SCC fusion adds the absorbed place's coefficient to the
+  survivor's (`fusePlace`), a sum since a component of a component is one
+  component. The weighted state count is the consumer's (binomial per leaf).
+* A rule not written for the record must not run while it is attached: the
+  generic `retirePlace` and `appendTransition` throw under a record, since
+  a state count has no block to say it went wrong. The STATESPACE schedule
+  is the list of rules audited for it.
+* Unknown named blocks of an input net are dropped, with their names in the
+  diagnostics: nothing here knows how to maintain them.
 * Safety, bounds, invariant bases, decomposition and compiled transitions are
   distinct from these records. Revalidate, transform, or invalidate each.
+
+**The STATESPACE schedule.** Constant places (dropped, `pdrop` fed; their
+consumers asking more than the constant are dead), duplicate transitions
+(fused), transitions with no effect (kept while `tmult` is present: their
+guards are still counted by the consumer, and they add nothing to a fixpoint;
+dropped once arcs are no longer tracked), free SCC fusion (drops `tmult`,
+feeds `pcoef`), then the cheap rules again while anything changes. Redundant
+composition, the agglomerations and duplicate places never run here: the
+first two remove arcs no survivor stands for, the last removes states.
+Reference: ITS-Tools' `StructuralReduction.reduce` STATESPACE branch and
+`NetBlocks.java`, whose maintenance rules these are.
 
 Required count preservation skips incompatible rewrites. Optional records may
 be lost. The reference configuration retains ITS-Tools' metadata-sensitive
