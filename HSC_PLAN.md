@@ -893,3 +893,102 @@ block: the next accounting need — redundant places, nested agglomerations,
 chains with offsets — is the moment to introduce `Q` and derive the per-leaf
 weight functions from it, keeping the scalars as the fast path for the shapes
 they already cover. The arc side keeps its own blocks either way.
+
+## 17. `hsc-pn --reduce`: PetriSpot's reductions and a dead pass inside the consumer (design)
+
+### Why the code sits in hsc-pn
+
+The StateSpace examination is answered by libHSC; ITS-Tools prepares the
+net for it with its Java reductions (`-hscBenchReduce`), and PetriSpot now
+prepares one standalone (`petri64 reduce --goal STATESPACE`, section 14's
+blocks produced). Three preparers, one engine. The dependency runs one way:
+libHSC vendors PetriSpot's headers (`include/hsc/petri/vendor.sh`, byte
+identical copies), PetriSpot links nothing of libHSC. A PetriSpot that
+orchestrated the symbolic engine would close a cycle, so until the projects
+integrate the preparation runs *inside* hsc-pn, on vendored code authored in
+PetriSpot: the reduction kernel (`reduction/` minus the three files that need
+`expr/`, which is vendored anyway) and, if the state equation test is kept,
+`lp/`. Nothing is written in libHSC that PetriSpot could own.
+
+### What the run looks like
+
+```
+hsc-pn (-i model.pnml | --net model.pnet) --states --reduce [--reduce-time S] [--dead-test linear|lp|both]
+```
+
+1. **Load.** PNML: the identity record (the input vouches for its own
+   arcs). PNET: the record its blocks carry (`countingFromBlocks`, a net
+   without `TMULT` never gets one). This replaces the three hand-written
+   block readers of `hsc-pn.cc` by the one `Counting<T>` value.
+2. **Reduce** with `reduce(net, STATESPACE, {}, record)`: constant places,
+   duplicate transitions, no-effect transitions once arcs are untracked,
+   free SCC, to stability (reduction `algorithm.md` section 4). The record
+   follows.
+3. **Dead pass**, under its own budget, on the reduced net: a transition
+   no reachable marking enables. Two sound tests, to be compared:
+   * *linear*, libHSC's own (`include/hsc/linear/dead.hh`, today
+     `hsc-pn --dead`): the invariant set S from the P-flows, the structural
+     zeros, the box and the unit constraints; a transition no marking of S
+     enables is dead, and the one-step variant on top.
+   * *lp*, PetriSpot's state equation (`lp/StateEquation.h`, `Simplex.h`):
+     `m = m0 + C·x, x ≥ 0, m ≥ pre(t)` infeasible over the rationals means
+     dead. Stronger than the flow equalities alone (the cone of `C`, not its
+     span), one solve per transition with a pivot budget and a deadline; a
+     new `lp/DeadTransitions.h` in PetriSpot, which its own preparation
+     pipeline wants as well (HANDOFF, reductions item 4).
+   Each dead transition is retired through `retireDeadTransition`: no state,
+   no arc, no token was its, so all four values and `TMULT` survive.
+4. **Again.** Removing dead transitions leaves places nothing feeds any
+   more: constant, never marked, dropped, and their consumers dead in turn.
+   Steps 2 and 3 repeat while something changed, inside `--reduce-time`.
+5. **Emit** as today: `TMULT` weights the arc count, `PDROP` the token
+   values, `PCOEF` the leaf weights; the unit tree loses the dropped places,
+   and a place fused across units leaves its unit (the one-token-per-unit
+   constraint no longer describes it) for the root; Louvain when no tree is
+   left. Then the DD portfolio. `--export-net FILE` writes the prepared PNET
+   with its blocks, so `check_statespace.sh` can read what the engine saw.
+
+### The evidence so far (BugTracking-PT-q3m002, 2026-09-11)
+
+| step | places | transitions | time |
+|---|---|---|---|
+| input | 754 | 27 370 | |
+| STATESPACE reduce (constant places and their dead consumers) | 341 | 5 764 | 22 ms |
+| linear dead test on that net | 341 | 2 769 alive | 0.2 s |
+| linear dead test on the input alone | | nothing in 20 s | |
+
+The 2 769 alive is the figure the linear module's README reports for
+q3m016 after its own long run: structure first makes the test cheap, and
+the test then feeds the structure (step 4 is not measured yet). The
+StateSpace oracle for every BugTracking instance is `+inf`; what the
+prepared net buys the fixpoint, and `--cover`'s pumping pair, is the
+question the measurement answers.
+
+### The comparison, then the default
+
+On BugTracking q3m002 to q3m016 and a handful of nets where each rule fires
+(the 20 of `PS_REDUCTIONS.md`), one run each of: structure alone; with
+linear; with lp; with both. Recorded per run: transitions and places left,
+the time of each step, and whether the four values come out inside the
+budget, against the oracle. The default `--dead-test` is whichever test
+wins the transitions-per-second trade on that table; the other stays as an
+option. Results go to `HSC_EXPERIMENTS.md`, beside the order sweep.
+
+### Plan of attack
+
+1. `vendor.sh`: add the reduction kernel (`Configuration.h`, `Counting.h`,
+   `Workspace.h`, `Coordinator.h`, `Reduce.h`, `Composition.h`,
+   `TransitionAlgebra.h`, `graph/`, `rules/`, the two design files).
+2. `hsc-pn --reduce`: the record as the one source of the blocks, the
+   STATESPACE reduce, the emission changes for dropped and fused places.
+3. The linear dead test wired as step 3, `rep.dead_names` to indices to
+   `retireDeadTransition`, and the loop of step 4.
+4. PetriSpot `lp/DeadTransitions.h`, used first by `prepare` (HANDOFF item
+   4), then vendored with `lp/` for `--dead-test lp`.
+5. The comparison table; the default chosen from it.
+6. ITS-Tools `-hscBenchReduce` passes `--reduce` and skips its Java
+   reductions for StateSpace; the Java `NetBlocks` path stays for the
+   diagrams until the projects integrate.
+
+Duplicate places (`R ⊢ p = q`) are section 16's business, an equation, not
+a fourth block; not on this path.
