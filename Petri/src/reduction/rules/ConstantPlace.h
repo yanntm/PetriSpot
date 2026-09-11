@@ -5,8 +5,9 @@ namespace petri::reduction {
 /** Constant coordinates: equal pre/post rows, or initially zero with no
  * positive effect. Consumers requiring more than the constant are dead.
  * Erasing the remaining tests preserves every firing step. Observed coordinates
- * retain their marking; others disappear, their tokens recorded when a
- * counting record is attached. LIVENESS skips this rule to retain
+ * retain their marking, as do weighted fused components whose constant sum
+ * represents several original markings. Others disappear, their tokens
+ * recorded when a counting record is attached. LIVENESS skips this rule to retain
  * dead-transition obligations. */
 struct ConstantPlace {
   static constexpr const char* name = "constant-place";

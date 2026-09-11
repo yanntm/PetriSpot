@@ -5,7 +5,9 @@ The reachability/deadlock schedule mirrors the active Java structural inventory.
 SI-specific completion and validation remain deferred.
 
 * `ConstantPlace.h`: equal pre/post rows, or initially zero with no positive
-  effect; remove impossible consumers and erase redundant guards.
+  effect; remove impossible consumers and erase redundant guards. A marked
+  weighted representative of a fused free component retains its coordinate
+  and coefficient, since its fixed sum represents several original markings.
 * `EmptySiphon.h`: greatest initially empty siphon, sparse counter propagation.
 * `DuplicateTransition.h`: hash pre/post pairs; retain a named representative.
 * `DuplicatePlace.h`: identical rows; the smaller initial marking controls

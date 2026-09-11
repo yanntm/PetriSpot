@@ -210,6 +210,12 @@ no file codec.
   stands for. Free SCC fusion adds the absorbed place's coefficient to the
   survivor's (`fusePlace`), a sum since a component of a component is one
   component. The weighted state count is the consumer's (binomial per leaf).
+  If the representative becomes constant, it remains an isolated weighted
+  place: its fixed token sum still represents several original markings.
+  Moving only its tokens to `pdrop` would lose that binomial factor. Its arcs
+  can be erased, but its coordinate and coefficient survive compaction and
+  subsequent reduction rounds. A zero-marked representative has factor one
+  and can be dropped normally.
 * A rule not written for the record must not run while it is attached: the
   generic `retirePlace` and `appendTransition` throw under a record, since
   a state count has no block to say it went wrong. The STATESPACE schedule

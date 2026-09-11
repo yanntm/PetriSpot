@@ -167,8 +167,18 @@ public:
     if (counting) throw std::logic_error("Retiring a place under a counting record without saying what it held");
     dropPlace(p);
   }
-  /** A place whose marking never changes leaves, its tokens recorded. */
+  /** A constant fused component still represents several original markings.
+   * Keep its weighted coordinate, but erase redundant guards and updates. */
+  bool retainWeightedConstant(size_t p) {
+    if (!counting || counting->pcoef[p] == 0 || marks[p] == 0) return false;
+    erasePlaceArcs(p);
+    return true;
+  }
+  /** A place whose marking never changes leaves, unless its counting weight
+   * still represents several markings. Ordinary dropped tokens are recorded. */
   void retireConstantPlace(size_t p) {
+    if (!liveP[p] || observed[p]) throw std::logic_error("Retiring a protected/inactive place");
+    if (retainWeightedConstant(p)) return;
     if (counting) counting->constantDropped(marks[p]);
     dropPlace(p);
   }
@@ -176,7 +186,11 @@ public:
   void retireConstantPlaces(std::vector<size_t> ps) {
     std::sort(ps.begin(), ps.end());
     ps.erase(std::unique(ps.begin(), ps.end()), ps.end());
-    std::erase_if(ps, [&](size_t p) { return !liveP[p]; });
+    std::erase_if(ps, [&](size_t p) {
+      if (!liveP[p]) return true;
+      if (observed[p]) throw std::logic_error("Retiring a protected place");
+      return retainWeightedConstant(p);
+    });
     if (ps.empty()) return;
     std::vector<size_t> touched;
     for (size_t p : ps) {

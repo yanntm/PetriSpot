@@ -53,8 +53,11 @@ transitions, no-effect transitions once arcs are untracked, free SCC, dead
 transitions by the state equation) and the
 workspace maintains the record through them: `TMULT` while the arcs are those of
 the input, `PDROP` for removed constant places, `PCOEF` for fused free
-components (algorithm.md section 4, `io/PNET.md`). Local clear/replace operations maintain sparse
-transposes without index shifting; publication compacts to a normal net.
+components (algorithm.md section 4, `io/PNET.md`).
+Constant representatives of fused components retain their coefficient as
+isolated places; recording only their token sum in `PDROP` would lose states.
+Local clear/replace operations maintain sparse transposes without index
+shifting; publication compacts to a normal net.
 Create files as their rules arrive, keeping each responsibility roughly below
 500 lines. The kernel depends on `core/`, not parsers, CLI, walkers, SMT, or
 libHSC's calculus. The property and PNET adapters sit outside that kernel.

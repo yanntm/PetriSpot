@@ -39,6 +39,17 @@ and is not being expanded. If needed, compile with
 `c++ -std=c++23 -O2 -I Petri/src Petri/test/reduction/validate.cpp -o build/reduction-validate`
 and run one example with `timeout 15s build/reduction-validate SEED`.
 
+## Counting rule chains
+
+`counting_chain.py --hsc HSC --petri PETRI [--places 2 --tokens 3 --components 1]`
+checks one generated net of independent free cycles and an ordinary constant
+place. Analytic binomial counts are compared with HSC before and after native
+reduction, then after PNET export/reimport and a second reduction. The same
+check covers PetriSpot's standalone export and its re-reduction. This catches
+free-SCC fusion followed by constant-place removal losing its counting weight.
+Each invocation has a shared 15-second limit and keeps diagnostics in
+`Petri/test/logs/`; temporary model/export files are removed after the check.
+
 ## `check_statespace.sh`
 
 One model through `petri64 reduce --goal STATESPACE`, its PNET counted by
