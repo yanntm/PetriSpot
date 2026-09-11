@@ -681,6 +681,23 @@ public:
      * More efficient one-pass version for removing many at once.
      * @param todel a list of decreasing sorted indexes.
      */
+    /** Drop the entries at these keys (sorted ascending, no duplicates); the
+     * other keys keep their value. One pass over both sequences. */
+    void removeKeys(const std::vector<size_t> &keys) {
+        if (mSize == 0 || keys.empty() || keys.front() > mKeys[mSize - 1] || keys.back() < mKeys[0]) {
+            return;
+        }
+        size_t w = 0, k = 0, e = keys.size();
+        for (size_t r = 0; r < mSize; r++) {
+            while (k < e && keys[k] < mKeys[r]) k++;
+            if (k < e && keys[k] == mKeys[r]) continue;
+            mKeys[w] = mKeys[r];
+            mValues[w] = mValues[r];
+            w++;
+        }
+        mSize = w;
+    }
+
     void deleteAndShift(const std::vector<size_t> &todel) {
         if (mSize == 0 || todel.empty() || todel.back() > mKeys[mSize - 1]) {
             return;
