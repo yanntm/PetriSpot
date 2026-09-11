@@ -48,18 +48,6 @@ rsync -rlptD --no-g --chmod=Dg+s --delete /data/ythierry/MCC26deploy/MCC-drivers
 `--chmod=Dg+s` and `--no-g` are load bearing (the quota group, `BENCH.md`).
 Do not touch a tool folder while a campaign that uses it is running.
 
-A binary in `itstools/itstools/plugins/*.binaries_*/bin/` that is **not 755** is
-an engine the product cannot run, and it fails silently: the jar format carries
-no unix mode, so only the plugin's `META-INF/p2.inf` restores the bit at install
-time, and a plugin copied without one ships 644. Check after every install, and
-`chmod 755` what is missing before the rsync — the fix itself belongs upstream in
-that plugin's `p2.inf` (`fr.lip6.hsc.binaries` was the case, ITStools
-`8a49519f`).
-
-```
-ls -l itstools/itstools/plugins/*.binaries_*/bin/ | grep -v '^total\|^d'   # .exe at 644 is right, the rest must be 755
-```
-
 ### Which launcher a campaign gets
 
 `install_itstools.sh` downloads the product **and** `its-tools-native`, and
