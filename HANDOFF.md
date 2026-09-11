@@ -135,7 +135,9 @@ of 2026-09-11 with the GPPP patch, identical on the cluster.
 2. Reduction budget: `--reductionMs` (15 s) is spent inside the run's budget
    (Erlangen bP09C09 RC: 13.7 s of reduction, nothing left to walk at 15 s).
    Share it with the engines, or bound it by the net's size.
-3. STATESPACE is done for the three blocks (`reduction/Counting.h`,
+3. `hsc-pn --reduce` (libHSC, HSC_PLAN.md section 17) runs these
+   reductions in memory before the portfolio; a StateSpace cluster
+   campaign with it is the next measurement. STATESPACE is done for the three blocks (`reduction/Counting.h`,
    `petri64 reduce --goal STATESPACE`, `check_statespace.sh`; results in
    `PS_REDUCTIONS.md`). Open: `TRANSITIONS` after a free SCC fusion needs
    the removed internal moves per fused place and a shifted weight in

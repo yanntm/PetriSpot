@@ -995,6 +995,17 @@ budget, against the oracle. The default `--dead-test` is whichever test
 wins the transitions-per-second trade on that table; the other stays as an
 option. Results go to `HSC_EXPERIMENTS.md`, beside the order sweep.
 
+### Done (2026-09-11 evening)
+
+Steps 1 to 4 landed in libHSC (`tools/hsc-pn.cc`, `tools/README.md`
+"`--reduce`"): the kernel, `lp/` and the `prepare` pipeline vendored;
+`--reduce` runs the STATESPACE reductions with the record for `--states`,
+`prepare` for properties, the invariant-set dead test in the loop
+(`--dead-test linear` the default, `lp` and `both` for the comparison),
+`--export-net`. On the 21 development models: no wrong value; BugTracking
+q3m002 to 240 places and 2 769 transitions in under a second. Step 5, the
+comparison table, and step 6 remain; the cluster run comes first.
+
 ### Plan of attack
 
 1. `vendor.sh`: add the reduction kernel (`Configuration.h`, `Counting.h`,
