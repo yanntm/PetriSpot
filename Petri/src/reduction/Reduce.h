@@ -1,4 +1,5 @@
 #pragma once
+#include <ostream>
 #include "reduction/Coordinator.h"
 
 namespace petri::reduction {
@@ -42,6 +43,14 @@ Result<T> reduce(SparsePetriNet<T> net, Configuration config,
   result.deadlock = workspace.deadlock; result.dead = workspace.dead;
   result.stats = coordinator.stats; result.limited = workspace.limited; result.edits = workspace.changes;
   return result;
+}
+
+/** The dead-transition statistics of a result as one diagnostics line. */
+inline void describeDeadTransitions(const DeadStats& d, std::ostream& os) {
+  if (d.tested == 0 && d.places == 0 && !d.limited) return;
+  os << "Reduction dead transitions: " << d.found << " (" << d.byBound << " by the bounds of " << d.places
+      << " places, " << d.stuck << " never marked, " << d.placesMs << " ms), then " << d.tested << " tested, " << d.solves << " solves, "
+      << d.pivots << " pivots, " << d.passes << " passes, " << d.spentMs << " ms" << (d.limited ? " (budget)" : "") << ".\n";
 }
 
 template<class T>
