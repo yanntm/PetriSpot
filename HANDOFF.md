@@ -135,10 +135,13 @@ of 2026-09-11 with the GPPP patch, identical on the cluster.
 2. Reduction budget: `--reductionMs` (15 s) is spent inside the run's budget
    (Erlangen bP09C09 RC: 13.7 s of reduction, nothing left to walk at 15 s).
    Share it with the engines, or bound it by the net's size.
-3. STATESPACE: the route is constants only; the Java route (place and
-   transition cleanup, redundant compositions, free SCC when a counting
-   record exists) needs the PNET blocks maintained (`NetBlocks.java`:
-   TMULT on fused duplicates, PDROP on dropped constants, PCOEF on free SCC).
+3. STATESPACE is done for the three blocks (`reduction/Counting.h`,
+   `petri64 reduce --goal STATESPACE`, `check_statespace.sh`; results in
+   `PS_REDUCTIONS.md`). Open: `TRANSITIONS` after a free SCC fusion needs
+   the removed internal moves per fused place and a shifted weight in
+   hsc-pn (HSC_PLAN.md section 15); ITS-Tools still runs its own Java
+   reductions before `hsc-pn`, the PetriSpot export is the standalone path
+   until the projects integrate.
 4. Dead transitions: the state equation of `lp/` proves a transition never
    enabled (`lp/algorithm.md`); Java runs that test inside its outer loop
    (`ReachabilitySolver.applyReductions`). Add it as a rule of `prepare`.

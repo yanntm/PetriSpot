@@ -234,3 +234,28 @@ them. The oracle is patched in pnmcc-models-2026 (`install_inputs.sh`, commit
 edf0e56: FALSE, defended by TY, verified from the trace), the deployed and
 cluster copies with it; the trace, a standalone replay and the one-property
 formula file went to TAPAAL's authors. The one-shot probes are removed.
+
+## STATESPACE and the counting record (`reduction/Counting.h`)
+
+`petri64 reduce -i MODEL --goal STATESPACE --output DIR` reduces for counting
+and writes the record as PNET blocks; `hsc-pn --net DIR/model.pnet --states`
+answers the examination on it. Checked by `Petri/test/reduction/check_statespace.sh`
+on the 20 development models with a StateSpace oracle, 15 s a step, on
+2026-09-11: no wrong value. What each block bought, and what it costs:
+
+| model | reduction | record | agreeing values |
+|---|---|---|---|
+| AirplaneLD-PT-0010 | 89 -> 57 places | PDROP 32 tokens | 4 of 4 |
+| AutonomousCar-PT-01a | 35 -> 26 transitions | TMULT, 9 fused | 4 of 4 |
+| Eratosthenes-PT-200 | 199 -> 153 places, 699 -> 529 transitions | TMULT 170 fused, PDROP 46 | 4 of 4, counts of 47 digits |
+| CloudDeployment-PT-2a | 69 -> 55 places, 174 -> 97 transitions | PCOEF 6 places for 20, TMULT dropped | STATES and both token values; no TRANSITIONS |
+| CloudOpsManagement (3 sizes) | 27 -> 23, 29 -> 20 | PCOEF 4 places for 8 | same three values |
+| StigmergyCommit-PT-02b | 928 -> 874, 1040 -> 971 | PCOEF 9 places for 63 | same three values |
+
+Eight models were left unanswered by the consumer inside its 12 s (the large
+BridgeAndVehicles, FMS-PT-10000, FileSystem, Erlangen, the largest
+CloudOps); Angiogenesis got three values, its arc count alone exceeding the
+budget. The free SCC fusion trades the arc count for a smaller net, as the
+design says (HSC_PLAN.md section 14); getting `TRANSITIONS` back after a
+fusion needs the count of removed internal moves per fused place and a
+shifted weight in the consumer (section 15), not done.
