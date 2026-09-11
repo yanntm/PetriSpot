@@ -37,6 +37,7 @@ struct FreeSCC {
           }
       }
       if (w.stop()) return;
+      w.safe = false; // the fused place holds the component's total
       for (size_t i = 1; i < component.size(); ++i) w.retirePlace(component[i]);
       w.marks[kept] = marking;
       for (size_t i = 0; i < inputs.size(); ++i) {

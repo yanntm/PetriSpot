@@ -33,6 +33,7 @@ public:
   Configuration config;
   size_t changes = 0;
   bool limited = false;
+  bool safe = false; // the input's one-safety; a rule that fuses places clears it
   std::optional<bool> deadlock;
   std::chrono::steady_clock::time_point deadline;
 
@@ -40,7 +41,7 @@ public:
       : pre(std::move(net.getFlowPT())), post(std::move(net.getFlowTP())),
         marks(net.getMarks()), places(net.getPnames()), transitions(net.getTnames()),
         name(net.getName()), liveP(places.size(), true), liveT(transitions.size(), true),
-        observed(std::move(support)), config(options),
+        observed(std::move(support)), config(options), safe(net.isSafe()),
         deadline(std::chrono::steady_clock::now() + options.timeLimit) {
     if (observed.empty()) observed.resize(places.size(), false);
     if (observed.size() != places.size() || pre.getRowCount() != places.size()
@@ -121,6 +122,7 @@ public:
     placeMap.assign(places.size(), absent); transitionMap.assign(transitions.size(), absent);
     SparsePetriNet<T> result;
     result.setName(name);
+    result.setSafe(safe);
     for (size_t p = 0; p < places.size(); ++p)
       if (liveP[p]) placeMap[p] = result.addPlace(places[p], marks[p]);
     for (size_t t = 0; t < transitions.size(); ++t) if (liveT[t]) {

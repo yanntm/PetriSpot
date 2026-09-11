@@ -91,6 +91,7 @@ struct FutureEquivalent {
       const auto& consumers = w.consumers.getColumn(pj);
       for (size_t i = 0; i < consumers.size(); ++i) removed[consumers.keyAt(i)] = true;
     }
+    if (!marking.empty()) w.safe = false; // a representative holds two places' tokens
     for (const auto& [p,m] : marking) w.marks[p] = m;
     for (auto& [t,col] : posts) w.replacePost(t,std::move(col));
     for (size_t t = 0; t < removed.size(); ++t) if (removed[t]) w.retireTransition(t);

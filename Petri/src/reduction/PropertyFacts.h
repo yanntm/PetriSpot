@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 #include "core/Arithmetic.hpp"
 #include "core/SparsePetriNet.h"
 #include "expr/CtlSimplify.h"
@@ -12,6 +13,7 @@ namespace petri::reduction {
  * transition enabled using only constant guards rules out every deadlock. */
 struct PropertyFacts {
   std::vector<bool> constant;
+  std::vector<long long> upper; // an upper bound per place, empty when none is known
   bool initialDeadlock = true;
   bool noDeadlocks = false;
 };
@@ -64,6 +66,7 @@ template<class T> PropertyFacts propertyFacts(const SparsePetriNet<T>& net) {
   }
   auto siphon = emptySiphon(net);
   for (size_t p = 0; p < siphon.size(); ++p) if (siphon[p]) facts.constant[p] = true;
+  if (net.isSafe()) facts.upper.assign(net.getPlaceCount(), 1);
   for (size_t t = 0; t < net.getTransitionCount(); ++t) {
     const auto& pre = net.getFlowPT().getColumn(t);
     bool always = true;
@@ -83,9 +86,37 @@ inline long long subtractConstant(long long value, long long offset) {
   return value - offset;
 }
 
+/** The truth of an atom over places bounded above by `upper` (and below by
+ * zero) when every value its form can take decides it the same way. */
+inline std::optional<bool> decidedByBounds(const expr::LinearAtom& atom, const std::vector<long long>& upper) {
+  if (upper.empty()) return std::nullopt;
+  long long lo = 0, hi = 0;
+  for (const auto& [p, coefficient] : atom.terms) {
+    long long extreme = petri::multiplyExact(coefficient, upper.at(p));
+    if (extreme < 0) lo = petri::addExact(lo, extreme); else hi = petri::addExact(hi, extreme);
+  }
+  bool atLo = expr::compare(lo, atom.op, atom.constant), atHi = expr::compare(hi, atom.op, atom.constant);
+  switch (atom.op) {
+  case expr::Cmp::LE: case expr::Cmp::LT: case expr::Cmp::GE: case expr::Cmp::GT:
+    if (atLo && atHi) return true;      // monotone: both ends hold, so does everything between
+    if (!atLo && !atHi) return false;
+    return std::nullopt;
+  case expr::Cmp::EQ:
+    if (lo == hi) return atLo;
+    if (atom.constant < lo || atom.constant > hi) return false;
+    return std::nullopt;
+  case expr::Cmp::NEQ:
+    if (lo == hi) return atLo;
+    if (atom.constant < lo || atom.constant > hi) return true;
+    return std::nullopt;
+  }
+  return std::nullopt;
+}
+
 /** Remove constant terms from an atomic proposition before boolean
- * simplification. If its existing long-long representation cannot express the
- * rewritten atom, leave that atom intact rather than narrowing a marking. */
+ * simplification, then fold it when the places' bounds decide it. If its
+ * existing long-long representation cannot express the rewritten atom, leave
+ * that atom intact rather than narrowing a marking. */
 template<class T>
 expr::Expression substituteConstants(expr::Expression expression, const PropertyFacts& facts,
                                      const std::vector<T>& marking) {
@@ -100,6 +131,7 @@ expr::Expression substituteConstants(expr::Expression expression, const Property
         else atom.terms.emplace_back(p, coefficient);
       }
       atom.constant = subtractConstant(atom.constant, offset);
+      if (auto decided = decidedByBounds(atom, facts.upper)) return expr::Expression::constant(*decided);
     } catch (const std::overflow_error&) { return expression; }
     expression.atom = std::move(atom);
   }
