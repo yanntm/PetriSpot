@@ -8,6 +8,17 @@ those logs into tables we can analyse.
 
 * `cluster_status.sh` — how far a campaign is on the cluster: logs per
   examination folder, with and without the harness trailer, jobs by state.
+* The reduced shape sweep uses libHSC's `experiments/order/sweep_job.sh`:
+  the original 17 heuristics, deduplicated only when the prepared net and
+  shape both match. Its audit checks all 17 entries and interrupted runs.
+* `submit-reduce-20260912.sh` — PT warmups and, separately, the detached
+  StateSpace/reduced-order campaign. Full submissions require a successful
+  local review of warmup logs. Jobs use small nodes with six cores;
+  submissions are serial. Before a full sweep batch, allow enough queue
+  capacity to remain below 5000 jobs without waiting for the queue to drain.
+* `strip_product_signatures.py` — remove JAR signature metadata from an
+  isolated native-build product copy when diagnosing certificate-related
+  Graal build failures. This is a build workaround, not a startup optimization.
 * `collect.sh <date> EXAM... [--pages]` — rsync the folders down (never
   `--delete`), run the collectors and `report.py` (against `$BASELINE` when
   set), optionally rebuild the MCC-analysis pages. Rerunnable while the
