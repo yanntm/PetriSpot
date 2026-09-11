@@ -24,6 +24,7 @@
 #include "io/PNMLExport.h"
 #include "io/SparseMatrixIO.h"
 #include "parse/PTNetLoader.h"
+#include "reduction/cli/ReduceCommand.h"
 #include "walk/NetStats.h"
 #include "walk/WalkNet.h"
 
@@ -69,6 +70,8 @@ static void exportNet (const Options &o, SparsePetriNet<VAL> &pn)
 
 static int main_noex (int argc, char *argv[])
 {
+  if (argc > 1 && std::string_view(argv[1]) == "reduce")
+    return petri::reduction::reduceCommand<VAL>(argc - 1, argv + 1);
   std::string logMessage = "Running PetriSpot with arguments : [";
   for (int i = 1; i < argc; ++i) logMessage += std::string (argv[i]) + (i + 1 < argc ? ", " : "");
   petri::writeToLog (logMessage + (argc == 1 ? "Empty" : "") + "]");

@@ -28,19 +28,21 @@ struct ImplicitForkJoin {
   }
   template<class T> static void apply(Workspace<T>& w) {
     if (w.config.goal == Goal::STATESPACE) return;
-    for (size_t p = 0; p < w.places.size(); ++p) {
+    std::vector<bool> removed(w.places.size());
+    for (size_t p = w.places.size(); p-- > 0;) {
       if (p % 256 == 0 && w.stop()) return;
       if (!w.liveP[p] || w.observed[p]) continue;
       const auto& in = w.producers.getColumn(p); const auto& out = w.consumers.getColumn(p);
       if (in.size() != 1 || out.size() != 1 || in.valueAt(0) != 1 || out.valueAt(0) != 1) continue;
       size_t h = in.keyAt(0), f = out.keyAt(0);
-      if (h == f || w.post.getColumn(h).size() != 2 || w.pre.getColumn(f).size() != 2) continue;
+      if (w.post.getColumn(h).size() != 2 || w.pre.getColumn(f).size() != 2) continue;
       const auto& join = w.pre.getColumn(f);
       size_t index = join.keyAt(0) == p ? 1 : 0;
-      if (join.valueAt(index) != 1) continue;
+      if (join.valueAt(index) != 1 || removed[join.keyAt(index)]) continue;
       std::vector<size_t> path;
-      if (induced(w, join.keyAt(index), h, w.config.implicitDepth, path)) w.retirePlace(p);
+      if (induced(w, join.keyAt(index), h, w.config.implicitDepth, path)) removed[p] = true;
     }
+    for (size_t p = 0; p < removed.size(); ++p) if (removed[p]) w.retirePlace(p);
   }
 };
 }

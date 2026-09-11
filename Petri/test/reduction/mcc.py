@@ -60,7 +60,31 @@ def one_model(args: argparse.Namespace) -> None:
                 command.append("--findDeadlock")
             else:
                 command.append("--props=" + str(property_file))
-            if mode == "reduced":
+            reduction_text = ""
+            if mode == "reduced" and args.standalone:
+                destination = root / ("reduced-" + exam)
+                if exam == "RD":
+                    property_file = root / "deadlock.sexpr"
+                    property_file.write_text('(deadlock ReachabilityDeadlock)\n')
+                remaining = 14.5 - (time.monotonic() - args.started)
+                if remaining < 0.1:
+                    emit({"model": model, "status": "model-timeout"})
+                    return
+                transform = subprocess.run([
+                    "timeout", str(remaining) + "s", str(Path(args.binary).resolve()), "reduce",
+                    "-i", str(root / "model.pnml"), "--props", str(property_file),
+                    "--output", str(destination), "--reductionMs=10000"],
+                    capture_output=True, text=True, check=False)
+                reduction_text = transform.stdout + transform.stderr
+                if transform.returncode:
+                    emit({"model": model, "exam": exam, "mode": mode,
+                          "status": "timeout" if transform.returncode == 124 else "error",
+                          "error_tail": reduction_text[-4000:]})
+                    return
+                command[1:3] = ["--net", str(destination / "model.pnet")]
+                command = [arg for arg in command if not arg.startswith("--props=") and arg != "--findDeadlock"]
+                command.append("--props=" + str(destination / "properties.sexpr"))
+            elif mode == "reduced":
                 command += ["--reduce", "--reductionMs=10000"]
             if args.lp and exam in ("RC", "RF", "UB"):
                 command += ["--lp", "--lpTime=0.02", "--lpSolves=50"]
@@ -75,7 +99,7 @@ def one_model(args: argparse.Namespace) -> None:
                 completed = subprocess.run(["timeout", str(remaining) + "s", *command],
                                            stdout=log, stderr=subprocess.STDOUT, check=False)
                 log.seek(0)
-                text = log.read()
+                text = reduction_text + log.read()
             answers = verdicts(text)
             if exam == "RD" and "ReachabilityDeadlock" in answers and len(oracle) == 1:
                 answers[next(iter(oracle))] = answers.pop("ReachabilityDeadlock")
@@ -96,7 +120,7 @@ def one_model(args: argparse.Namespace) -> None:
                 "wrong": wrong, "bounds": bounds,
                 "reduction": re.findall(r"^Reduction .*", text, re.M),
                 "status": "ok" if completed.returncode == 0 else "timeout" if completed.returncode == 124 else "error"}
-            if completed.returncode not in (0, 124):
+            if completed.returncode != 0:
                 row["error_tail"] = text[-4000:]
             if mode == "original":
                 row["conflicts"] = {n: [v, pair["reduced"][n]] for n, v in answers.items()
@@ -114,6 +138,7 @@ def main() -> int:
     parser.add_argument("--max-models", type=int, default=0)
     parser.add_argument("--exams", default=",".join(EXAMS))
     parser.add_argument("--lp", action="store_true")
+    parser.add_argument("--standalone", action="store_true", help="Export a reduced pair, then solve it in a separate process")
     parser.add_argument("--one", help=argparse.SUPPRESS)
     parser.add_argument("--workdir", help=argparse.SUPPRESS)
     parser.add_argument("--logs", default="Petri/test/logs")

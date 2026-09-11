@@ -308,3 +308,7 @@ For communication, please use the issue tracker or contact Yann Thierry-Mieg dir
 ## Acknowledgements
 
 This project is supported by LIP6, Sorbonne Université, and CNRS.
+
+Standalone structural reduction: `build/petri64 reduce -i model.pnml --props formulas.xml --output reduced`
+exports `reduced/model.pnet`, `reduced/properties.sexpr`, and a name correspondence,
+without solving. See [structural reductions](Petri/src/reduction/README.md).

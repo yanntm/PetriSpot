@@ -441,3 +441,28 @@ the baseline; changes need evidence, including on difficult models. Image and
 executable witness lifting remain deferred optional capabilities. libHSC reuses
 the native API through vendoring; PNET stays an adapter. Implementation proceeds
 incrementally under the approved design; the report records remaining coverage.
+
+## 9. Implemented reachability/deadlock schedule
+
+Each named rule owns its own recognition and edits. The coordinator retains
+Java's nested phases: free SCC and prefix first; place cleanup, transition
+cleanup, prefix, implicit places, conditional free SCC, trivial post or simple
+post to stability. Then try simple pre, future equivalence, non-complex post,
+complex post, complex pre, free SCC and prefix, with no-progress gates. Always
+try siphon-enabled cleanup. At stability try redundant composition, simple free,
+complex free, partial free, partial post (reachability), then initial token
+movement and cleanup. Four consecutive transition-growing outer rounds stop.
+
+The source-transition deadlock deduction is checked before graph analysis as
+well as in transition cleanup, making its caller prerequisite explicit. Pure
+reachability and deadlock are the completed rule-body scope; SI-specific token
+movement/image cases, counting modes and external SMT rules are separate work.
+Exact edit counts and SCC representatives are not semantic results: stable slots
+and checked arithmetic replace Java's index-shifting mutations. Rule admissions,
+phase gates and limits retain their reference meaning.
+
+Graph algorithms and their precise pruning behavior are documented in
+[graph/README.md](graph/README.md); each rule is mapped in
+[rules/README.md](rules/README.md). Bounds use the reachability configuration
+with the objective's places protected. The specialized positive-effect dominance
+method remains unscheduled, matching its commented-out Java caller.

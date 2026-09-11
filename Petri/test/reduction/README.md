@@ -26,6 +26,9 @@ python3 Petri/test/reduction/mcc.py --binary build/petri64 \
 Use `--model GLOB` or `--max-models N` for a bounded subset. The default covers
 all P/T archives; colored unfolding is outside the native PNML importer.
 Use `--exams RC,RF,UB --lp` to validate the LP path separately.
+Use `--standalone` to exercise the real `reduce` use case: export a matched
+model/formula pair, then solve it in a separate invocation. The same 15-second
+model allowance includes transformation and both analysis invocations.
 `summarize.py RESULTS.jsonl` reports oracle matches, unverified answers,
 conflicts, errors, timeouts and rule edit counts.
 

@@ -5,8 +5,9 @@ namespace petri::reduction {
 template<class T> struct Result {
   SparsePetriNet<T> net;
   std::vector<size_t> placeMap, transitionMap;
-  std::array<RuleStats, 11> stats;
+  std::array<RuleStats, 26> stats;
   bool limited = false;
+  std::optional<bool> deadlock;
   size_t edits = 0;
 };
 
@@ -21,6 +22,7 @@ Result<T> reduce(SparsePetriNet<T> net, Configuration config,
   coordinator.execute();
   Result<T> result;
   result.net = workspace.publish(result.placeMap, result.transitionMap);
+  result.deadlock = workspace.deadlock;
   result.stats = coordinator.stats; result.limited = workspace.limited; result.edits = workspace.changes;
   return result;
 }

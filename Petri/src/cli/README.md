@@ -32,3 +32,10 @@ Adding an option: a field with its default in `Options`, one `add_option` or
 `add_flag` line in `addOptions` in the right group, then use it in the driver
 that needs it; document it in the root `README.md` table if it is
 user-facing.
+
+Standalone reduction is dispatched before analysis option parsing:
+`petri64 reduce -i MODEL --props FORMULAS --output DIRECTORY`. It exports the
+matched reduced model and simplified formulas without running analysis; see
+[reduction command](../reduction/cli/README.md). In analysis modes, structural
+facts simplify formulas and resolved properties leave the pending set before
+walk/CTL/LP machinery is allocated.

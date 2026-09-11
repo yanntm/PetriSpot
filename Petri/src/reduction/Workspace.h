@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 #include "core/SparsePetriNet.h"
@@ -32,6 +33,7 @@ public:
   Configuration config;
   size_t changes = 0;
   bool limited = false;
+  std::optional<bool> deadlock;
   std::chrono::steady_clock::time_point deadline;
 
   Workspace(SparsePetriNet<T> net, Configuration options, std::vector<bool> support)
@@ -80,6 +82,15 @@ public:
   void replacePost(size_t t, SparseArray<T> col) {
     replace(post, producers, t, std::move(col)); ++changes;
   }
+  size_t appendTransition(SparseArray<T> input, SparseArray<T> output, std::string label) {
+    size_t t = transitions.size();
+    pre.appendColumn(SparseArray<T>{}); post.appendColumn(SparseArray<T>{});
+    consumers.addRow(); producers.addRow();
+    transitions.push_back(std::move(label)); liveT.push_back(true);
+    replacePre(t, std::move(input)); replacePost(t, std::move(output));
+    return t;
+  }
+
   void retireTransition(size_t t) {
     if (!liveT[t]) return;
     replacePre(t, {}); replacePost(t, {}); liveT[t] = false;
@@ -101,8 +112,6 @@ public:
   }
 
   std::string composedName(size_t h, size_t f) const {
-    if (transitions[h].size() + transitions[f].size() + 1 > config.maxNameBytes)
-      return "agglo_" + std::to_string(h) + "_" + std::to_string(changes);
     return transitions[h] + "." + transitions[f];
   }
 

@@ -7,8 +7,8 @@ namespace petri::reduction {
 struct SinkPlace {
   static constexpr const char* name = "sink-place";
   template<class T> static void apply(Workspace<T>& w) {
-    if (w.config.goal != Goal::REACHABILITY) return;
-    for (size_t p = 0; p < w.places.size(); ++p) {
+    if (w.config.goal == Goal::STATESPACE) return;
+    for (size_t p = w.places.size(); p-- > 0;) {
       if (p % 256 == 0 && w.stop()) return;
       if (w.liveP[p] && !w.observed[p] && w.consumers.getColumn(p).size() == 0) w.retirePlace(p);
     }

@@ -3,6 +3,7 @@
 #include <ostream>
 #include "expr/Property.h"
 #include "reduction/Reduce.h"
+#include "reduction/PropertyFacts.h"
 
 namespace petri::reduction {
 inline void collectSupport(const expr::Expression& expression, std::vector<bool>& support) {
@@ -61,7 +62,14 @@ std::optional<Result<T>> prepareQueries(const SparsePetriNet<T>& original,
   auto start = std::chrono::steady_clock::now();
   auto result = reduce(original, config, std::move(support));
   for (auto& property : properties) { remap(property.body, result.placeMap); remap(property.ctl, result.placeMap); }
-  diagnostics << "Reduction (native subset): " << original.getPlaceCount() << " -> "
+  if (result.deadlock.has_value()) {
+    for (auto& property : properties) if (property.kind == expr::PropertyKind::Deadlock) {
+      property.kind = expr::PropertyKind::Reachability;
+      property.body = expr::Expression::constant(*result.deadlock);
+    }
+    diagnostics << "Reduction deadlock deduction: " << (*result.deadlock ? "TRUE" : "FALSE") << ".\n";
+  }
+  diagnostics << "Reduction (native): " << original.getPlaceCount() << " -> "
       << result.net.getPlaceCount() << " places, " << original.getTransitionCount() << " -> "
       << result.net.getTransitionCount() << " transitions, " << original.getArcCount() << " -> "
       << result.net.getArcCount() << " arcs, "

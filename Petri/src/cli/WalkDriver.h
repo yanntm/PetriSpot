@@ -25,6 +25,7 @@
 #include "parse/PropertyFile.h"
 #include "parse/sexpr/HintReader.h"
 #include "reduction/Properties.h"
+#include "reduction/cli/PropertyResults.h"
 #include "invariants/InvariantMiddle.h"
 #include "walk/Components.h"
 #include "walk/Knowledge.h"
@@ -324,6 +325,7 @@ template<typename T>
     using petri::expr::PropertyKind;
     std::vector<petri::walk::Target<T>> targets;
     std::vector<std::string> names, verdicts;
+    const SparseArray<T> initial(pn.getMarks());
     for (const auto &prop : props) {
       if (prop.kind == PropertyKind::Unsupported) {
         std::cout << "Skipping " << prop.name << " : " << prop.comment << std::endl;
@@ -338,6 +340,11 @@ template<typename T>
         if (goal.kind == petri::expr::Expression::Kind::False) {
           std::cout << "FORMULA " << prop.name << " " << (prop.kind == PropertyKind::Invariant ? "TRUE" : "FALSE")
               << " TECHNIQUES TOPOLOGICAL TRIVIAL" << std::endl;
+          continue;
+        }
+        if (goal.eval(initial)) {
+          std::cout << "FORMULA " << prop.name << " " << prop.verdictIfReached()
+              << " TECHNIQUES TOPOLOGICAL INITIAL_STATE" << std::endl;
           continue;
         }
         targets.push_back (petri::walk::Target<T> (std::move (goal)));
@@ -378,6 +385,9 @@ template<typename T>
       printProperties (props, pn, o.printPropsFormat);
       return;
     }
+    petri::reduction::simplifyProperties(pn, props);
+    petri::reduction::consumeSolvedProperties(pn, props, std::cout);
+    if (props.empty()) return;
     // CTL properties have their own engine; the rest go to the walk
     std::vector<petri::expr::Property> ctlProps;
     for (const auto &p : props) if (p.kind == petri::expr::PropertyKind::CTL) ctlProps.push_back (p);
@@ -498,12 +508,16 @@ template<typename T>
   {
     std::vector<petri::expr::Property> properties(1);
     properties[0].kind = petri::expr::PropertyKind::Deadlock;
+    properties[0].name = "ReachabilityDeadlock";
     petri::reduction::Configuration reductionConfig;
     reductionConfig.timeLimit = std::chrono::milliseconds(o.reductionMs);
     reductionConfig.agglomeration = !o.reductionNoAgglo;
     auto reduced = petri::reduction::prepareQueries(original, properties, o.reduce,
         o.trace || !o.hintsFile.empty(), reductionConfig, std::cerr);
     const auto& pn = reduced ? reduced->net : original;
+    petri::reduction::simplifyProperties(pn, properties);
+    petri::reduction::consumeSolvedProperties(pn, properties, std::cout);
+    if (properties.empty()) return;
     petri::walk::WalkBudget budget = o.budget;
     budget.timeoutMillis = static_cast<uint64_t> (o.timeout) * 1000;
     budget.recordTrace = o.trace;

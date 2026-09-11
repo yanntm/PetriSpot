@@ -58,6 +58,9 @@ template<typename T>
     auto reduced = petri::reduction::prepareQueries(original, props, o.reduce,
         o.trace || !o.hintsFile.empty() || !o.lpHintsFile.empty(), reductionConfig, std::cerr);
     const auto& pn = reduced ? reduced->net : original;
+    petri::reduction::simplifyProperties(pn, props);
+    petri::reduction::consumeSolvedProperties(pn, props, std::cout);
+    if (props.empty()) return;
     petri::lp::StateEquation<T> se (pn);
     std::cout << "State equation: " << pn.getPlaceCount () << " places, " << pn.getTransitionCount ()
         << " transitions, effects in " << millisSince (t0) << " ms." << std::endl;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <limits>
 #include <stdexcept>
 #include <string_view>
 
@@ -27,14 +28,19 @@ struct Configuration {
   bool agglomeration = true;
   bool relevance = true;
   size_t maxPasses = 1000;
-  size_t maxComposedArcs = 100000;
+  size_t maxComposedArcs = std::numeric_limits<size_t>::max();
+  size_t postCrossProductLimit = 32;
+  size_t complexPostApplications = 101;
+  size_t redundantTransitionLimit = 20000;
+  size_t futureBucketLimit = 10000;
   size_t maxNameBytes = 1024;
   size_t implicitDepth = 5;
   std::chrono::milliseconds timeLimit {15000};
 };
 
 inline bool permitsAgglomeration(const Configuration& c) {
-  return c.agglomeration && (c.goal == Goal::REACHABILITY || c.goal == Goal::DEADLOCK);
+  return c.agglomeration && c.goal != Goal::NONE && c.goal != Goal::LTL
+      && c.goal != Goal::STATESPACE;
 }
 
 } // namespace petri::reduction

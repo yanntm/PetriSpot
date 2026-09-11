@@ -1,97 +1,146 @@
 # Native structural reductions
 
-Initial implementation under `Petri/src/reduction/`, following its design.
-The module is owned by PetriSpot; reference repositories are read-only. No
-cluster execution is used. Local model validation has a 15-second hard limit.
+The reachability/deadlock structural rule inventory of ITS-Tools
+`StructuralReduction.reduce()` is implemented under `Petri/src/reduction/`.
+This is an implementation-coverage statement, not a claim of demonstrated
+performance parity or complete ITS-Tools preprocessing parity. The outer Java
+solver also invokes SMT and solver-specific transformations.
 
-## Scope
+## Implemented rules
 
-First increment: isolated workspace, named goals, coordinator, 11 rules covering
-local cleanup, empty siphons, fork/join implicit places, reachability relevance,
-trivial post and restricted pre/post-agglomeration. All
-ITS-Tools goal names remain recognizable; complete reference rule/schedule
-parity is not claimed. High-debug rendering, image support, counting metadata
-transport and executable trace lifting remain separate increments.
+Each rule has its own header, guards and documented transformation. Trivial post
+agglomeration remains an independent in-place column rewrite. Simple/complex
+variants of a given general Java rule share that rule's recognition code.
 
-## Engineering questions
+| Family | Native files / coverage |
+|---|---|
+| Place cleanup | ConstantPlace, EmptySiphon, SinkPlace, DuplicatePlace |
+| Transition cleanup | NoEffect, SinkTransition, DuplicateTransition, ScalarTransition |
+| Deadlock deduction | SourceTransition; cyclic-SCC absence in PrefixOfInterest |
+| Graph reductions | FreeSCC, PrefixOfInterest, LoopBack; separate stabilizing analysis |
+| Structural implicit places | ImplicitForkJoin, Java depth-5 causal test |
+| Agglomeration | TrivialPost, PreAgglo simple/complex, PostAgglo simple/general/complex |
+| Free/partial agglomeration | FreeAgglo simple/complex, PartialFreeAgglo, PartialPostAgglo |
+| Future fusion | FutureEquivalent, outgoing-degree buckets and greedy matching |
+| Transition dominance/composition | RedundantComposition, equal effects then guaranteed two-step sequences |
+| Initial marking rewrite | InitialTokenMove, final-stability invisible continuation |
+| Specialized bounds method | BoundsDominance, deliberately unscheduled as in Java's caller |
 
-The existing `SparsePetriNet` has no bulk replacement preserving names, so the
-module publishes through its existing named builders. This adds one sparse
-linear pass without changing core APIs. Retired transition slots are explicitly
-inactive; clearing their columns never creates source transitions.
+Bounds follow Java's reachability reduction configuration with objective places
+protected. The separate positive-effect dominance method exists, but its sole
+UpperBoundsSolver call is commented out in the reference. Activating it would
+change reference behavior and requires assessing the omitted negative effects.
+The upper-bound solver's external inference/SMT loop is not part of reduce().
 
-Observed constants initially remain as isolated places. That preserves the
-existing property coefficient width without needing wide constant substitution.
-Original executable witnesses and Parikh hints need lifting across rewriting;
-the CLI must retain the original net when these artifacts are requested.
+## Scheduling and engineering
 
-`--reduce` is opt-in and runs after property parsing but before existing walk,
-CTL or LP compilation. Deadlock queries use their own reduction goal. Mixed
-deadlock/state queries and general CTL use the conservative strong local subset.
-The original input is kept for exports/invariants and for trace/hint requests.
-Only CLI Options, WalkDriver and LpDriver require code edits outside the module;
-core, expression trees, solver implementations and libHSC are unchanged.
+The coordinator follows the Java reachability/deadlock phase order: initial
+free SCC/prefix; inner cleanup, prefix, implicit, conditional SCC, trivial or
+simple post to stability; then pre, future fusion, general/complex post, complex
+pre, SCC/prefix fallbacks. Siphon cleanup always follows. At stability come
+redundant composition, free/partial agglomeration, then token movement. Four
+consecutive transition-growing outer rounds stop expansion.
+
+Preserved limits include implicit depth 5, redundant-composition cutoff 20,000
+active transitions, future bucket cutoff 10,000 places, post cross-product
+cutoff 32 when both sides branch, and 101 complex-post applications per pass.
+Long transition names trigger Java's whole-net renaming after the pre phase.
+Optional explicit arc/pass/time limits remain configuration controls; the arc
+limit defaults to unlimited rather than silently rejecting reference cases.
+
+The workspace maintains pre/post matrices and sparse transposes with stable
+slots. Retired columns are inactive, never mistaken for source transitions.
+General composition prepares and deduplicates products before clearing old
+columns and appending new ones. Partial rules retain their boundary place and
+opposite-side transitions. Publication compacts through existing net builders.
+Core, solver implementations and libHSC are unchanged.
+
+Details worth retaining in future audits:
+
+* Java's current quasi-persistence helper is precisely the no-competing-consumer
+  test. No stronger alternative is substituted for it.
+* Prefix pruning removes former consumers of deleted places only when their
+  remaining preset is empty. The repeated flowPT test in Java is preserved
+  literally; it is not replaced by a postset test.
+* The source-transition deduction is checked before graph analysis as well as
+  during transition cleanup. Sources produce no place-graph input edges and
+  must not be mistaken for evidence of inevitable deadlock.
+* Stabilizing transitions are excluded only while finding deadlock cyclic seeds;
+  the complete graph is restored for predecessor closure.
+* Future matching retains Java's greedy matching and equalUptoPerm merge-walk
+  conditions. Its unusual early exits remain an audit topic, not an invitation
+  to broaden matching silently.
+* Scalar comparison uses immutable pair orientation. Java's swapping of outer
+  loop variables is not reproduced as mutation of the next comparison.
+* Pre-firing uses checked multiplication and sparse marking updates instead of
+  iterating once per token. It preserves the complete-firing result and Java's
+  discarded unusable remainder.
+
+SCC representatives and unordered candidate iteration need not yield identical
+names or final net sizes. Checked arithmetic reports overflow instead of Java
+integer wraparound. These implementation differences are not stronger rule
+premises. No C++ speedup is claimed without measurements.
+
+## Properties and the standalone use case
+
+`petri64 reduce -i MODEL --props FORMULAS --output DIRECTORY` writes a matched
+`model.pnet`, `properties.sexpr`, and `names.sexpr`, without solving. Supported
+formulas are remapped and constant place values are substituted before ordinary
+expression simplification. Boolean constants remain in the exported query file.
+Constant bounds retain their form and an exact known upper bound because the
+existing bound syntax has no affine constant term.
+
+In normal MCC analysis, resolved properties are reported and dropped before
+walk/CTL/LP construction; only remaining goals are explored. This connects
+structural results to the existing portfolio lifecycle. A transition-free net
+needs no special solver path: its coordinates are constant and formulas simplify.
+Observed constant coordinates currently remain in the published net; repeating
+support reduction after solved-property removal can compact the pair further.
+
+Executable original traces and transition hints retain the original model until
+lifting exists. Input PNET counting records are explicitly omitted by standalone
+export. Trace hooks compile out with NoTrace. Enabled hooks currently observe
+rule passes; bounded per-application captures and animated PDF output remain
+unimplemented, as do image transport and full SI-specific completion.
 
 ## Validation
 
-The maintained suite is `Petri/test/reduction/`: existing MCC instances and
-their supplied formulas through the real CLI, original and reduced, against
-the existing contest oracle. The small finite-state check from bring-up is
-retained as a supplementary diagnostic; validation effort goes into MCC models
-and formulas rather than expanding generated tests.
-Each model is a separate worker capped at 15 seconds across archive extraction
-and all of its analysis subprocesses. Archives are extracted temporarily inside
-the corpus and cleaned after use. No cluster runs or benchmark copies in this
-repository. Raw results live under
+Validation uses existing MCC P/T archives and their supplied formulas, with
+existing contest oracles, through the real CLI. Each model has a hard 15-second
+shared allowance across extraction and its original/reduced subprocesses. No
+cluster jobs run, no new generated tests were added, and archives are extracted
+only temporarily inside the existing corpus. Results are in
 `/data/ythierry/MCC26logs/local/native-reduction/`.
 
-* All three binaries (`petri32`, `petri64`, `petri128`) build. Compiler output
-  contains existing sibling warnings; no reduction-header warnings were found.
-  Actual build types are int/long/long long; the binary names do not imply a
-  native 128-bit marking type in the current CMake configuration.
-* `pilot.jsonl`: 25 P/T instances, 300 original/reduced CLI runs across RC, RF,
-  UB, CTLC, CTLF and RD. 805 oracle matches, zero oracle disagreements,
-  pairwise conflicts, errors or timeouts. This pilot preceded addition of the
-  restricted pre and implicit fork/join rules.
-* `lp-pilot.jsonl`: 25 P/T instances, 150 original/reduced LP runs over RC/RF/UB.
-  173 oracle matches (85 original, 88 reduced), zero oracle disagreements,
-  conflicts, errors or timeouts.
-* `full.jsonl`: whole P/T corpus pass in progress; final coverage and exceptions
-  will be recorded after completion. The binary stays fixed throughout it.
+* All three standard binaries build. Their actual current types are int/long/
+  long long; binary names do not imply a native 128-bit marking type. Existing
+  sibling compiler warnings remain.
+* Earlier subset: `full.jsonl`, all 1,681 P/T models, 19,714 executions,
+  63,983 oracle matches, zero original/reduced verdict conflicts. One CTL oracle
+  disagreement occurs in both modes on GPPP-PT-C0010N1000000000, property
+  CTLCardinality-2024-08 (FALSE versus oracle TRUE), with unchanged net sizes.
+  There are 35 original and 55 reduced invocation timeouts plus 94 model-deadline
+  records. These are results for the earlier subset, not the completed inventory.
+* Graph/general-agglomeration increment: `graph-pilot.jsonl`, 25 models,
+  300 executions, 882 oracle matches, no disagreements/conflicts/errors/timeouts.
+* `graph-cops.jsonl`: five CopsAndRobbers models, 60 executions, 340 oracle
+  matches, no disagreements/conflicts/errors/timeouts; prefix pruning exercised.
+* `standalone-db.jsonl`: DBSingleClientW-PT-d1m07, RC/RF/UB/RD exported-pair
+  analysis, eight executions, 63 oracle matches, no errors or timeouts. All
+  16 bound formulas resolve to the oracle value 0. The reduced UB net has zero
+  transitions; the separate analysis returns in milliseconds without walking.
+* `reach-deadlock-full.jsonl`: new whole-corpus RC/RF/UB/RD campaign running on
+  the complete structural inventory. Its fixed binary is petri64-complete.
+  The first 176 processed models have 4,164 oracle matches and no wrong
+  answers/conflicts/errors, but 12 reduced and three original invocation timeouts
+  plus 15 model-deadline records. BlocksWorld
+  instances reach the shared allowance during preprocessing; these are concrete
+  performance findings to investigate, not evidence of graph-rule linearity.
 
-These are bounded validation runs, not a solver ranking or proof of all rule
-implementations. Unknown answers count neither as agreement nor as disagreement.
-An oracle `?` or absent entry leaves an emitted answer unverified. UB lower
-bounds are checked not to exceed known oracle maxima. Reduced runs precede
-original runs within each shared model allowance; timeout asymmetry therefore
-precludes a fair performance/coverage comparison from this campaign alone.
-Reduction summaries distinguish preprocessing time from analysis/parse time.
-
-## Reference observations and next coverage
-
-Existing ITS-Tools RC logs under `itstools/2026090600/RC` identify reduction-rich
-examples: `OAR.1333844.stdout` (CopsAndRobbers), `OAR.1334338.stdout`
-(HirschbergSinclair), `OAR.1333818.stdout` (CloudReconfiguration). Keep these
-as external references when bringing additional rule variants to parity.
-
-The coordinator currently follows cleanup-to-stability then siphon/implicit,
-trivial post, single-consumer post, single-producer pre, returning to cleanup
-after progress. It does not yet claim the reference's complete nested schedule.
-Missing families include free SCC/future-equivalence fusion, broader and partial
-agglomerations, redundant compositions/scalar multiples, token pre-firing and
-the reference's temporal/deadlock SCC reasoning. Their existing applicability
-conditions and model-specific performance limits need explicit transcription.
-
-STATESPACE currently keeps every place and duplicate transition rather than
-reconstructing token/arc metadata. LIVENESS skips constant/siphon removal so
-dead-transition obligations are not lost. No API yet transports PNET counting
-records or Java images. Pass-level trace-policy hooks compile out under
-`NoTrace`; application-level local captures and PDF rendering remain pending.
-
-Most current scans are linear in sparse structure, but repeated fixed points,
-hash collision buckets and depth-bounded causal search are not a universal
-linear-time guarantee. `--reductionMs` is checked cooperatively between batches;
-the external per-model timeout is the hard limit. Weighted agglomerates are
-prepared with checked arithmetic before mutation; an overflow currently raises
-an explicit error rather than returning a partially reduced result. Improving
-that recovery belongs in a later increment.
+This bounded campaign is not a solver ranking. Unknowns are neither agreements
+nor errors; absent/? oracle entries leave answers unverified. Bound lower bounds
+must not exceed known maxima. Reduced runs come first within the shared allowance,
+so original/reduced timeout asymmetry is not a fair performance comparison.
+Most scans are sparse, but graph edge generation costs sum(|pre|*|post|), future
+matching and composition searches can be quadratic, and repeated fixed points
+add work. Cooperative reduction deadlines do not replace the external hard cap.
