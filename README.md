@@ -67,6 +67,12 @@ by group.
 - `--Psemiflows`: Compute generative basis of semi-flows on places
 - `--Tflows`: Compute generative basis of generalized flows on transitions
 - `--Tsemiflows`: Compute generative basis of semi-flows on transitions
+- `--collectInequalities`: Also collect nonnegative vectors with one-sign
+  effects at phase-1 discard sites. This is incomplete, with no change to
+  pivots or the equality basis; disabled by default.
+- `--decreasingKERS=<file>` / `--increasingKERS=<file>`: Export those vectors
+  as ordinary KERS matrices; either option enables collection. Use one P/T
+  orientation per export invocation. See [the algorithm](Petri/src/invariants/algorithm.md).
 - `--findDeadlock`: Proof of concept for finding deadlocks (not heavily tested)
 
 ## Examples

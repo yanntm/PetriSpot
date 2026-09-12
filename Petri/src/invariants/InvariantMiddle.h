@@ -39,6 +39,37 @@ template<typename T>
     using Permutations = typename InvariantCalculator<T>::Permutations;
     using Invariants = std::pair<MatrixCol<T>, Permutations>;
 
+    // BEGIN optional inequality API: the legacy pair-returning API is unchanged.
+    struct ResultWithInequalities {
+      MatrixCol<T> basis;
+      Permutations permutations;
+      Inequalities<T> inequalities;
+    };
+
+    /** Collect phase-1 certificates, using a cooperative deadline if supplied.
+     * pn has variables as rows; inequalities refer to pn^T * b.
+     */
+    static ResultWithInequalities computePInvariantsWithInequalities (
+        const MatrixCol<T>& pn, bool onlyPositive,
+        const EliminationHeuristic& heuristic = EliminationHeuristic(),
+        typename InvariantCalculator<T>::Deadline deadline = InvariantCalculator<T>::NO_DEADLINE)
+    {
+      ResultWithInequalities result {MatrixCol<T>(), {}, Inequalities<T>(pn.getRowCount())};
+      InequalityCollector<T> collector(result.inequalities);
+      try {
+        auto tpn = pn.transpose();
+        auto basis = InvariantCalculator<T>::calcInvariantsPIPEWithInequalities(
+            tpn, onlyPositive, heuristic, deadline, collector);
+        result.basis = std::move(basis.first);
+        result.permutations = std::move(basis.second);
+      } catch (const std::overflow_error& e) {
+        std::cerr << e.what() << std::endl;
+        writeToLog("Invariant computation overflowed; returning collected inequalities only.");
+      }
+      return result;
+    }
+    // END optional inequality API.
+
     /**
      * Guaranteed polynomial runtime, returns flows (with positive AND negative
      * coefficients)

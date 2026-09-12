@@ -106,6 +106,29 @@ petri64 --loadKERS=model.kers --Psemiflows --basisKERS=basis.kers
 petri64 -i model.pnml --Psemiflows --basisKERS=basis.kers
 ```
 
+## Optional inequality certificates
+
+Alongside a flow or semiflow computation, `--collectInequalities` harvests
+nonnegative vectors whose effects have one sign at phase-1 discard sites.
+This is incomplete and does not enumerate the inequality cone. The equality
+basis and pivot choices are unchanged.
+
+```
+petri64 --loadKERS=model.kers --Pflows --basisKERS=basis.kers \
+  --decreasingKERS=decreasing.kers --increasingKERS=increasing.kers
+```
+
+Either inequality export flag enables collection. Each file is an ordinary
+KERS matrix: original variables as rows, collected vectors as columns, including
+the correct row dimension when no vectors were found. For the input M in P
+mode, decreasing means M^T b <= 0 and increasing means M^T b >= 0, with b >= 0
+and a nonzero effect. In T mode these relations use M b instead. The direction
+is specified by the output option, not stored in the KERS header. No initial
+marking, bound constant, compressed permutation, or effect vector is stored.
+Output paths must differ, and an export invocation must select one P/T
+orientation. Without a marking, textual inequalities describe the matrix
+relation only.
+
 ## kersconv — ASCII conversion utility
 
 `kersconv` is a small companion tool for inspecting and constructing KERS files without PetriSpot.

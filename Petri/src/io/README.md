@@ -2,6 +2,8 @@
 
 * `SparseMatrixIO.h` — KERS binary sparse matrix format (see `KERS.md`); file
   and stream overloads, the stream ones read or write one block.
+  Optional inequality exports use the same format, with direction specified
+  by `--decreasingKERS` or `--increasingKERS`, not by the binary header.
 * `PNET.md` — the container specification: header, the three mandatory KERS
   blocks, and the optional named blocks with their semantics. Vendored into
   libHSC beside the reader.

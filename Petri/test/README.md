@@ -8,6 +8,13 @@
 * `logs/` — run logs, git-ignored. `baseline_*.txt` are the invariant outputs
   of the example nets used as a regression reference.
 * `bench_kers.sh` — KERS input/output benchmark of the invariant solver.
+* `inequalities.cpp` — isolated opt-in collector regression. Compile with
+  `g++ -std=c++23 -O1 -pthread -I Petri/src Petri/test/inequalities.cpp -o build/test-inequalities`.
+  Run one input per invocation, e.g. `timeout 15s build/test-inequalities sieve`;
+  other inputs are `growing`, `mixed`, `scaled`, `empty`, or an integer seed
+  for a tiny 6-by-4 matrix. Checks exact certificates against original input
+  and equality-result parity across P/T, flow/semiflow, culling, single-sign,
+  Q+ and compression options. Redirect solver output to `test/logs/`.
 * `sexpr_roundtrip.sh` — MCC XML to s-expressions and back on the property
   files of the given model folders (reachability, bounds and CTL); the ASTs
   must agree.

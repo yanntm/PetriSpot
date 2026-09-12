@@ -11,6 +11,10 @@ The `petri*` binaries are one `main` (`src/Petri.cpp`) over these headers.
 * `InvariantDriver.h` — the invariant computations: from a KERS matrix
   (`--loadKERS`, program-to-program mode) or from a loaded net (P/T flows and
   semi-flows, printing, `--basisKERS` export).
+* `InequalityDriver.h` — dispatch and output for optional phase-1 inequality
+  collection (`--collectInequalities`, `--decreasingKERS`, `--increasingKERS`).
+  Existing requests keep the legacy API; the opt-in path uses a cooperative
+  deadline and never changes solver heuristics.
 * `WalkDriver.h` — the reachability side: property loading and printing,
   the round scheduler over open properties (`--totalTime`, `--escalate`), the portfolio run
   for one target and the `FORMULA` output, `--findDeadlock`. CTL properties

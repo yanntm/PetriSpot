@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "cli/Options.h"
+#include "cli/InequalityDriver.h"
 #include "core/MatrixCol.h"
 #include "core/SparsePetriNet.h"
 #include "invariants/InvariantMiddle.h"
@@ -49,7 +50,7 @@ template<typename T>
     MatrixCol<T> toUse = transposed ? M.transpose () : M;
     EliminationHeuristic heur = o.heuristic (false);
     auto time = std::chrono::steady_clock::now ();
-    auto [mat, perms] = InvariantMiddle<T>::computePInvariants (toUse, semi, o.timeout, heur);
+    auto [mat, perms] = computeRequestedInvariants (o, toUse, semi, heur);
     std::cout << "Computed " << mat.getColumnCount () << " " << (transposed ? "T" : "P") << " "
         << (semi ? "semi" : "") << "flows in " << millisSince (time) << " ms." << std::endl;
     // basisKERS implies program-to-program mode: no human-readable listing
@@ -76,7 +77,8 @@ template<typename T>
     auto time = std::chrono::steady_clock::now ();
     MatrixCol<T> sumMatrix = MatrixCol<T>::sumProd (-1, pn.getFlowPT (), 1, pn.getFlowTP ());
     if (onTransitions) sumMatrix = sumMatrix.transpose ();
-    auto [mat, perms] = InvariantMiddle<T>::computePInvariants (sumMatrix, semi, o.timeout, heur);
+    auto [mat, perms] = computeRequestedInvariants (o, sumMatrix, semi, heur,
+        onTransitions ? &pn.getTnames() : &pn.getPnames(), onTransitions ? nullptr : &pn.getMarks());
     std::cout << "Computed " << mat.getColumnCount () << " " << (onTransitions ? "T " : "P ")
         << (semi ? "semi" : "") << "flows ";
     if (!perms.empty ()) {

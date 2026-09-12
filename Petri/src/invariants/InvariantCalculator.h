@@ -51,6 +51,7 @@
 #include "invariants/RowSignDomination.h"
 #include "invariants/InvariantsTrivial.h"
 #include "invariants/Heuristic.h"
+#include "invariants/Inequalities.h"
 #include "invariants/MixedSignsUniqueTable.h"
 
 namespace petri
@@ -127,8 +128,28 @@ template<typename T>
     static constexpr Deadline NO_DEADLINE = Deadline::max ();
 
     static std::pair<MatrixCol<T>, Permutations> calcInvariantsPIPE (
+        MatrixCol<T>& mat, bool onlyPositive,
+        const EliminationHeuristic& heur = EliminationHeuristic(), Deadline deadline = NO_DEADLINE)
+    {
+      return calcInvariantsPIPEImpl<false>(mat, onlyPositive, heur, deadline, nullptr);
+    }
+
+    // BEGIN optional inequality entry point; preserve the legacy signature above.
+    static std::pair<MatrixCol<T>, Permutations> calcInvariantsPIPEWithInequalities (
+        MatrixCol<T>& mat, bool onlyPositive, const EliminationHeuristic& heur,
+        Deadline deadline, InequalityCollector<T>& collector)
+    {
+      return calcInvariantsPIPEImpl<true>(mat, onlyPositive, heur, deadline, &collector);
+    }
+    // END optional inequality entry point.
+
+  private:
+    // Optional harvesting is compiled out of the legacy instantiation.
+    template<bool CollectInequalities>
+    static std::pair<MatrixCol<T>, Permutations> calcInvariantsPIPEImpl (
         MatrixCol<T> &mat, bool onlyPositive, const EliminationHeuristic &heur =
-            EliminationHeuristic (), Deadline deadline = NO_DEADLINE)
+            EliminationHeuristic (), Deadline deadline = NO_DEADLINE,
+        InequalityCollector<T>* collector = nullptr)
     {
       if (mat.getColumnCount () == 0 || mat.getRowCount () == 0) {
         return {MatrixCol<T> (), {}};
@@ -149,7 +170,7 @@ template<typename T>
 
       mat = mat.transpose ();
 
-      MatrixCol<T> matB = phase1PIPE (mat, onlyPositive, heur, deadline);
+      MatrixCol<T> matB = phase1PIPE<CollectInequalities> (mat, onlyPositive, heur, deadline, collector);
       if (matB.getColumnCount () == 0) {
         return {MatrixCol<T> (), {}}; // phase 1 stopped at the deadline: no basis, nothing to keep
       }
@@ -201,8 +222,10 @@ template<typename T>
      * @param heur         Heuristic settings for pivot selection and elimination order.
      * @return The transformation matrix matB representing the basis of flows.
      */
+    template<bool CollectInequalities = false>
     static MatrixCol<T> phase1PIPE (MatrixCol<T> &matC, bool onlyPositive,
-                                    const EliminationHeuristic &heur, Deadline deadline = NO_DEADLINE)
+                                    const EliminationHeuristic &heur, Deadline deadline = NO_DEADLINE,
+                                    InequalityCollector<T>* collector = nullptr)
     {
       // Build the initial transformation matrix.
       MatrixCol<T> matB = MatrixCol<T>::identity (matC.getColumnCount (),
@@ -245,8 +268,8 @@ template<typename T>
           auto pm = rs.pMinus.size ();
           auto pp = rs.pPlus.size ();
           if ((pm == 0 && pp > 0) || (pp == 0 && pm > 0)) {
-            eliminateRowWithPivot (PivotChoice (row, -1), matC, matB, rowSigns,
-                                   onlyPositive);
+            eliminateRowWithPivot<CollectInequalities> (PivotChoice (row, -1), matC, matB, rowSigns,
+                                   onlyPositive, collector);
             elim++;
           }
         }
@@ -268,7 +291,7 @@ template<typename T>
           std::cout << "Phase 1 stopped at the deadline after " << rounds << " eliminations: no flow basis." << std::endl;
           return MatrixCol<T> ();
         }
-        applyRowElimination (matC, matB, rowSigns, counts, onlyPositive, heur);
+        applyRowElimination<CollectInequalities> (matC, matB, rowSigns, counts, onlyPositive, heur, collector);
         if (DEBUG) {
           std::cout << "Mat max : " << matC.maxVal () << std::endl;
           std::cout << "B max : " << matB.maxVal () << std::endl;
@@ -1241,11 +1264,13 @@ template<typename T>
      * @param onlyPositive Enforces semiflow constraints if true.
      * @param heur        Heuristic settings for pivot selection.
      */
+    template<bool CollectInequalities = false>
     static void applyRowElimination (MatrixCol<T> &matC, MatrixCol<T> &matB,
     RowSigns<T> &rowSigns,
                                      std::pair<size_t, size_t> &counts,
                                      bool onlyPositive,
-                                     const EliminationHeuristic &heur)
+                                     const EliminationHeuristic &heur,
+                                     InequalityCollector<T>* collector = nullptr)
     {
       // Prioritize single-sign rows for faster elimination when enabled by heuristics.
       // 1) Check Single-Sign rows first:
@@ -1254,7 +1279,7 @@ template<typename T>
         // possibly compare matC column sizes if both are size 1
         auto pivot = findSingleSignPivot (matC, rowSigns, heur.getLoopLimit ());
         if (pivot.isSet ()) {
-          eliminateRowWithPivot (pivot, matC, matB, rowSigns, onlyPositive);
+          eliminateRowWithPivot<CollectInequalities> (pivot, matC, matB, rowSigns, onlyPositive, collector);
           counts.first++;
           return;
         }
@@ -1266,7 +1291,7 @@ template<typename T>
       auto pivot = findBestPivot (matC, rowSigns, onlyPositive,
                                   heur.getLoopLimit ());
       // pivot is set or matC would be zero
-      eliminateRowWithPivot (pivot, matC, matB, rowSigns, onlyPositive);
+      eliminateRowWithPivot<CollectInequalities> (pivot, matC, matB, rowSigns, onlyPositive, collector);
       counts.second++;
     }
 
@@ -1286,10 +1311,12 @@ template<typename T>
       }
     };
 
+    template<bool CollectInequalities = false>
     static void eliminateRowWithPivot (const PivotChoice pivot,
                                        MatrixCol<T> &matC, MatrixCol<T> &matB,
                                        RowSigns<T> &rowSigns,
-                                       bool onlyPositive)
+                                       bool onlyPositive,
+                                       InequalityCollector<T>* collector = nullptr)
     {
       assert(pivot.isSet ());
       const auto &tRow = pivot.row;
@@ -1310,6 +1337,10 @@ template<typename T>
         // that means it exists a row that all components are positive respectively negative
         // [1.1.a] delete from the extended matrix all the columns of index j \in P+ \cup P-
         for (size_t i = 0, ie = toVisit.size (); i < ie; i++) {
+          // BEGIN optional inequality harvest: read-only, discard boundary only.
+          if constexpr (CollectInequalities)
+            collector->observe(matB.getColumn(toVisit.keyAt(i)), matC.getColumn(toVisit.keyAt(i)));
+          // END optional inequality harvest.
           clearColumn (toVisit.keyAt (i), matC, matB, rowSigns);
         }
         return;
@@ -1375,6 +1406,10 @@ template<typename T>
           }
         }
       }
+      // BEGIN optional inequality harvest: read-only, discard boundary only.
+      if constexpr (CollectInequalities)
+        collector->observe(matB.getColumn(tCol), matC.getColumn(tCol));
+      // END optional inequality harvest.
       // Finally clear the pivot column tCol
       clearColumn (tCol, matC, matB, rowSigns);
     }

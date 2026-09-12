@@ -55,6 +55,9 @@ struct Options
   EliminationHeuristic::PivotStrategy pivot = EliminationHeuristic::PivotStrategy::FindBest;
   ssize_t loopLimit = 500;
   std::string basisKERSFile;
+  bool collectInequalities = false;
+  std::string decreasingKERSFile;
+  std::string increasingKERSFile;
 
   // reachability walk
   std::string propsFile;
@@ -109,6 +112,11 @@ struct Options
   bool invariants () const
   {
     return pflows || psemiflows || tflows || tsemiflows;
+  }
+
+  bool inequalities () const
+  {
+    return collectInequalities || !decreasingKERSFile.empty () || !increasingKERSFile.empty ();
   }
 
   EliminationHeuristic heuristic (bool compression) const
@@ -166,6 +174,12 @@ inline void addOptions (CLI::App &app, Options &o)
   inv->add_flag ("--minBasis", o.minimizeFlows, "Minimise the semi-flow basis.");
   inv->add_option ("--basisKERS", o.basisKERSFile,
                    "Write the basis in KERS format (program-to-program mode: no listing).");
+  inv->add_flag ("--collectInequalities", o.collectInequalities,
+                 "Collect one-sign inequalities at phase-1 discards (incomplete, opt-in).");
+  inv->add_option ("--decreasingKERS", o.decreasingKERSFile,
+                   "Write collected b >= 0 with M^T b <= 0; implies collection.");
+  inv->add_option ("--increasingKERS", o.increasingKERSFile,
+                   "Write collected b >= 0 with M^T b >= 0; implies collection.");
   inv->add_flag ("--useQPlusBasis", o.useQPlusBasis, "Q+ basis for semi-flows.");
   inv->add_flag ("--useCompression", o.useCompression, "Compress the semi-flow basis by permutations.");
   inv->add_flag ("!--noSingleSignRow", o.useSingleSignRow, "Disable the single sign row heuristic.");

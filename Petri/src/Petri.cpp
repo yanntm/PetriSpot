@@ -89,6 +89,7 @@ static int main_noex (int argc, char *argv[])
   } catch (const CLI::ParseError &e) {
     return app.exit (e);
   }
+  petri::cli::validateInequalityOptions(o);
   if (o.pflows && o.psemiflows) {
     std::cout << "Cannot compute P flows and P semi-flows at the same time." << std::endl;
     return 1;
