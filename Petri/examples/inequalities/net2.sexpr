@@ -1,0 +1,6 @@
+(invariant resource-bound (<= p2 5))
+(invariant joint-bound (<= (+ p0 p2) 6))
+(reach resource-overflow (> p2 5))
+(bound resource-maximum p2)
+(bound joint-maximum (+ p0 p2))
+(bound transferred-maximum p1)

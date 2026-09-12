@@ -75,6 +75,10 @@ by group.
   orientation per export invocation. See [the algorithm](Petri/src/invariants/algorithm.md).
 - `--findDeadlock`: Proof of concept for finding deadlocks (not heavily tested)
 
+[Structural inequalities](INEQUALITIES.md) records the harvesting POC,
+observed examples, coverage-oriented search ideas, and proposed bounds/projection
+consumers. The active search is not implemented.
+
 ## Examples
 
 ### Example 1: Petri Net with One Transition Semi-Flow and One Generalized Place Flow

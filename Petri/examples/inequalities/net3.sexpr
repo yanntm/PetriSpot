@@ -1,0 +1,4 @@
+(invariant input-bound (<= p0 1))
+(invariant total-bound (<= (+ p0 p1) 1))
+(reach initial-input (>= p0 1))
+(bound input-maximum p0)

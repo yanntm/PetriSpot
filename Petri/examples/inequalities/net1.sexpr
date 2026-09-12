@@ -1,0 +1,2 @@
+(invariant control-bound (<= (+ p0 p1) 1))
+(invariant accumulated-nonnegative (>= p2 0))
