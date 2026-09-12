@@ -168,6 +168,19 @@ we choose not to form a quotient representation.
 
 ## First consumers: inspected integration points
 
+### Later direction: transition rythms as unboundedness candidates
+
+A nonnegative T vector x with Cx >= 0 and (Cx)_p > 0 is a candidate Parikh
+vector for a repeatable segment growing place p. It can guide the search for
+a firing order and a reachable marking from which that segment executes.
+Once an executable segment from m to m+Cx has been found, ordinary P/T
+monotonicity makes it repeatable and proves p unbounded. The matrix vector
+alone is not that proof: its enabling resources or ordering may be unavailable
+from the initial marking. Use the existing walks to establish the prefix or
+realise the segment, rather than declaring unboundedness from a positive
+effect. This could find proofs faster than unguided self-covering walks. It
+is a later, non-priority direction; no finisher search is implemented.
+
 ### Experiment direction: recovering NUPN unit constraints
 
 A useful future experiment is to hide the NUPN facts from the computation,
@@ -192,7 +205,10 @@ flow equalities, unit at-most constraints, and their intersection S. This is
 the most direct first consumer: unlike the full state equation, that current
 approximation need not already imply our monotonicity inequalities.
 
-Implemented as `hsc-pn --approx-inequalities`, with `--approx` or `--dead`:
+Enabled by default in libHSC's approximation/deadness pass. Use
+`hsc-pn --no-approx-inequalities` to disable it; `--approx-inequalities`
+remains accepted for explicit enabling. Standalone PetriSpot flow scenarios
+remain opt-in, as before.
 
 * The native bridge (`include/hsc/petri/invariants.hh`,
   `src/petri_invariants.cc`) has `pflows_with_inequalities`, carrying separate
@@ -213,7 +229,7 @@ Implemented as `hsc-pn --approx-inequalities`, with `--approx` or `--dead`:
 * Statistics report retained inequalities, additional bound coverage and
   tighter bounds. Disabled, the approximation still calls the original bridge.
 * Bound queries over retained places can now maximise their sum over S in the
-  opt-in path (`pn_approx_bounds.hh`). This yields an upper bound. It becomes
+  inequality-enabled path (`pn_approx_bounds.hh`). This yields an upper bound. It becomes
   an exact numeric FORMULA only when attained by the initial marking; otherwise
   the statistic is retained in the output and the query stays open. No extra
   reachability or flow computation is introduced.
@@ -223,7 +239,8 @@ PetriSpot's LP or walker scenarios and does not implement active search.
 
 ### Consumer observations
 
-Using `--approx 2 --approx-only --printUnknown`, with and without the new flag:
+Using `--approx 2 --approx-only --printUnknown`, comparing harvesting enabled
+and disabled (the original observations preceded making it the default):
 
 * Net 2: coverage rises from 2/3 places to 3/3. The approximation now has 12
   markings over all three places; the old 2-marking set projected p2 away, so
@@ -241,10 +258,20 @@ Using `--approx 2 --approx-only --printUnknown`, with and without the new flag:
 The newly enabled one-place projection exposed a pre-existing boundary in
 libHSC's linear-set surface reader: it reads domains from product arcs, not
 a bare leaf root, producing an empty filtered set for the collapsed shape.
-The opt-in projection now emits `(spine place)` for that case. Its unit tail
+The inequality-enabled projection now emits `(spine place)` for that case. Its unit tail
 adds no variable or state. Net 3's approximation is now the expected nonempty
 two-marking set; a query containing its initial marking is not falsely refuted.
 No calculus-core refactor was needed.
+
+### Cost of making the consumer default
+
+Harvesting reuses the same flow computation, but is not literally free: it
+scans discarded pairs and stores certificates. Under a deadline this overhead
+can reduce how much elimination finishes. More importantly, stronger bounds
+can retain additional places and larger domains in the projection, while
+additional filters cost diagram work. Precision improves for the same facts,
+but total runtime and memory can improve or worsen. The opt-out keeps a direct
+comparison and fallback. No active search is enabled by this default.
 
 ### PetriSpot LP and bounds
 

@@ -69,16 +69,17 @@ one unambiguous variable space.
 
 ## Projection consumer
 
-The accompanying `.sexpr` files ask small bound-related queries. With libHSC's
-opt-in consumer, for example:
+The accompanying `.sexpr` files ask small bound-related queries. libHSC's
+approximation consumes harvested inequalities by default, for example:
 
 ```
 hsc-pn -i Petri/examples/inequalities/net2.pnml --props Petri/examples/inequalities/net2.sexpr \
-  --approx 2 --approx-only --approx-inequalities --printUnknown
+  --approx 2 --approx-only --printUnknown
 ```
 
 Net 2's p2 becomes covered: the resource inequalities are proved and the exact
 maxima p2=5 and p0+p2=6 are reported (both attained initially). Without
 harvesting, these queries remain UNKNOWN because p2 is projected away. Net 3
 now proves p0<=1 and maximum p0=1, but its total bound remains uncovered. See
-the consumer observations in `../../../INEQUALITIES.md`.
+the consumer observations in `../../../INEQUALITIES.md`. Add
+`--no-approx-inequalities` to compare against equality-only approximation.
