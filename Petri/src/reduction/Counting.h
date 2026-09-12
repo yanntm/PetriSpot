@@ -5,6 +5,7 @@
 #include <utility>
 #include <vector>
 #include "core/Arithmetic.hpp"
+#include "counting/Enabling.h"
 
 namespace petri::reduction {
 /** What each object of the net being edited stands for in the net it came
@@ -20,6 +21,7 @@ template<class T> struct Counting {
   std::vector<T> pdrop;
   std::vector<std::pair<T, T>> pconst; // removed free components: tokens, K-1
   std::string arcsLost;
+  std::optional<Enabling<T>> enabling; // original guards, never serialized
 
   static Counting identity(size_t places, size_t transitions) {
     Counting c;
@@ -37,6 +39,7 @@ template<class T> struct Counting {
   }
   /** A constant place holding `marking` tokens leaves the net. */
   void constantDropped(size_t place, T marking) {
+    if (enabling) enabling->constant(place, marking);
     if (pcoef[place] != 0) {
       pconst.emplace_back(marking, pcoef[place]);
       dropArcs("constant free components removed without their internal moves");
@@ -45,6 +48,7 @@ template<class T> struct Counting {
   /** `kept` absorbs `other`: their coefficients add, and the moves inside
    * the component are no longer moves of this net. */
   void placesFused(size_t other, size_t kept) {
+    if (enabling) enabling->fuse(other, kept);
     pcoef[kept] = petri::addExact(pcoef[kept], petri::addExact(pcoef[other], T(1)));
     dropArcs("free components fused: the moves inside them are not the moves of this net");
   }
@@ -53,6 +57,7 @@ template<class T> struct Counting {
   Counting compact(const std::vector<size_t>& placeMap, const std::vector<size_t>& transitionMap) const {
     constexpr size_t absent = std::numeric_limits<size_t>::max();
     Counting out;
+    if (enabling) out.enabling = enabling->compact(placeMap);
     out.pdrop = pdrop; out.pconst = pconst; out.arcsLost = arcsLost;
     size_t live = 0;
     for (size_t p = 0; p < placeMap.size(); ++p) if (placeMap[p] != absent) ++live;

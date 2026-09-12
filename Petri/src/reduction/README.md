@@ -13,6 +13,9 @@ Read [tracing.md](tracing.md) for optional high-debug local views and the future
 multipage PDF showing reduction steps, with bounded capture and no trace work
 in the disabled hot path.
 
+The in-memory reconstruction for exact enabled-transition counts after free
+fusion is specified in [counting/algorithm.md](counting/algorithm.md).
+
 Implemented source responsibilities:
 
 | File | Responsibility |
