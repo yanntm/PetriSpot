@@ -273,6 +273,32 @@ additional filters cost diagram work. Precision improves for the same facts,
 but total runtime and memory can improve or worsen. The opt-out keeps a direct
 comparison and fallback. No active search is enabled by this default.
 
+### Prospective consumer policy: eligibility versus retention
+
+A newly certified bound makes a place eligible for the finite projection; it
+does not require us to retain that place. Dropping any place and its incident
+arcs relaxes the net, whether the place was bounded or not. Our policy still
+discards all places without a certified bound, excluding potentially unbounded
+coordinates from this engine. It can additionally discard bounded places to
+control cost.
+
+Keep the discovered facts and bounds independently of the selected place set.
+Start with a useful subset of bounded places, apply constraints supported on
+that subset, and restore other eligible places when open queries or spurious
+behaviour justify refinement. Known bounds on omitted places remain available;
+they must not be confused with availability of those coordinates to queries.
+Net 2's control query can stay on p0,p1 while its resource query motivates
+restoring p2. There is no obligation to enlarge every projection whenever
+harvesting finds another bound.
+
+This is not implemented. The authoritative projection algorithm and the
+prospective refinement policy are in libHSC's
+`include/hsc/linear/algorithm.md`, sections 4 and 6; `tools/README.md` maps
+them to `pn_approx.hh`, `pn_abstract.hh`, and `pn_approx_pass.hh`. Initial
+incrementality can rebuild selected projections; diagram reuse across variable
+or shape changes is a separate optimisation. The current implementation still
+retains every place with a certified bound.
+
 ### PetriSpot LP and bounds
 
 `cli/LpDriver.h::runLp` currently builds the full state equation; it does not
